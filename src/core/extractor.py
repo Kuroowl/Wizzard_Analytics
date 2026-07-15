@@ -51,7 +51,7 @@ def carregar_dados(caminho_arquivo):
         
         # Garante que as colunas críticas sejam numéricas
         for col in df.columns:
-            if any(palavra in col.lower() for palabra in ['tempo', 'pressao', 'pressure', 'time', 'p_']):
+            if any(palavra in col.lower() for palavra in ['tempo', 'pressao', 'pressure', 'time', 'p_']):
                 # Remove espaços das strings antes de converter
                 df[col] = df[col].astype(str).str.replace(',', '.').str.strip()
                 df[col] = pd.to_numeric(df[col], errors='coerce')
