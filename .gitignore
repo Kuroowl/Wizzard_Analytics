@@ -19,4 +19,7 @@ env/
 *.csv
 *.xlsx
 *.txt
+*.png
 data/
+output/
+
