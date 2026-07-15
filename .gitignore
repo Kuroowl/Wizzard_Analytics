@@ -1,0 +1,22 @@
+# Python bytecode e caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Ambientes virtuais
+venv/
+.venv/
+env/
+
+# Arquivos do sistema e IDEs
+.vscode/
+.idea/
+.DS_Store
+
+# Dados e saídas (evita que PDFs e planilhas de teste subam pro GitHub)
+*.pdf
+*.csv
+*.xlsx
+*.txt
+data/
