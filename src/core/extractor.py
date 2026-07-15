@@ -5,7 +5,8 @@ import pandas as pd
 COLUNAS_CHAVE = [
     'n#', 'data', 'hora', 'tempo', 'time',
     'pressao', 'pressão', 'p1', 'p2', 'p3', 'p4', 'p5',
-    'temp', 'fw', 'ch', 'PRS', 'Temp', 'Ter', 'CH-', 'x' , 'y', 'u' , 'v' , 'z'
+    'temp', 'fw', 'ch', 'PRS', 'Temp', 'Ter', 'CH-', 'x' , 
+    'y', 'u' , 'v' , 'z', 'X', 'Y', 'Z'
 ]
 
 
