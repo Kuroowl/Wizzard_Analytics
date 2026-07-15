@@ -1,39 +1,47 @@
 import pandas as pd
 import re
 
-def detectar_delimitador(caminho_arquivo):
+def detectar_delimitador_e_encoding(caminho_arquivo):
     """
-    Analisa as primeiras linhas do arquivo para detectar se o separador
-    é tabulação (\t), ponto e vírgula (;) ou vírgula (,).
+    Tenta abrir o arquivo com diferentes codificações para detectar
+    o encoding correto (UTF-8 ou CP1252) e o delimitador de colunas.
     """
-    try:
-        with open(caminho_arquivo, 'r', encoding='utf-8', errors='ignore') as f:
-            primeira_linha = f.readline()
-            if '\t' in primeira_linha:
-                return '\t'
-            elif ';' in primeira_linha:
-                return ';'
-            elif ',' in primeira_linha:
-                return ','
-    except Exception as e:
-        print(f"Erro ao detectar delimitador: {e}")
-    return ','  # Retorno padrão caso falhe
+    encodings_para_testar = ['utf-8', 'cp1252', 'latin-1']
+    
+    for encoding in encodings_para_testar:
+        try:
+            with open(caminho_arquivo, 'r', encoding=encoding) as f:
+                primeira_linha = f.readline()
+                
+                # Se conseguiu ler sem dar erro de encoding, descobrimos o correto!
+                if '\t' in primeira_linha:
+                    return '\t', encoding
+                elif ';' in primeira_linha:
+                    return ';', encoding
+                elif ',' in primeira_linha:
+                    return ',', encoding
+                else:
+                    return ',', encoding  # Padrão
+        except UnicodeDecodeError:
+            continue  # Tenta o próximo encoding se este falhar
+            
+    # Se todos falharem, usa padrão seguro
+    return ',', 'latin-1'
 
 
 def carregar_dados(caminho_arquivo):
     """
-    Lê arquivos TXT ou CSV, trata os cabeçalhos, remove linhas inválidas
-    e retorna um DataFrame do Pandas limpo e pronto para uso.
+    Lê arquivos TXT ou CSV, trata automaticamente o encoding e os cabeçalhos,
+    remove linhas inválidas e retorna um DataFrame do Pandas limpo.
     """
-    delimitador = detectar_delimitador(caminho_arquivo)
+    delimitador, encoding_detectado = detectar_delimitador_e_encoding(caminho_arquivo)
     
     try:
-        # Carrega o arquivo tratando vírgula como decimal (comum em arquivos PT-BR)
         df = pd.read_csv(
             caminho_arquivo, 
             sep=delimitador, 
             decimal=',', 
-            encoding='utf-8', 
+            encoding=encoding_detectado, 
             on_bad_lines='skip',
             engine='python'
         )
@@ -43,8 +51,9 @@ def carregar_dados(caminho_arquivo):
         
         # Garante que as colunas críticas sejam numéricas
         for col in df.columns:
-            # Tenta converter colunas que parecem conter dados de tempo/pressão
-            if any(palavra in col.lower() for palavra in ['tempo', 'pressao', 'pressure', 'time', 'p_']):
+            if any(palavra in col.lower() for palabra in ['tempo', 'pressao', 'pressure', 'time', 'p_']):
+                # Remove espaços das strings antes de converter
+                df[col] = df[col].astype(str).str.replace(',', '.').str.strip()
                 df[col] = pd.to_numeric(df[col], errors='coerce')
         
         # Remove linhas que ficaram com valores nulos nas colunas essenciais
@@ -53,25 +62,25 @@ def carregar_dados(caminho_arquivo):
         return df
 
     except Exception as e:
-        raise ValueError(f"Falha ao processar o arquivo {caminho_arquivo}: {str(e)}")
+        raise ValueError(f"Falha ao processar o arquivo {caminho_arquivo} (Encoding: {encoding_detectado}): {str(e)}")
 
 
 def extrair_metadados(caminho_arquivo):
     """
     Procura por informações extras no topo do arquivo (como data do ensaio, 
-    operador, máquina) que geralmente ficam antes do cabeçalho de dados.
+    operador, máquina) com suporte a múltiplos encodings.
     """
     metadados = {}
+    _, encoding_detectado = detectar_delimitador_e_encoding(caminho_arquivo)
+    
     try:
-        with open(caminho_arquivo, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(caminho_arquivo, 'r', encoding=encoding_detectado, errors='ignore') as f:
             for _ in range(20):  # Analisa apenas as primeiras 20 linhas
                 linha = f.readline().strip()
-                # Procura padrões "Chave: Valor" ou "Chave = Valor"
                 match = re.match(r'^([^:]+):(.+)$', linha) or re.match(r'^([^=]+)=(.+)$', linha)
                 if match:
                     chave = match.group(1).strip()
                     valor = match.group(2).strip()
-                    # Evita pegar colunas de dados como metadados
                     if not chave.replace('.', '', 1).isdigit() and len(chave) < 30:
                         metadados[chave] = valor
     except Exception as e:
