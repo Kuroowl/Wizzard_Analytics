@@ -105,6 +105,37 @@ def detectar_separador_decimal(caminho_arquivo, encoding, linha_cabecalho, delim
     return '.'  # padrão internacional, mais comum em exportações desse tipo
 
 
+def _adicionar_tempo_decorrido(df):
+    """
+    Se o DataFrame tiver colunas de Data e/ou Hora (texto), combina as duas
+    num datetime e cria 'Tempo_decorrido_s': segundos desde a primeira
+    aquisição. Essa é a coluna que deve ser usada como eixo X quando o
+    usuário quiser filtrar/plotar por tempo — as colunas Data/Hora originais
+    continuam intactas, só para exibição.
+    """
+    col_data = next((c for c in df.columns if c.lower() == 'data'), None)
+    col_hora = next((c for c in df.columns if c.lower() == 'hora'), None)
+
+    if col_data is None and col_hora is None:
+        return df
+
+    if col_data is not None and col_hora is not None:
+        texto_datetime = df[col_data].astype(str) + ' ' + df[col_hora].astype(str)
+    else:
+        texto_datetime = df[col_data if col_data is not None else col_hora].astype(str)
+
+    datetimes = pd.to_datetime(texto_datetime, errors='coerce', dayfirst=True)
+
+    if datetimes.isna().all():
+        # não conseguiu interpretar como data/hora; não trava o carregamento,
+        # só não cria a coluna de tempo decorrido
+        return df
+
+    inicio = datetimes.dropna().iloc[0]
+    df['Tempo_decorrido_s'] = (datetimes - inicio).dt.total_seconds()
+    return df
+
+
 def carregar_dados(caminho_arquivo):
     """
     Lê arquivos TXT ou CSV, descobre dinamicamente onde começam os dados
@@ -145,6 +176,13 @@ def carregar_dados(caminho_arquivo):
                 df[col] = pd.to_numeric(df[col], errors='coerce')
 
         df = df.dropna(how='all').reset_index(drop=True)
+
+        # Cria uma coluna numérica de tempo decorrido (em segundos), a partir
+        # das colunas de Data/Hora, para servir de eixo X em operações de
+        # filtro/gráfico. As colunas originais de Data/Hora continuam
+        # disponíveis como texto, para exibição.
+        df = _adicionar_tempo_decorrido(df)
+
         return df
 
     except Exception as e:
@@ -182,13 +220,13 @@ def extrair_metadados(caminho_arquivo):
     return metadados
 
 
-# if __name__ == '__main__':
-#     import sys
-#     caminho = sys.argv[1] if len(sys.argv) > 1 else 'teste.txt'
-#     print("=== METADADOS ===")
-#     for k, v in extrair_metadados(caminho).items():
-#         print(f"{k}: {v}")
-#     print("\n=== DADOS ===")
-#     df = carregar_dados(caminho)
-#     print(df.dtypes)
-#     print(df)
+if __name__ == '__main__':
+    import sys
+    caminho = sys.argv[1] if len(sys.argv) > 1 else 'teste.txt'
+    print("=== METADADOS ===")
+    for k, v in extrair_metadados(caminho).items():
+        print(f"{k}: {v}")
+    print("\n=== DADOS ===")
+    df = carregar_dados(caminho)
+    print(df.dtypes)
+    print(df)
