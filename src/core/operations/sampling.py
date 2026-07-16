@@ -47,3 +47,33 @@ def excluir_dados(df, coluna_eixo_x, limite_min, limite_max):
     ].copy()
     
     return df_cortado.reset_index(drop=True)
+
+def aplicar_downsampling(df, num_pontos=100):
+    """
+    Reduz o número de linhas de TODO o DataFrame para uma quantidade fixa de pontos,
+    distribuídos uniformemente ao longo do ensaio.
+    
+    Preserva todas as colunas originais (tempo, pressões, temperatura, etc.) 
+    alinhadas na mesma linha física, o que evita bugs de plotagem.
+    
+    Parâmetros:
+        df (pd.DataFrame): O DataFrame completo com todos os dados.
+        num_pontos (int): Quantidade exata de pontos desejada no final (ex: 50, 100, 500).
+    """
+    if df.empty:
+        return df.copy()
+        
+    total_linhas = len(df)
+    
+    # Se o arquivo já for menor do que a quantidade de pontos desejada, 
+    # não precisa reduzir nada, retorna ele inteiro.
+    if total_linhas <= num_pontos:
+        return df.copy().reset_index(drop=True)
+    
+    # Calcula índices distribuídos uniformemente do início ao fim do DataFrame
+    indices = np.linspace(0, total_linhas - 1, num=num_pontos, dtype=int)
+    
+    # Seleciona as linhas correspondentes e reseta o índice físico
+    df_amostrado = df.iloc[indices].copy()
+    
+    return df_amostrado.reset_index(drop=True)
