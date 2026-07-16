@@ -13,7 +13,17 @@ def multiplicar_por_constante(df, coluna, constante):
     df_temp[coluna] = df_temp[coluna] * constante
     return df_temp.reset_index(drop=True)
 
-
+def dividir_por_constante(df, coluna, constante):
+    """
+    Divide uma coluna específica dos dados por um valor constante.
+    Garante que não ocorra divisão por zero.
+    """
+    if constante == 0:
+        raise ValueError("Impossível dividir por zero.")
+        
+    # Reutiliza a lógica de multiplicação com o inverso da constante
+    return multiplicar_por_constante(df, coluna, 1 / constante)
+           
 def somar_constante(df, coluna, constante):
     """
     Soma um valor constante a uma coluna específica.
