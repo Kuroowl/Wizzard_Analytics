@@ -37,6 +37,14 @@ def somar_constante(df, coluna, constante):
     df_temp[coluna] = df_temp[coluna] + constante
     return df_temp.reset_index(drop=True)
 
+def subtrair_constante(df, coluna, constante):
+    """
+    Subtrai um valor constante a uma coluna específica.
+    Excelente para aplicar offsets, zerar sensores ou fazer "tara".
+    """
+    if df.empty or coluna not in df.columns:
+        return df.copy()
+    return somar_constante(df, coluna, - constante)
 
 if __name__ == '__main__':
     # Teste rápido e simples das operações matemáticas remanescentes
