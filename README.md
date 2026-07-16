@@ -23,7 +23,13 @@ wizard-analytics/
 │   ├── core/                   # 2. CAMADA DE LÓGICA (OPERAÇÕES E PROCESSAMENTO)
 │   │   ├── __init__.py
 │   │   ├── extractor.py        # Leitura e limpeza de TXT/CSV (Pandas)
-│   │   ├── operations.py       # Cálculos matemáticos, filtros, downsampling, merges
+│   │   ├── operations/         # Cálculos matemáticos, filtros, downsampling, merges
+|   |   |   |── __init__.py
+|   |   |   ├── sampling.py     # Redução de pontos (downsampling, merges)
+|   |   |   ├── filters.py      # Filtros matemáticos (média móvel, passa-baixa)
+|   |   |   ├── stats.py        # Estatísticas (máximos, mínimos, desvio padrão)
+|   |   |   ├── math.py         # Operações matemáticas ( entre dados, derivadas, integrais) 
+|   |   |   
 │   │   └── plotter.py          # Geração dos gráficos (Matplotlib/Seaborn)
 │   │
 │   └── utils/                  # 3. CAMADA DE SUPORTE
