@@ -85,6 +85,9 @@ def _razao(mat):
         )
     return mat.iloc[:, 0] / mat.iloc[:, 1]
 
+def _desvio_padrao(mat):
+    return mat.std(axis=1, skipna=False)  # ddof=1 (amostral), padrão do pandas
+
 
 OPERACOES_COLUNAS = {
     'soma': _soma,
@@ -92,8 +95,9 @@ OPERACOES_COLUNAS = {
     'produto': _produto,
     'maximo': _maximo,
     'minimo': _minimo,
-    'diferenca': _diferenca,  # requer exatamente 2+ colunas
-    'razao': _razao,          # requer exatamente 2 colunas
+    'diferenca': _diferenca,     # requer exatamente 2+ colunas
+    'razao': _razao,             # requer exatamente 2 colunas
+    'desvio_padrao': _desvio_padrao,
 }
 
 # operações que exigem exatamente 2 colunas (não fazem sentido com 3+)
@@ -114,7 +118,7 @@ def combinar_colunas(df, colunas, nova_coluna, operacao='soma'):
         colunas (list[str]): lista de 2+ colunas numéricas a combinar.
         nova_coluna (str): nome da coluna de saída.
         operacao (str): uma de 'soma', 'media', 'produto', 'maximo',
-            'minimo', 'diferenca', 'razao'.
+            'minimo', 'diferenca', 'razao', 'desvio_padrao'.
     """
     if operacao not in OPERACOES_COLUNAS:
         raise ValueError(f"Operação '{operacao}' inválida. Use uma de: {list(OPERACOES_COLUNAS)}")
@@ -136,6 +140,53 @@ def combinar_colunas(df, colunas, nova_coluna, operacao='soma'):
     matriz = df_novo[colunas].apply(pd.to_numeric, errors='coerce')
 
     df_novo[nova_coluna] = OPERACOES_COLUNAS[operacao](matriz)
+    return df_novo.reset_index(drop=True)
+
+
+def media_e_desvio_colunas(df, colunas, nome_media=None, nome_desvio=None, ddof=1):
+    """
+    Calcula, linha a linha, a média e o desvio padrão entre 2+ colunas
+    numéricas, adicionando as DUAS colunas de uma vez — útil pra medidas
+    redundantes (ex: vários sensores de pressão no mesmo ponto), onde você
+    quer o valor médio e a dispersão/incerteza entre eles juntos.
+
+    Equivale a chamar combinar_colunas(..., operacao='media') e
+    combinar_colunas(..., operacao='desvio_padrao') separadamente, mas
+    calcula a conversão numérica das colunas uma única vez em vez de duas.
+
+    Parâmetros:
+        df (pd.DataFrame): tabela de dados original.
+        colunas (list[str]): lista de 2+ colunas numéricas a combinar.
+        nome_media (str, opcional): nome da coluna de média. Se None, usa
+            'media_' + nomes das colunas (ex: 'media_P1_P2').
+        nome_desvio (str, opcional): nome da coluna de desvio padrão. Se
+            None, usa 'desvio_padrao_' + nomes das colunas.
+        ddof (int): graus de liberdade do desvio padrão. Padrão ddof=1
+            (amostral, mesmo padrão do pandas .std()). Use ddof=0 pro
+            desvio padrão populacional.
+
+    Retorna o DataFrame original com as duas colunas novas adicionadas.
+    """
+    if not isinstance(colunas, (list, tuple)) or len(colunas) < 2:
+        raise ValueError("Informe uma lista com pelo menos 2 colunas.")
+
+    faltando = [c for c in colunas if c not in df.columns]
+    if faltando:
+        raise KeyError(f"Coluna(s) não encontrada(s): {faltando}. Disponíveis: {list(df.columns)}")
+
+    if df.empty:
+        return df.copy()
+
+    df_novo = df.copy()
+    matriz = df_novo[colunas].apply(pd.to_numeric, errors='coerce')
+
+    sufixo = '_'.join(colunas)
+    destino_media = nome_media if nome_media else f'media_{sufixo}'
+    destino_desvio = nome_desvio if nome_desvio else f'desvio_padrao_{sufixo}'
+
+    df_novo[destino_media] = matriz.mean(axis=1, skipna=False)
+    df_novo[destino_desvio] = matriz.std(axis=1, ddof=ddof, skipna=False)
+
     return df_novo.reset_index(drop=True)
 
 
