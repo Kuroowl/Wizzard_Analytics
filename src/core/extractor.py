@@ -1,5 +1,6 @@
 import re
 import pandas as pd
+import numpy as np
 
 # Palavras que costumam aparecer nos nomes das colunas de dados
 COLUNAS_CHAVE = [
@@ -105,6 +106,124 @@ def detectar_separador_decimal(caminho_arquivo, encoding, linha_cabecalho, delim
     return '.'  # padrão internacional, mais comum em exportações desse tipo
 
 
+def _tokenizar_com_delimitador(linha, delimitador):
+    """Tokeniza uma linha com um delimitador JÁ CONHECIDO (não redetecta por
+    linha) — importante porque linhas de dados com decimal em vírgula têm
+    várias vírgulas, e se cada linha redetectasse seu próprio delimitador
+    (como _tokenizar faz), a vírgula decimal seria confundida com separador
+    de coluna."""
+    if delimitador == r'\s+':
+        return [t.strip() for t in re.split(r'\s+', linha.strip()) if t.strip()]
+    return [t.strip() for t in linha.split(delimitador) if t.strip()]
+
+
+def _ler_linha(caminho_arquivo, encoding, indice):
+    with open(caminho_arquivo, 'r', encoding=encoding, errors='ignore') as f:
+        for i, linha in enumerate(f):
+            if i == indice:
+                return linha
+    return ''
+
+
+def _contar_colunas_dados(caminho_arquivo, encoding, linha_cabecalho, delimitador):
+    """
+    Conta quantas colunas a primeira linha de DADOS de verdade tem (pulando
+    cabeçalho e linhas decorativas de hífen). Serve de 'verdade' sobre o
+    número real de colunas, independente de o cabeçalho estar certo ou não.
+    """
+    with open(caminho_arquivo, 'r', encoding=encoding, errors='ignore') as f:
+        for i, linha in enumerate(f):
+            if i <= linha_cabecalho:
+                continue
+            if not linha.strip() or _linha_e_separador_decorativo(linha):
+                continue
+            return len(_tokenizar_com_delimitador(linha, delimitador))
+    return None
+
+
+def _dividir_rotulos_colados(token):
+    """
+    Tenta dividir um token de cabeçalho que colou dois (ou mais) rótulos sem
+    espaço entre eles — bug comum em aparelhos de largura fixa quando o nome
+    de uma coluna ocupa exatamente o campo e "empurra" o próximo colado nele
+    (ex: 'C6-Temp03C7-PRS06' -> ['C6-Temp03', 'C7-PRS06']).
+
+    Assume a convenção comum de rótulo <letras><número>-<nome> (C1-, T2-,
+    S3-...). Se o token não seguir esse padrão repetido, devolve ele mesmo
+    sem alterar — é uma tentativa best-effort, não uma garantia.
+    """
+    partes = re.split(r'(?=[A-Za-z]+\d+-)', token)
+    partes = [p for p in partes if p]
+    return partes if partes else [token]
+
+
+def _gerar_nomes_colunas(tokens_cabecalho, n_colunas_dados):
+    """
+    Gera a lista final de nomes de coluna, corrigindo o caso em que o
+    cabeçalho tem menos rótulos do que colunas de dados de verdade:
+      1) tenta dividir tokens colados (rótulo1+rótulo2 grudados);
+      2) se ainda faltar rótulo depois disso, preenche o resto com nomes
+         genéricos 'colunaN' — não trava o carregamento por causa de um
+         rótulo que não deu pra recuperar;
+      3) se sobrar rótulo (cabeçalho com mais tokens que os dados), avisa e
+         descarta os excedentes do final.
+    """
+    rotulos = []
+    for tok in tokens_cabecalho:
+        rotulos.extend(_dividir_rotulos_colados(tok))
+
+    if len(rotulos) == n_colunas_dados:
+        return rotulos
+
+    if len(rotulos) < n_colunas_dados:
+        faltam = n_colunas_dados - len(rotulos)
+        print(
+            f"Aviso: o cabeçalho rendeu {len(rotulos)} rótulo(s) mas os dados têm "
+            f"{n_colunas_dados} coluna(s) (provavelmente um rótulo colou com o "
+            f"seguinte sem espaço, e não foi possível separar automaticamente). "
+            f"Preenchendo {faltam} coluna(s) com nome genérico no final."
+        )
+        proximo_indice = len(rotulos) + 1
+        for _ in range(faltam):
+            rotulos.append(f'coluna{proximo_indice}')
+            proximo_indice += 1
+        return rotulos
+
+    print(
+        f"Aviso: o cabeçalho rendeu {len(rotulos)} rótulo(s) mas os dados têm apenas "
+        f"{n_colunas_dados} coluna(s). Descartando os rótulos excedentes do final."
+    )
+    return rotulos[:n_colunas_dados]
+
+
+def _linha_valida_de_dados(linha):
+    """Uma linha 'conta' como dado se não for vazia nem decorativa (hífens)."""
+    return bool(linha.strip()) and not _linha_e_separador_decorativo(linha)
+
+
+def _tentar_converter_numerico(serie, decimal):
+    """
+    Tenta converter uma coluna pra numérico com base no CONTEÚDO dela, não
+    no nome — mais robusto que uma lista de palavras-chave, porque rótulos
+    de aparelho variam muito (ex: 'C1-PRS04', 'C8-MVZ01' não batem com
+    nenhuma palavra-chave óbvia, mas os valores são claramente numéricos).
+
+    Só converte se pelo menos 90% dos valores não-vazios da coluna virarem
+    número válido; senão mantém a coluna como texto (evita destruir colunas
+    como 'Data' ou 'Hora', que não são numéricas por natureza).
+    """
+    bruta = serie.astype(str).str.strip()
+    preparada = bruta.str.replace(',', '.', regex=False) if decimal == ',' else bruta
+    convertida = pd.to_numeric(preparada, errors='coerce')
+
+    nao_vazios = (bruta != '') & (bruta.str.lower() != 'nan')
+    if nao_vazios.sum() == 0:
+        return serie
+
+    taxa_sucesso = convertida[nao_vazios].notna().sum() / nao_vazios.sum()
+    return convertida if taxa_sucesso >= 0.9 else serie
+
+
 def _adicionar_tempo_decorrido(df):
     """
     Se o DataFrame tiver colunas de Data e/ou Hora (texto), combina as duas
@@ -150,32 +269,63 @@ def carregar_dados(caminho_arquivo):
         caminho_arquivo, encoding_detectado, linha_cabecalho, delimitador
     )
 
-    try:
-        df = pd.read_csv(
-            caminho_arquivo,
-            sep=delimitador,
-            decimal=decimal_detectado,
-            encoding=encoding_detectado,
-            skiprows=linha_cabecalho,
-            on_bad_lines='skip',
-            engine='python',
-        )
+    # Gera os nomes de coluna corrigindo eventuais rótulos colados sem
+    # espaço no cabeçalho (ex: 'C6-Temp03C7-PRS06'), comparando com o número
+    # real de colunas encontrado numa linha de dados.
+    texto_cabecalho = _ler_linha(caminho_arquivo, encoding_detectado, linha_cabecalho)
+    tokens_cabecalho = _tokenizar_com_delimitador(texto_cabecalho, delimitador)
+    n_colunas_dados = _contar_colunas_dados(caminho_arquivo, encoding_detectado, linha_cabecalho, delimitador)
+    nomes_colunas = (
+        _gerar_nomes_colunas(tokens_cabecalho, n_colunas_dados)
+        if n_colunas_dados is not None else tokens_cabecalho
+    )
 
-        # Limpa espaços em branco extras nos nomes das colunas
+    try:
+        n_colunas = len(nomes_colunas)
+        linhas_validas = []
+        linhas_ajustadas = 0
+
+        with open(caminho_arquivo, 'r', encoding=encoding_detectado, errors='ignore') as f:
+            for i, linha in enumerate(f):
+                if i <= linha_cabecalho:
+                    continue
+                if not _linha_valida_de_dados(linha):
+                    continue
+
+                tokens = _tokenizar_com_delimitador(linha, delimitador)
+
+                if len(tokens) == n_colunas:
+                    linhas_validas.append(tokens)
+                elif len(tokens) > n_colunas:
+                    # linha com campos a mais que o esperado: mantém só os
+                    # primeiros n_colunas (não deveria acontecer com o
+                    # cálculo de n_colunas_dados vindo de uma linha real,
+                    # mas protege contra anomalias pontuais no arquivo)
+                    linhas_validas.append(tokens[:n_colunas])
+                    linhas_ajustadas += 1
+                elif len(tokens) >= n_colunas - 2:
+                    # faltam só 1-2 campos (comum na última linha de um
+                    # arquivo cortado no meio da aquisição): completa com vazio
+                    linhas_validas.append(tokens + [''] * (n_colunas - len(tokens)))
+                    linhas_ajustadas += 1
+                else:
+                    linhas_ajustadas += 1  # linha claramente incompleta: descarta
+
+        if linhas_ajustadas > 0:
+            print(
+                f"Aviso: {linhas_ajustadas} linha(s) com número de campos diferente "
+                f"do esperado ({n_colunas}) foram ajustadas ou descartadas."
+            )
+
+        df = pd.DataFrame(linhas_validas, columns=nomes_colunas)
         df.columns = [col.strip() for col in df.columns]
 
-        # Remove linhas decorativas tipo "--- --- ---"
-        df = df[~df.iloc[:, 0].astype(str).str.match(r'^-+$')].reset_index(drop=True)
-
-        # Garante que colunas numéricas relevantes sejam realmente numéricas
+        # Converte pra numérico com base no conteúdo de cada coluna (não no
+        # nome), então funciona com qualquer convenção de rótulo do aparelho
         for col in df.columns:
-            if any(p in col.lower() for p in ['tempo', 'pressao', 'pressure', 'time', 'p1', 'p2', 'p3', 'p4', 'p5', 'temp']):
-                df[col] = df[col].astype(str).str.strip()
-                if decimal_detectado == ',':
-                    df[col] = df[col].str.replace(',', '.')
-                df[col] = pd.to_numeric(df[col], errors='coerce')
+            df[col] = _tentar_converter_numerico(df[col], decimal_detectado)
 
-        df = df.dropna(how='all').reset_index(drop=True)
+        df = df.replace('', np.nan).dropna(how='all').reset_index(drop=True)
 
         # Cria uma coluna numérica de tempo decorrido (em segundos), a partir
         # das colunas de Data/Hora, para servir de eixo X em operações de
@@ -222,7 +372,7 @@ def extrair_metadados(caminho_arquivo):
 
 if __name__ == '__main__':
     import sys
-    caminho = sys.argv[1] if len(sys.argv) > 1 else 'teste.txt'
+    caminho = sys.argv[1] if len(sys.argv) > 1 else 'fieldlogger_data.txt'
     print("=== METADADOS ===")
     for k, v in extrair_metadados(caminho).items():
         print(f"{k}: {v}")
