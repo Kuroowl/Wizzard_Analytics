@@ -30,8 +30,11 @@ wizard-analytics/
 |   |   |   ├── stats.py        # Estatísticas (máximos, mínimos, desvio padrão)
 |   |   |   ├── math.py         # Operações matemáticas ( entre dados, derivadas, integrais) 
 |   |   |   
-│   │   └── plotter.py          # Geração dos gráficos (Matplotlib/Seaborn)
-│   │
+│   │   └── plotter/          # Geração dos gráficos (Matplotlib/Seaborn)
+|   |   |   |── __init__.py
+|   |   |   |── plotter.py
+|   |   |   |── other.py
+|   |   
 │   └── utils/                  # 3. CAMADA DE SUPORTE
 │       ├── __init__.py
 │       └── helpers.py          # Manipulação de arquivos, salvamento de PDFs, logs
