@@ -6,7 +6,7 @@ O **Wizard Analytics** é uma ferramenta em Python desenvolvida para extração,
 
 * **Leitura Inteligente:** Suporte a arquivos de dados brutos (`TXT` e `CSV`).
 * **Extração e Limpeza:** Identificação automática de delimitadores e tratamento de dados.
-* **Plotagem Avançada:** Geração de gráficos de pressão com opção de destaque de amostras selecionadas (*downsampling*).
+* **Plotagem Avançada:** Geração de gráficos.
 * **Exportação:** Salvamento de gráficos em PNG e dados em 'CSV'.
 
 ## 📁 Estrutura do Projeto
