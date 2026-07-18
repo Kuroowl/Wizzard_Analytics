@@ -3,7 +3,7 @@ from src.core.extractor import carregar_dados, extrair_metadados
 
 def testar_meu_extrator():
     # Substitua pelo caminho de um arquivo TXT ou CSV de teste que você tenha no seu computador
-    caminho_do_teste = "seu_arquivo_de_teste.txt" 
+    caminho_do_teste = "fieldlogger_data.txt" 
     
     if not os.path.exists(caminho_do_teste):
         print(f"❌ Erro: Coloque um arquivo de teste real no mesmo diretório ou mude o caminho acima!")
