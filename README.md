@@ -30,7 +30,7 @@ wizard-analytics/
 |   |   |   ├── stats.py        # Estatísticas (máximos, mínimos, desvio padrão)
 |   |   |   ├── math.py         # Operações matemáticas ( entre dados, derivadas, integrais) 
 |   |   |   
-│   │   └── plotter/          # Geração dos gráficos (Matplotlib/Seaborn)
+│   │   └── plotter/          # Geração dos gráficos (Plot.ly)
 |   |   |   |── __init__.py
 |   |   |   |── plotter.py
 |   |   |   |── other.py
