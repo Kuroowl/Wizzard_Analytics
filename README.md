@@ -19,7 +19,7 @@ wizard-analytics/
 │   │   ├── __init__.py
 │   │   ├── app.py              # Janela principal do Tkinter
 │   │   ├── components.py       # Botões, menus e modais personalizados
-│   │   └── components.py       # Botões, menus e modais personalizados
+│   │   └── eventos_graficos.py # eventos       
 │   │
 │   ├── core/                   # 2. CAMADA DE LÓGICA (OPERAÇÕES E PROCESSAMENTO)
 │   │   ├── __init__.py
