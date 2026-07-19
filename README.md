@@ -17,10 +17,12 @@ wizard-analytics/
 ├── src/
 │   ├── gui/                    # 1. CAMADA VISUAL (INTERFACE)
 │   │   ├── __init__.py
-│   │   ├── app.py              # Janela principal do Tkinter
+│   │   ├── app.py              # Janela principal
 │   │   ├── components.py       # Botões, menus e modais personalizados
-│   │   └── eventos_graficos.py # eventos       
-│   │
+|   |   ├── estado.py           # estado
+│   │   ├── eventos_graficos.py # eventos       
+│   │   └── assests/         # Cálculos matemáticos, filtros, downsampling, merges
+|   |       |── estilo.ccs
 │   ├── core/                   # 2. CAMADA DE LÓGICA (OPERAÇÕES E PROCESSAMENTO)
 │   │   ├── __init__.py
 │   │   ├── extractor.py        # Leitura e limpeza de TXT/CSV (Pandas)
