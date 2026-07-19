@@ -45,23 +45,30 @@ def criar_app(df, coluna_x, colunas_y, gerenciador):
         if gatilho == 'grafico' and relayout_data:
             log.append(f"relayoutData bruto: {relayout_data}")
 
+            # Título e eixo Y são só texto do gráfico — o eixo Y costuma ser
+            # compartilhado por várias curvas de grandezas diferentes, então
+            # não tem uma coluna "dona" única pra renomear.
             novo_titulo = extrair_edicao_titulo(relayout_data)
             if novo_titulo:
-                log.append(
-                    f"-> título do gráfico mudou para '{novo_titulo}' "
-                    "(é só do layout, não passa pelo GerenciadorRotulos)"
-                )
+                log.append(f"-> título do gráfico mudou para '{novo_titulo}' (só visual, não renomeia coluna)")
 
+            novo_rotulo_y = extrair_edicao_eixo(relayout_data, 'yaxis')
+            if novo_rotulo_y:
+                log.append(f"-> rótulo do eixo Y mudou para '{novo_rotulo_y}' (só visual, não renomeia coluna)")
+
+            # O eixo X, diferente do Y, representa UMA coluna só — então
+            # editar o rótulo dele renomeia essa coluna, igual à legenda.
             novo_rotulo_x = extrair_edicao_eixo(relayout_data, 'xaxis')
             if novo_rotulo_x:
                 try:
                     gerenciador.renomear(coluna_x, novo_rotulo_x)
-                    log.append(f"-> coluna interna '{coluna_x}' renomeada para '{novo_rotulo_x}'")
+                    log.append(f"-> coluna interna '{coluna_x}' (eixo X) renomeada para '{novo_rotulo_x}'")
                 except ValueError as e:
                     log.append(f"-> rename recusado: {e}")
 
         if restyle_data:
             log.append(f"restyleData bruto: {restyle_data}")
+            # A legenda SIM renomeia coluna: cada trace = uma coluna específica
             edicao = extrair_edicao_legenda(restyle_data)
             if edicao:
                 indice_trace, novo_nome = edicao

@@ -18,11 +18,13 @@ wizard-analytics/
 │   ├── gui/                    # 1. CAMADA VISUAL (INTERFACE)
 │   │   ├── __init__.py
 │   │   ├── app.py              # Janela principal do Tkinter
+│   │   ├── components.py       # Botões, menus e modais personalizados
 │   │   └── components.py       # Botões, menus e modais personalizados
 │   │
 │   ├── core/                   # 2. CAMADA DE LÓGICA (OPERAÇÕES E PROCESSAMENTO)
 │   │   ├── __init__.py
 │   │   ├── extractor.py        # Leitura e limpeza de TXT/CSV (Pandas)
+│   │   ├── rotulos.py          # Gerenciador de rotulos
 │   │   ├── operations/         # Cálculos matemáticos, filtros, downsampling, merges
 |   |   |   |── __init__.py
 |   |   |   ├── sampling.py     # Redução de pontos (downsampling, merges)
@@ -30,10 +32,10 @@ wizard-analytics/
 |   |   |   ├── stats.py        # Estatísticas (máximos, mínimos, desvio padrão)
 |   |   |   ├── math.py         # Operações matemáticas ( entre dados, derivadas, integrais) 
 |   |   |   
-│   │   └── plotter/          # Geração dos gráficos (Plot.ly)
-|   |   |   |── __init__.py
-|   |   |   |── plotter.py
-|   |   |   |── other.py
+│   │   └── plotting/          # Geração dos gráficos (Plot.ly)
+|   |       |── __init__.py
+|   |       |── plotter.py
+|   |       |── other.py
 |   |   
 │   └── utils/                  # 3. CAMADA DE SUPORTE
 │       ├── __init__.py
