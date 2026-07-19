@@ -4,7 +4,6 @@ from dash.exceptions import PreventUpdate
 import plotly.graph_objects as go
 
 from src.core.plotting.plotter import construir_figura, cor_da_coluna
-from src.gui.eventos_graficos import extrair_edicao_titulo, extrair_edicao_eixo, extrair_edicao_legenda
 from src.utils.helpers import carregar_dados_de_upload
 
 
@@ -16,196 +15,135 @@ def truncar_nome_arquivo(nome, limite=12):
     return f"{base[:limite]}...{('.' + ext) if ext else ''}"
 
 
-# --- lógica pura, separada da "fiação" do Dash, pra dar pra testar sem navegador ---
+# --- Lógica pura de múltiplos arquivos adaptada para o novo EstadoApp ---
 
 def processar_upload(conteudo, nome_arquivo, estado):
     """
-    Processa um upload e atualiza 'estado' in-place (df, gerenciador, seleção
-    padrão de X/Y). Devolve um dict com o que a interface precisa, ou
-    {'erro': ...} se o arquivo não puder ser carregado.
+    Processa um upload e adiciona ao dicionário de arquivos do estado.
     """
     if conteudo is None:
         return None
+
+    if nome_arquivo in estado.arquivos:
+        return {'erro': f"O arquivo '{nome_arquivo}' já foi carregado."}
 
     try:
         df = carregar_dados_de_upload(conteudo, nome_arquivo)
     except Exception as e:
         return {'erro': f"Não consegui carregar '{nome_arquivo}': {e}"}
 
-    colunas_numericas = df.select_dtypes(include='number').columns.tolist()
-    colunas_ignoradas_no_padrao = {'n#', 'index', 'indice', 'id'}
-    candidatas_y = [c for c in colunas_numericas if c.lower() not in colunas_ignoradas_no_padrao]
-
-    x_padrao = 'Tempo_decorrido_s' if 'Tempo_decorrido_s' in df.columns else (
-        colunas_numericas[0] if colunas_numericas else df.columns[0]
-    )
-    y_padrao = [c for c in candidatas_y if c != x_padrao][:2]
-
-    estado.carregar(df, coluna_x_padrao=x_padrao, colunas_y_padrao=y_padrao)
+    # Adiciona o arquivo na nossa "fonte da verdade" multi-arquivo
+    estado.adicionar_arquivo(nome_arquivo, df)
 
     return {
-        'nome_aba': truncar_nome_arquivo(nome_arquivo),
-        'status': f"'{nome_arquivo}' carregado: {len(df)} linha(s), {len(df.columns)} coluna(s).",
+        'status': f"'{nome_arquivo}' adicionado com sucesso ({len(df)} linhas)."
     }
 
 
-def processar_edicao_grafico(relayout_data, restyle_data, estado):
+def renderizar_menu_esquerdo(estado):
     """
-    Interpreta relayout/restyle e aplica rename no estado.gerenciador
-    conforme a regra combinada: eixo X e legenda renomeiam coluna
-    (representam uma coluna específica); título e eixo Y são só visuais.
-    Devolve a lista de linhas de log.
+    Monta a árvore/lista do menu esquerdo:
+    Para cada arquivo carregado, mostra o nome dele, um botão de deletar [X],
+    e aninhado embaixo dele, a lista de canais/colunas identificadas.
     """
-    log = []
+    if not estado.arquivos:
+        return html.Div('Nenhum arquivo carregado', className='sidebar-placeholder')
 
-    if relayout_data:
-        log.append(f"relayoutData bruto: {relayout_data}")
+    elementos_menu = []
 
-        novo_titulo = extrair_edicao_titulo(relayout_data)
-        if novo_titulo:
-            log.append(f"-> título mudou para '{novo_titulo}' (só visual)")
+    for nome_arq, dados in estado.arquivos.items():
+        df_completo = dados["df"]
+        gerenciador = dados["gerenciador"]
+        nome_curto = truncar_nome_arquivo(nome_arq)
 
-        novo_rotulo_y = extrair_edicao_eixo(relayout_data, 'yaxis')
-        if novo_rotulo_y:
-            log.append(f"-> rótulo do eixo Y mudou para '{novo_rotulo_y}' (só visual)")
-
-        novo_rotulo_x = extrair_edicao_eixo(relayout_data, 'xaxis')
-        if novo_rotulo_x:
-            try:
-                estado.gerenciador.renomear(estado.coluna_x, novo_rotulo_x)
-                log.append(f"-> coluna '{estado.coluna_x}' (eixo X) renomeada para '{novo_rotulo_x}'")
-            except ValueError as e:
-                log.append(f"-> rename recusado: {e}")
-
-    if restyle_data:
-        log.append(f"restyleData bruto: {restyle_data}")
-        edicao = extrair_edicao_legenda(restyle_data)
-        if edicao:
-            indice_trace, novo_nome = edicao
-            nome_interno = estado.colunas_y[indice_trace]
-            try:
-                estado.gerenciador.renomear(nome_interno, novo_nome)
-                log.append(f"-> coluna '{nome_interno}' renomeada para '{novo_nome}'")
-            except ValueError as e:
-                log.append(f"-> rename recusado: {e}")
-
-    return log
-
-
-def renderizar_lista_colunas(estado):
-    """
-    Monta a lista de colunas da sidebar: uma linha por coluna, com bolinha
-    colorida (cor da curva, se estiver no eixo Y), rótulo atual, e um botão
-    'X' pra marcar a coluna como eixo X. Colunas não-numéricas aparecem
-    listadas (são "identificadas"), mas não são clicáveis.
-    """
-    if not estado.carregado():
-        return []
-
-    linhas = []
-    for coluna in estado.df.columns:
-        numerica = pd.api.types.is_numeric_dtype(estado.df[coluna])
-        rotulo = estado.gerenciador.rotulo_atual(coluna)
-        na_selecao_y = coluna in estado.colunas_y
-        e_x = (coluna == estado.coluna_x)
-
-        if na_selecao_y:
-            estilo_dot = {'background': cor_da_coluna(estado.colunas_y.index(coluna))}
-            classe_dot = 'coluna-dot'
-        else:
-            estilo_dot = {}
-            classe_dot = 'coluna-dot vazio'
-
-        filhos_linha = [html.Span(className=classe_dot, style=estilo_dot)]
-
-        if numerica:
-            filhos_linha.append(html.Span(
-                rotulo,
-                id={'type': 'linha-y', 'coluna': coluna},
+        # Cabeçalho do arquivo com botão de remover
+        header_arquivo = html.Div(className='menu-arquivo-header', style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center', 'fontWeight': 'bold', 'marginTop': '10px'}, children=[
+            html.Span(nome_curto, title=nome_arq),
+            html.Button('✕', id={'type': 'botao-remover-arquivo', 'arquivo': nome_arq}, n_clicks=0,
+                        style={'background': 'transparent', 'border': 'none', 'color': 'red', 'cursor': 'pointer'})
+        ])
+        
+        # Lista de canais deste arquivo específico
+        lista_canais = []
+        for coluna in df_completo.columns:
+            rotulo = gerenciador.rotulo_atual(coluna)
+            par_canal = (nome_arq, coluna)
+            selecionado = par_canal in estado.canais_selecionados
+            
+            # Caixa estilizada ou item clicável para alternar seleção
+            classe_canal = 'coluna-item' + (' selecionada' if selecionado else '')
+            
+            lista_canais.append(html.Div(
+                id={'type': 'linha-canal', 'arquivo': nome_arq, 'coluna': coluna},
+                className=classe_canal,
                 n_clicks=0,
-                style={'flex': '1', 'overflow': 'hidden', 'textOverflow': 'ellipsis', 'whiteSpace': 'nowrap', 'cursor': 'pointer'},
+                style={'paddingLeft': '15px', 'cursor': 'pointer', 'color': 'var(--cor-texto)' if selecionado else 'var(--cor-texto-mudo)'},
+                children=[
+                    html.Span('✓ ' if selecionado else '☐ '),
+                    html.Span(rotulo)
+                ]
             ))
-            filhos_linha.append(html.Button(
-                'X', id={'type': 'botao-x', 'coluna': coluna}, n_clicks=0,
-                className='coluna-marcador-x',
-                style={'background': 'transparent', 'cursor': 'pointer'} if not e_x else
-                      {'background': 'var(--cor-accent)', 'color': 'var(--cor-superficie-escura)', 'cursor': 'pointer'},
-            ))
-        else:
-            filhos_linha.append(html.Span(rotulo, style={'flex': '1', 'color': 'var(--cor-texto-mudo)'}))
 
-        classe_linha = 'coluna-item' + (' selecionada' if (na_selecao_y or e_x) else '')
-        linhas.append(html.Div(filhos_linha, className=classe_linha))
+        # Bloco completo do arquivo agrupando o cabeçalho e seus canais
+        elementos_menu.append(html.Div(className='bloco-arquivo', children=[
+            header_arquivo,
+            html.Div(lista_canais, className='menu-canais-container')
+        ]))
 
-    return linhas
+    return elementos_menu
 
 
-def _figura_ou_vazia(estado):
-    if estado.coluna_x and estado.colunas_y:
-        return construir_figura(estado.df, estado.coluna_x, estado.colunas_y, estado.gerenciador, titulo='Dados carregados')
-    return go.Figure()
-
-
-def _clique_real(valor_disparo):
-    """Protege contra o disparo 'fantasma' que callbacks de padrão (ALL) do
-    Dash costumam dar assim que os componentes são criados dinamicamente,
-    mesmo sem clique nenhum do usuário."""
-    return valor_disparo not in (None, 0)
-
-
-# --- montagem do app Dash em si ---
+# --- Montagem do App Dash ---
 
 FONTES_GOOGLE = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap'
 
 
 def criar_app(estado):
     app = Dash(__name__, external_stylesheets=[FONTES_GOOGLE])
-    app.title = 'Análise de dados'
+    app.title = 'Wizard Analytics'
 
     app.layout = html.Div(className='app-shell', children=[
         html.Div(className='menubar', children=[
             html.Span('Arquivo', className='menubar-item'),
             html.Span('Editar', className='menubar-item'),
-            html.Span('Exibir', className='menubar-item'),
             html.Span('Ajuda', className='menubar-item'),
         ]),
 
         html.Div(className='toolbar', children=[
             dcc.Upload(
                 id='upload-arquivo',
-                children=html.Div('ABRIR'),
+                children=html.Div('ABRIR ARQUIVO'),
                 className='toolbar-upload',
                 multiple=False,
             ),
             html.Div(className='toolbar-divisor'),
-            html.Button('EXPORTAR', className='toolbar-botao', disabled=True, title='Em breve'),
-            html.Button('DESFAZER', className='toolbar-botao', disabled=True, title='Em breve'),
+            # Novo botão que você pediu: só gera o gráfico se clicar aqui!
+            html.Button('GERAR GRÁFICO', id='botao-gerar-grafico', className='toolbar-botao', n_clicks=0),
         ]),
 
         html.Div(className='corpo', children=[
+            # O menu esquerdo contendo os arquivos abertos e os canais
             html.Div(className='sidebar', children=[
-                html.Div('Nenhum arquivo carregado', id='aba-arquivo', className='aba-arquivo'),
-                html.Div('Colunas', className='sidebar-secao-titulo'),
-                html.Div(id='lista-colunas', children=[]),
+                html.Div('Arquivos e Canais', className='sidebar-secao-titulo'),
+                html.Div(id='container-menu-esquerdo', children=renderizar_menu_esquerdo(estado)),
             ]),
 
             html.Div(className='centro', children=[
-                dcc.Graph(id='grafico', figure=go.Figure(), config={'editable': True}, style={'flex': '1'}),
-                html.Pre(id='console-dev', className='console-dev', children='Envie um arquivo pra começar.'),
+                dcc.Graph(id='grafico', figure=go.Figure(), style={'flex': '1'}),
+                html.Pre(id='console-dev', className='console-dev', children='Envie um arquivo para começar.'),
             ]),
 
             html.Div(className='painel-direito', children=[
                 html.Div('Opções do gráfico', className='painel-direito-titulo'),
-                html.P('Em breve: filtros, ajustes de curva e estatísticas aplicáveis direto aqui.',
+                html.P('Configurações de suavização e cor aparecerão aqui conforme as curvas forem geradas.',
                        className='painel-direito-placeholder'),
             ]),
         ]),
     ])
 
+    # 1. Callback de Upload
     @app.callback(
-        Output('aba-arquivo', 'children'),
-        Output('lista-colunas', 'children'),
-        Output('grafico', 'figure'),
+        Output('container-menu-esquerdo', 'children'),
         Output('console-dev', 'children'),
         Input('upload-arquivo', 'contents'),
         State('upload-arquivo', 'filename'),
@@ -215,55 +153,73 @@ def criar_app(estado):
         resultado = processar_upload(conteudo, nome_arquivo, estado)
         if resultado is None:
             raise PreventUpdate
-        if 'erro' in resultado:
-            return 'Nenhum arquivo carregado', [], go.Figure(), resultado['erro']
-        return resultado['nome_aba'], renderizar_lista_colunas(estado), _figura_ou_vazia(estado), resultado['status']
+        
+        status = resultado.get('erro') if 'erro' in resultado else resultado.get('status')
+        return renderizar_menu_esquerdo(estado), status
 
+    # 2. Callback para marcar/desmarcar Canais
     @app.callback(
-        Output('lista-colunas', 'children', allow_duplicate=True),
-        Output('grafico', 'figure', allow_duplicate=True),
-        Input({'type': 'linha-y', 'coluna': ALL}, 'n_clicks'),
+        Output('container-menu-esquerdo', 'children', allow_duplicate=True),
+        Input({'type': 'linha-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         prevent_initial_call=True,
     )
-    def ao_clicar_coluna_y(_todos_n_clicks):
-        if not estado.carregado() or not ctx.triggered or not _clique_real(ctx.triggered[0]['value']):
+    def ao_clicar_canal(_clicks):
+        if not ctx.triggered or ctx.triggered[0]['value'] in (None, 0):
             raise PreventUpdate
-        coluna = ctx.triggered_id['coluna']
-        if coluna in estado.colunas_y:
-            estado.colunas_y.remove(coluna)
-        else:
-            estado.colunas_y.append(coluna)
-        return renderizar_lista_colunas(estado), _figura_ou_vazia(estado)
+        
+        # Identifica exatamente qual arquivo e qual coluna foi clicada
+        dados_gatilho = ctx.triggered_id
+        nome_arq = dados_gatilho['arquivo']
+        coluna = dados_gatilho['coluna']
+        
+        # Alterna o estado de seleção usando a nova lógica multi-arquivo
+        estado.alternar_selecao_canal(nome_arq, coluna)
+        return renderizar_menu_esquerdo(estado)
 
+    # 3. Callback para remover um arquivo inteiro
     @app.callback(
-        Output('lista-colunas', 'children', allow_duplicate=True),
-        Output('grafico', 'figure', allow_duplicate=True),
-        Input({'type': 'botao-x', 'coluna': ALL}, 'n_clicks'),
-        prevent_initial_call=True,
-    )
-    def ao_clicar_definir_x(_todos_n_clicks):
-        if not estado.carregado() or not ctx.triggered or not _clique_real(ctx.triggered[0]['value']):
-            raise PreventUpdate
-        coluna = ctx.triggered_id['coluna']
-        estado.coluna_x = coluna
-        if coluna in estado.colunas_y:
-            estado.colunas_y.remove(coluna)  # não faz sentido a mesma coluna em X e Y
-        return renderizar_lista_colunas(estado), _figura_ou_vazia(estado)
-
-    @app.callback(
-        Output('grafico', 'figure', allow_duplicate=True),
-        Output('lista-colunas', 'children', allow_duplicate=True),
+        Output('container-menu-esquerdo', 'children', allow_duplicate=True),
         Output('console-dev', 'children', allow_duplicate=True),
-        Input('grafico', 'relayoutData'),
-        Input('grafico', 'restyleData'),
+        Input({'type': 'botao-remover-arquivo', 'arquivo': ALL}, 'n_clicks'),
         prevent_initial_call=True,
     )
-    def ao_editar_grafico(relayout_data, restyle_data):
-        if not estado.carregado() or ctx.triggered_id != 'grafico':
+    def ao_remover_arquivo(_clicks):
+        if not ctx.triggered or ctx.triggered[0]['value'] in (None, 0):
             raise PreventUpdate
+        
+        nome_arq = ctx.triggered_id['arquivo']
+        estado.remover_arquivo(nome_arq)
+        return renderizar_menu_esquerdo(estado), f"Arquivo '{nome_arq}' removido da memória."
 
-        log = processar_edicao_grafico(relayout_data, restyle_data, estado)
-        texto_log = '\n'.join(log) if log else 'Nenhum evento reconhecido ainda.'
-        return _figura_ou_vazia(estado), renderizar_lista_colunas(estado), texto_log
+    # 4. Callback para o seu NOVO botão de gerar o gráfico manualmente
+    @app.callback(
+        Output('grafico', 'figure'),
+        Input('botao-gerar-grafico', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def ao_clicar_gerar_grafico(n_clicks):
+        if not n_clicks:
+            raise PreventUpdate
+        
+        fig = go.Figure()
+        
+        # Monta o gráfico juntando as curvas selecionadas de múltiplos arquivos se houver
+        for (nome_arq, coluna) in estado.canais_selecionados:
+            if nome_arq in estado.arquivos:
+                df = estado.arquivos[nome_arq]["df"]
+                
+                # Se o arquivo contiver o eixo X padrão usa ele, senão usa a primeira coluna numérica
+                colunas_num = df.select_dtypes(include='number').columns
+                x_atual = estado.coluna_x if estado.coluna_x in df.columns else colunas_num[0]
+                
+                fig.add_trace(go.Scatter(
+                    x=df[x_atual],
+                    y=df[coluna],
+                    mode='lines',
+                    name=f"{truncar_nome_arquivo(nome_arq)} -> {coluna}"
+                ))
+                
+        fig.update_layout(template="plotly_white", hovermode="x unified")
+        return fig
 
     return app
