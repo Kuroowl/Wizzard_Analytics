@@ -1,0 +1,57 @@
+/*  a direita onde ficam as opçoes de edição */
+
+/* Sidebar: painel esquerdo de edições e parâmetros */
+.sidebar {
+  flex: 0 0 auto;
+  width: 280px;
+  min-width: 200px;
+  max-width: 600px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--cor-superficie-escura);
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 10;
+}
+
+.sidebar-secao-titulo {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cor-texto-mudo);
+  padding: 0 14px;
+  margin: 16px 0 6px 0;
+}
+
+.menu-canais-container { 
+  padding: 0 6px; 
+}
+
+.coluna-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--fonte-dado);
+  font-size: 12px;
+  color: var(--cor-texto-claro);
+  padding: 5px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.coluna-item:hover { 
+  background: rgba(255, 255, 255, 0.06); 
+}
+
+.coluna-item.selecionada { 
+  background: rgba(47, 165, 160, 0.2); 
+}
+
+.canal-checkbox {
+  font-family: var(--fonte-dado);
+  font-size: 11px;
+  color: var(--cor-accent);
+  width: 14px;
+}

@@ -21,8 +21,17 @@ wizard-analytics/
 │   │   ├── components.py       # Botões, menus e modais personalizados
 |   |   ├── estado.py           # estado
 │   │   ├── eventos_graficos.py # eventos       
-│   │   └── assests/         # Cálculos matemáticos, filtros, downsampling, merges
+│   │   └── assests/            # Cálculos matemáticos, filtros, downsampling, merges
 |   |       |── estilo.ccs
+|   |       |── menus/
+|   |       |   ├── central_menu.css
+|   |       |   ├── edit_menu.css
+|   |       |   ├── file_menu.css
+|   |       |   ├── icon_menu.css
+|   |       |   ├── status_menu.css
+|   |       |   ├── top_menu.css
+|   |       | ── icons/
+|   |
 │   ├── core/                   # 2. CAMADA DE LÓGICA (OPERAÇÕES E PROCESSAMENTO)
 │   │   ├── __init__.py
 │   │   ├── extractor.py        # Leitura e limpeza de TXT/CSV (Pandas)

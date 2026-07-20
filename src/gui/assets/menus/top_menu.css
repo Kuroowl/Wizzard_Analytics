@@ -1,0 +1,22 @@
+/*  Top menu onde fica File, Edit, View, Help */
+
+/* --- barra de menu (Arquivo, Editar, Ajuda) --- */
+.menubar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 14px;
+  background: var(--cor-superficie-escura);
+  color: var(--cor-texto-claro);
+  font-size: 13px;
+}
+
+.menubar-item {
+  cursor: default;
+  opacity: 0.85;
+  padding: 4px 2px;
+}
+
+.menubar-item:hover { 
+  opacity: 1; 
+}

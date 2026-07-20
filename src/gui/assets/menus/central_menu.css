@@ -1,0 +1,54 @@
+/*  Onde o gráfico é plotado */
+
+/* --- seletor de tipo de gráfico (centro) --- */
+.selector-tipo-grafico-container {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #FFFFFF;
+  border-bottom: 1px solid var(--cor-borda);
+  align-items: center;
+}
+
+.tipo-grafico-btn {
+  font-family: var(--fonte-ui);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cor-texto-mudo);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.tipo-grafico-btn:hover:not(:disabled) {
+  background: var(--cor-fundo);
+  color: var(--cor-texto-escuro);
+}
+
+.tipo-grafico-btn.ativo {
+  background: var(--cor-accent-suave);
+  color: var(--cor-accent);
+  border-color: rgba(47, 165, 160, 0.25);
+}
+
+.tipo-grafico-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --- centro: gráfico --- */
+.centro {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.centro .js-plotly-plot {
+  padding: 12px 12px 0 12px;
+}
