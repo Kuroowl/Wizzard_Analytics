@@ -24,13 +24,13 @@ wizard-analytics/
 │   │   └── assests/            # Cálculos matemáticos, filtros, downsampling, merges
 |   |       |── estilo.ccs
 |   |       |── menus/
-|   |       |   ├── central_menu.css
-|   |       |   ├── edit_menu.css
-|   |       |   ├── file_menu.css
-|   |       |   ├── icon_menu.css
-|   |       |   ├── status_menu.css
-|   |       |   ├── top_menu.css
-|   |       └─── icons/
+|   |       |   ├── central_menu.css   # onde os graficos aparecem
+|   |       |   ├── edit_menu.css      # menu mais a direita do central
+|   |       |   ├── file_menu.css      # menu a esquerda onde entram os arquivos e suas colunas
+|   |       |   ├── icon_menu.css      # menu de icones rapidos acima do central
+|   |       |   ├── status_menu.css    # menu no rodapé 
+|   |       |   ├── top_menu.css       # onde fica arquivo, editar 
+|   |       └─── icones/
 |   |            ├── AddFile_icon.png
 |   |
 │   ├── core/                   # 2. CAMADA DE LÓGICA (OPERAÇÕES E PROCESSAMENTO)

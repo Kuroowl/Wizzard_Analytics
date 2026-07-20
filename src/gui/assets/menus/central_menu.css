@@ -1,4 +1,4 @@
-/*  Onde o gráfico é plotado */
+/* Onde o gráfico é plotado */
 
 /* --- seletor de tipo de gráfico (centro) --- */
 .selector-tipo-grafico-container {
@@ -51,4 +51,22 @@
 
 .centro .js-plotly-plot {
   padding: 12px 12px 0 12px;
+}
+
+.centro .console-dev {
+  margin: 8px 12px 12px 12px;
+}
+
+/* --- console de eventos (debug temporário, embaixo do gráfico) --- */
+.console-dev {
+  font-family: var(--fonte-dado);
+  font-size: 11px;
+  background: var(--cor-superficie-escura);
+  color: var(--cor-accent-suave);
+  padding: 8px 12px;
+  margin-top: 8px;
+  border-radius: 3px;
+  white-space: pre-wrap;
+  max-height: 90px;
+  overflow-y: auto;
 }

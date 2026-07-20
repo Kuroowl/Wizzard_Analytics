@@ -1,126 +1,112 @@
-/*  Onde ficam os icones rápidos */
+/* Menu de ícones rápidos da toolbar (ABRIR / EXPORTAR / DESFAZER) */
 
-/* --- abas estilo Chrome --- */
-.abas-wrapper {
-  display: flex;
-  align-items: stretch;
-  background-color: var(--cor-superficie-escura-2);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
-}
-
-.tabs-chrome-container {
-  display: flex;
-  align-items: flex-end;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-top: 6px;
-  padding-left: 6px;
-  user-select: none;
-  scroll-behavior: smooth;
-  scrollbar-width: none;
-}
-
-.tabs-chrome-container::-webkit-scrollbar {
-  display: none;
-}
-
-.aba-chrome {
+.toolbar {
   display: flex;
   align-items: center;
-  flex: 1 1 0;
-  min-width: 90px;
-  background-color: transparent;
-  color: var(--cor-texto-mudo);
-  font-family: var(--fonte-dado);
-  font-size: 11px;
-  padding: 6px 12px;
-  border-radius: 6px 6px 0 0;
-  position: relative;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-  margin-right: -2px;
-}
-
-.aba-chrome.ativa {
-  background-color: var(--cor-superficie-escura);
-  color: var(--cor-texto-claro);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  border-left: 1px solid rgba(0, 0, 0, 0.2);
-  border-right: 1px solid rgba(0, 0, 0, 0.2);
-  z-index: 2;
-}
-
-.aba-chrome:hover:not(.ativa) {
-  background-color: rgba(255, 255, 255, 0.06);
-  color: var(--cor-texto-claro);
-}
-
-.aba-texto {
-  flex: 1 1 auto;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.aba-fechar-btn {
-  flex: 0 0 auto;
-  border: none;
-  background: transparent;
-  color: var(--cor-texto-mudo);
-  border-radius: 50%;
-  margin-left: 8px;
-  font-size: 9px;
-  width: 14px;
-  height: 14px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.1s, color 0.1s;
-}
-
-.aba-fechar-btn:hover {
-  background-color: rgba(255, 255, 255, 0.18);
-  color: #FFFFFF;
-}
-
-.aba-divisor {
-  color: rgba(255, 255, 255, 0.15);
-  padding: 0 2px;
-  align-self: center;
-  font-size: 11px;
-  font-family: var(--fonte-dado);
-}
-
-.abas-placeholder {
-  font-family: var(--fonte-dado);
-  font-size: 11px;
-  color: var(--cor-texto-mudo);
-  padding: 6px 12px;
-}
-
-/* --- botões de navegação de abas --- */
-.aba-nav-btn {
-  flex: 0 0 20px;
-  width: 20px;
-  border: none;
+  gap: 8px;
+  padding: 0 12px;
   background: var(--cor-superficie-escura-2);
-  color: var(--cor-texto-claro);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.toolbar-botao {
+  position: relative; /* âncora pro tooltip posicionado por baixo */
   font-family: var(--fonte-dado);
-  font-size: 12px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--cor-texto-claro);
+  background: transparent;
+  border: 1px solid rgba(231, 236, 234, 0.25);
+  border-radius: 3px;
+  padding: 8px 10px;      /* espaço suficiente pro ícone de 24px não cortar */
   cursor: pointer;
-  display: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.toolbar-botao:hover {
+  background: rgba(47, 165, 160, 0.18);
+  border-color: var(--cor-accent);
+}
+
+.toolbar-botao:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.toolbar-divisor {
+  width: 1px;
+  height: 18px;
+  background: rgba(231, 236, 234, 0.18);
+  margin: 0 4px;
+}
+
+/* dcc.Upload por padrão vira um <div>; deixamos ele parecer o botão acima */
+.toolbar-upload div {
+  position: relative; /* âncora pro tooltip */
+  font-family: var(--fonte-dado);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--cor-texto-claro);
+  border: 1px solid rgba(231, 236, 234, 0.25);
+  border-radius: 3px;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.aba-nav-btn.visivel { 
-  display: flex; 
+.toolbar-upload div:hover {
+  background: rgba(47, 165, 160, 0.18);
+  border-color: var(--cor-accent);
 }
 
-.aba-nav-btn:hover { 
-  background: rgba(47, 165, 160, 0.25); 
+/* ícone em si: SVG usado como máscara — a cor vem do CSS, não do arquivo */
+.toolbar-icone {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  background-color: var(--cor-texto-claro);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  mask-position: center;
+  transition: background-color 0.12s ease;
+}
+
+.toolbar-botao:hover .toolbar-icone,
+.toolbar-upload:hover .toolbar-icone {
+  background-color: var(--cor-accent);
+}
+
+/* tooltip: nome do botão só aparece com o mouse em cima */
+.toolbar-tooltip {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--cor-superficie-escura);
+  color: var(--cor-texto-claro);
+  font-family: var(--fonte-dado);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border-radius: 3px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 50;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.toolbar-botao:hover .toolbar-tooltip,
+.toolbar-upload div:hover .toolbar-tooltip {
+  opacity: 1;
 }
