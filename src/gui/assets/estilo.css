@@ -26,17 +26,17 @@ body {
 }
 
 /* ==========================================================================
-   Casco geral: grid com topbar (2 linhas) + corpo (sidebar / centro / painel)
+   Casco geral: grid com menubar / toolbar / corpo (1fr) / rodapé
    ========================================================================== */
 .app-shell {
   display: grid;
-  grid-template-rows: 34px 44px 1fr;
+  grid-template-rows: 34px 44px 1fr 24px;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
 }
 
-/* --- barra de menu (Arquivo, Editar, Exibir, Ajuda) --- */
+/* --- barra de menu (Arquivo, Editar, Ajuda) --- */
 .menubar {
   display: flex;
   align-items: center;
@@ -83,6 +83,11 @@ body {
   border-color: var(--cor-accent);
 }
 
+.toolbar-botao:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .toolbar-divisor {
   width: 1px;
   height: 18px;
@@ -110,46 +115,77 @@ body {
 /* ==========================================================================
    Corpo: sidebar | centro (gráfico) | painel direito
    ========================================================================== */
-/* Garante que o corpo use flexbox e ocupe toda a largura disponível */
 .corpo {
-    display: flex;
-    flex-direction: row;
-    width: 100vw;
-    height: calc(100vh - 80px); /* Ajuste baseado na altura do seu menu/toolbar */
-    overflow: hidden; /* Impede a página inteira de rolar */
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* impede a página inteira de rolar; cada painel rola por si */
 }
 
-/* Força a barra lateral a nunca sumir ou ser espremida pelo centro */
+/* Sidebar: largura inicial fixa, mas o usuário pode arrastar pra redimensionar
+   (canto inferior direito do painel) — igual ao divisor entre chat e código
+   deste ambiente, só que via CSS nativo, sem JavaScript. */
 .sidebar {
-    width: 280px; /* Largura fixa ideal para os canais */
-    min-width: 280px; /* Impede o centro de empurrar a sidebar */
-    max-width: 400px; 
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    border-right: 1px solid var(--cor-borda);
-    background-color: var(--cor-fundo-sidebar);
-    
-    /* O SEGREDO ESTÁ AQUI: Se acumular muitos arquivos/canais, ela rola sozinha internamente */
-    overflow-y: auto; 
-    overflow-x: hidden;
-    z-index: 10; /* Garante que ela fique visualmente acima de qualquer vazamento do Plotly */
+  flex: 0 0 auto;
+  width: 280px;
+  min-width: 200px;
+  max-width: 600px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--cor-superficie-escura);
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 10;
 }
 
-/* --- NOVO: Container de Abas Estilo Google Chrome (Dark Version) --- */
+/* --- divisória arrastável entre a sidebar e o centro --- */
+.divisor-resize {
+  flex: 0 0 5px;
+  width: 5px;
+  cursor: col-resize;
+  background: var(--cor-borda);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.divisor-resize:hover,
+.divisor-resize.arrastando {
+  background: var(--cor-accent);
+  box-shadow: 0 0 0 1px rgba(47, 165, 160, 0.35);
+}
+
+/* --- abas estilo Chrome --- */
+.abas-wrapper {
+  display: flex;
+  align-items: stretch;
+  background-color: var(--cor-superficie-escura-2);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+}
+
 .tabs-chrome-container {
   display: flex;
   align-items: flex-end;
-  background-color: var(--cor-superficie-escura-2); /* Fundo contrastante para as abas inativas */
+  flex: 1 1 auto;
+  min-width: 0;               /* deixa o flexbox encolher o container de verdade */
+  overflow-x: auto;
+  overflow-y: hidden;
   padding-top: 6px;
   padding-left: 6px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
   user-select: none;
+  scroll-behavior: smooth;
+  scrollbar-width: none;       /* Firefox: some a barra de rolagem */
+}
+
+.tabs-chrome-container::-webkit-scrollbar {
+  display: none;                /* Chrome/Safari/Edge: some a barra de rolagem */
 }
 
 .aba-chrome {
   display: flex;
   align-items: center;
+  flex: 1 1 0;                  /* distribui igualmente o espaço disponível */
+  min-width: 90px;              /* piso: cabe o começo do nome + botão de fechar */
   background-color: transparent;
   color: var(--cor-texto-mudo);
   font-family: var(--fonte-dado);
@@ -157,34 +193,35 @@ body {
   padding: 6px 12px;
   border-radius: 6px 6px 0 0;
   position: relative;
+  cursor: pointer;
   transition: background 0.12s, color 0.12s;
   margin-right: -2px;
 }
 
-/* Aba Selecionada se mistura com o fundo principal da Sidebar */
 .aba-chrome.ativa {
-  background-color: var(--cor-superficie-escura); 
+  background-color: var(--cor-superficie-escura);
   color: var(--cor-texto-claro);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  border-left: 1px solid rgba(0, 0, 0, 0.1);
-  border-right: 1px solid rgba(0, 0, 0, 0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 1px solid rgba(0, 0, 0, 0.2);
+  border-right: 1px solid rgba(0, 0, 0, 0.2);
   z-index: 2;
 }
 
 .aba-chrome:hover:not(.ativa) {
-  background-color: rgba(255, 255, 255, 0.04);
+  background-color: rgba(255, 255, 255, 0.06);
   color: var(--cor-texto-claro);
 }
 
 .aba-texto {
+  flex: 1 1 auto;    /* ocupa o espaço livre da aba, empurrando o X pro final */
+  min-width: 0;      /* sem isso o flexbox não deixa o ellipsis truncar de verdade */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100px;
 }
 
-/* Botão de Fechar (X) discreto que ganha fundo ao passar o mouse */
 .aba-fechar-btn {
+  flex: 0 0 auto;
   border: none;
   background: transparent;
   color: var(--cor-texto-mudo);
@@ -201,13 +238,12 @@ body {
 }
 
 .aba-fechar-btn:hover {
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: rgba(255, 255, 255, 0.18);
   color: #FFFFFF;
 }
 
-/* Braquete / Divisor visual entre abas */
 .aba-divisor {
-  color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.15);
   padding: 0 2px;
   align-self: center;
   font-size: 11px;
@@ -221,7 +257,26 @@ body {
   padding: 6px 12px;
 }
 
-/* --- Canais e Colunas (Preservado o seu padrão) --- */
+/* --- botões de navegação de abas (só aparecem quando há abas fora de vista) --- */
+.aba-nav-btn {
+  flex: 0 0 20px;
+  width: 20px;
+  border: none;
+  background: var(--cor-superficie-escura-2);
+  color: var(--cor-texto-claro);
+  font-family: var(--fonte-dado);
+  font-size: 12px;
+  cursor: pointer;
+  display: none;         /* JS decide quando mostrar, conforme a posição do scroll */
+  align-items: center;
+  justify-content: center;
+}
+
+.aba-nav-btn.visivel { display: flex; }
+
+.aba-nav-btn:hover { background: rgba(47, 165, 160, 0.25); }
+
+/* --- canais/colunas --- */
 .sidebar-secao-titulo {
   font-size: 10px;
   letter-spacing: 0.1em;
@@ -239,6 +294,7 @@ body {
   gap: 8px;
   font-family: var(--fonte-dado);
   font-size: 12px;
+  color: var(--cor-texto-claro);
   padding: 5px 8px;
   border-radius: 3px;
   cursor: pointer;
@@ -256,11 +312,11 @@ body {
   width: 14px;
 }
 
-/* --- NOVO: Seleção de Tipo de Gráfico na área central --- */
+/* --- seletor de tipo de gráfico (centro) --- */
 .selector-tipo-grafico-container {
   display: flex;
   gap: 6px;
-  padding: 4px 8px;
+  padding: 8px 12px;
   background: #FFFFFF;
   border-bottom: 1px solid var(--cor-borda);
   align-items: center;
@@ -297,14 +353,14 @@ body {
 
 /* --- centro: gráfico --- */
 .centro {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    overflow: hidden;
+  flex: 1;
+  min-width: 0; /* evita que o gráfico force o centro a crescer além do disponível */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
-/* Compensando o padding interno removido do centro para o gráfico e console */
 .centro .js-plotly-plot {
   padding: 12px 12px 0 12px;
 }
@@ -312,7 +368,7 @@ body {
   margin: 8px 12px 12px 12px;
 }
 
-/* --- painel direito (placeholder pra opções de edição futuras) --- */
+/* --- painel direito --- */
 .painel-direito {
   background: #FFFFFF;
   border-left: 1px solid var(--cor-borda);
@@ -346,4 +402,16 @@ body {
   white-space: pre-wrap;
   max-height: 90px;
   overflow-y: auto;
+}
+
+/* --- rodapé --- */
+.rodape {
+  display: flex;
+  align-items: center;
+  background: var(--cor-superficie-escura);
+  color: var(--cor-texto-mudo);
+  font-family: var(--fonte-dado);
+  font-size: 10px;
+  padding: 0 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }

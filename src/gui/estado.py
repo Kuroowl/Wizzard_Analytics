@@ -1,23 +1,22 @@
-# src/gui/estado.py
 from src.core.rotulos import GerenciadorRotulos
+
 
 class EstadoApp:
     """
     Estado global da execução adaptado para múltiplos arquivos.
     Gerencia quais arquivos estão abertos, seus DataFrames, rótulos e canais selecionados.
     """
-
     def __init__(self):
-        # Dicionário estruturado: 
-        # { 
+        # Dicionário estruturado:
+        # {
         #   "ensaio_01.csv": { "df": DataFrame, "gerenciador": GerenciadorRotulos },
         #   "ensaio_02.txt": { "df": DataFrame, "gerenciador": GerenciadorRotulos }
         # }
         self.arquivos = {}
-        
+
         # Guarda quais canais o usuário marcou globalmente para plotar no formato (nome_arquivo, nome_coluna)
-        self.canais_selecionados = set() 
-        self.coluna_x = "Tempo_decorrido_s" # Padrão universal do seu leitor
+        self.canais_selecionados = set()
+        self.coluna_x = "Tempo_decorrido_s"  # Padrão universal do seu leitor
 
     def adicionar_arquivo(self, nome_arquivo, df):
         """Adiciona um novo arquivo ao estado."""
