@@ -110,35 +110,118 @@ body {
 /* ==========================================================================
    Corpo: sidebar | centro (gráfico) | painel direito
    ========================================================================== */
+/* Garante que o corpo use flexbox e ocupe toda a largura disponível */
 .corpo {
-  display: grid;
-  grid-template-columns: 240px 1fr 280px;
-  height: 100%;
-  overflow: hidden;
+    display: flex;
+    flex-direction: row;
+    width: 100vw;
+    height: calc(100vh - 80px); /* Ajuste baseado na altura do seu menu/toolbar */
+    overflow: hidden; /* Impede a página inteira de rolar */
 }
 
-/* --- sidebar esquerda --- */
+/* Força a barra lateral a nunca sumir ou ser espremida pelo centro */
 .sidebar {
-  background: var(--cor-superficie-escura);
-  color: var(--cor-texto-claro);
-  padding: 14px 0;
-  overflow-y: auto;
-  border-right: 1px solid rgba(0, 0, 0, 0.2);
+    width: 280px; /* Largura fixa ideal para os canais */
+    min-width: 280px; /* Impede o centro de empurrar a sidebar */
+    max-width: 400px; 
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--cor-borda);
+    background-color: var(--cor-fundo-sidebar);
+    
+    /* O SEGREDO ESTÁ AQUI: Se acumular muitos arquivos/canais, ela rola sozinha internamente */
+    overflow-y: auto; 
+    overflow-x: hidden;
+    z-index: 10; /* Garante que ela fique visualmente acima de qualquer vazamento do Plotly */
 }
 
-.aba-arquivo {
+/* --- NOVO: Container de Abas Estilo Google Chrome (Dark Version) --- */
+.tabs-chrome-container {
+  display: flex;
+  align-items: flex-end;
+  background-color: var(--cor-superficie-escura-2); /* Fundo contrastante para as abas inativas */
+  padding-top: 6px;
+  padding-left: 6px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  user-select: none;
+}
+
+.aba-chrome {
+  display: flex;
+  align-items: center;
+  background-color: transparent;
+  color: var(--cor-texto-mudo);
   font-family: var(--fonte-dado);
-  font-size: 12px;
-  background: rgba(47, 165, 160, 0.15);
-  border-left: 2px solid var(--cor-accent);
-  padding: 8px 14px;
-  margin: 0 10px 14px 10px;
-  border-radius: 2px;
+  font-size: 11px;
+  padding: 6px 12px;
+  border-radius: 6px 6px 0 0;
+  position: relative;
+  transition: background 0.12s, color 0.12s;
+  margin-right: -2px;
+}
+
+/* Aba Selecionada se mistura com o fundo principal da Sidebar */
+.aba-chrome.ativa {
+  background-color: var(--cor-superficie-escura); 
+  color: var(--cor-texto-claro);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+  z-index: 2;
+}
+
+.aba-chrome:hover:not(.ativa) {
+  background-color: rgba(255, 255, 255, 0.04);
+  color: var(--cor-texto-claro);
+}
+
+.aba-texto {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100px;
 }
 
+/* Botão de Fechar (X) discreto que ganha fundo ao passar o mouse */
+.aba-fechar-btn {
+  border: none;
+  background: transparent;
+  color: var(--cor-texto-mudo);
+  border-radius: 50%;
+  margin-left: 8px;
+  font-size: 9px;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s;
+}
+
+.aba-fechar-btn:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #FFFFFF;
+}
+
+/* Braquete / Divisor visual entre abas */
+.aba-divisor {
+  color: rgba(255, 255, 255, 0.12);
+  padding: 0 2px;
+  align-self: center;
+  font-size: 11px;
+  font-family: var(--fonte-dado);
+}
+
+.abas-placeholder {
+  font-family: var(--fonte-dado);
+  font-size: 11px;
+  color: var(--cor-texto-mudo);
+  padding: 6px 12px;
+}
+
+/* --- Canais e Colunas (Preservado o seu padrão) --- */
 .sidebar-secao-titulo {
   font-size: 10px;
   letter-spacing: 0.1em;
@@ -148,7 +231,7 @@ body {
   margin: 16px 0 6px 0;
 }
 
-.lista-colunas { padding: 0 6px; }
+.menu-canais-container { padding: 0 6px; }
 
 .coluna-item {
   display: flex;
@@ -166,34 +249,67 @@ body {
 
 .coluna-item.selecionada { background: rgba(47, 165, 160, 0.2); }
 
-.coluna-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.coluna-dot.vazio {
-  background: transparent;
-  border: 1px solid var(--cor-texto-mudo);
-}
-
-.coluna-marcador-x {
-  font-size: 9px;
+.canal-checkbox {
+  font-family: var(--fonte-dado);
+  font-size: 11px;
   color: var(--cor-accent);
-  border: 1px solid var(--cor-accent);
-  border-radius: 2px;
-  padding: 0 3px;
-  margin-left: auto;
-  letter-spacing: 0.05em;
+  width: 14px;
+}
+
+/* --- NOVO: Seleção de Tipo de Gráfico na área central --- */
+.selector-tipo-grafico-container {
+  display: flex;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #FFFFFF;
+  border-bottom: 1px solid var(--cor-borda);
+  align-items: center;
+}
+
+.tipo-grafico-btn {
+  font-family: var(--fonte-ui);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cor-texto-mudo);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.tipo-grafico-btn:hover:not(:disabled) {
+  background: var(--cor-fundo);
+  color: var(--cor-texto-escuro);
+}
+
+.tipo-grafico-btn.ativo {
+  background: var(--cor-accent-suave);
+  color: var(--cor-accent);
+  border-color: rgba(47, 165, 160, 0.25);
+}
+
+.tipo-grafico-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* --- centro: gráfico --- */
 .centro {
-  padding: 12px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Compensando o padding interno removido do centro para o gráfico e console */
+.centro .js-plotly-plot {
+  padding: 12px 12px 0 12px;
+}
+.centro .console-dev {
+  margin: 8px 12px 12px 12px;
 }
 
 /* --- painel direito (placeholder pra opções de edição futuras) --- */
@@ -218,7 +334,7 @@ body {
   line-height: 1.5;
 }
 
-/* --- console de eventos (temporário, pra debug durante o desenvolvimento) --- */
+/* --- console de eventos --- */
 .console-dev {
   font-family: var(--fonte-dado);
   font-size: 11px;
