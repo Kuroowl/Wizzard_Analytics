@@ -3,6 +3,7 @@ from dash import Dash, dcc, html, Input, Output, State, ctx, ALL
 from dash.exceptions import PreventUpdate
 import plotly.graph_objects as go
 
+from src.gui.components import icone
 from src.utils.helpers import carregar_dados_de_upload
 
 
@@ -214,7 +215,7 @@ def criar_app(estado):
         html.Div(className='toolbar', children=[
             dcc.Upload(
                 id='upload-arquivo',
-                children=html.Div('ABRIR'),
+                children=html.Div([icone('AddFile_icon.png'), '']),
                 className='toolbar-upload',
                 multiple=False,
             ),

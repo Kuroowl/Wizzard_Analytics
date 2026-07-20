@@ -30,7 +30,8 @@ wizard-analytics/
 |   |       |   ├── icon_menu.css
 |   |       |   ├── status_menu.css
 |   |       |   ├── top_menu.css
-|   |       | ── icons/
+|   |       └─── icons/
+|   |            ├── AddFile_icon.png
 |   |
 │   ├── core/                   # 2. CAMADA DE LÓGICA (OPERAÇÕES E PROCESSAMENTO)
 │   │   ├── __init__.py
