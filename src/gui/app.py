@@ -215,13 +215,53 @@ def criar_app(estado):
         html.Div(className='toolbar', children=[
             dcc.Upload(
                 id='upload-arquivo',
-                children=html.Div([icone_colorido('AddFile_icon.png'), html.Span('Carregar Arquivo', className='toolbar-tooltip')]),
+                children=html.Div([icone_colorido('AddFile_icon.png'), html.Span('Carregar arquivo', className='toolbar-tooltip')]),
                 className='toolbar-upload',
                 multiple=False,
             ),
-            html.Div(className='toolbar-divisor'),
-            html.Button('EXPORTAR', className='toolbar-botao', disabled=True, title='Em breve'),
-            html.Button('DESFAZER', className='toolbar-botao', disabled=True, title='Em breve'),
+            dcc.Upload(
+                id='aparar-dados',
+                children=html.Div([icone_colorido('TrimData_icon.png'), html.Span('Aparar dados', className='toolbar-tooltip')]),
+                className='toolbar-upload', disabled = True, 
+                multiple=False,
+            ),
+            dcc.Upload(
+                id='excluir-dados',
+                children=html.Div([icone_colorido('CutData_icon.png'), html.Span('Excluir dados', className='toolbar-tooltip')]),
+                className='toolbar-upload', disabled = True,
+                multiple=False,
+            ),
+            dcc.Upload(
+                id='nova-analise',
+                children=html.Div([icone_colorido('NewAnalysis_icon.png'), html.Span('Nova análise', className='toolbar-tooltip')]),
+                className='toolbar-upload', disabled = True, 
+                multiple=False,
+            ),
+            dcc.Upload(
+                id='nova-amostra',
+                children=html.Div([icone_colorido('SampleData_icon.png'), html.Span('Nova Amostragem', className='toolbar-tooltip')]),
+                className='toolbar-upload', disabled = True, 
+                multiple=False,
+            ),
+            dcc.Upload(
+                id='fundir-arquivos',
+                children=html.Div([icone_colorido('MergeData_icon.png'), html.Span('Fundir arquivos', className='toolbar-tooltip')]),
+                className='toolbar-upload', disabled = True, 
+                multiple=False,
+            ),
+            dcc.Upload(
+                id='exportar-grafico',
+                children=html.Div([icone_colorido('ExportGraph_icon.png'), html.Span('Salvar gráfico', className='toolbar-tooltip')]),
+                className='toolbar-upload', disabled = True,  
+                multiple=False,
+            ),
+            dcc.Upload(
+                id='exportar-dados',
+                children=html.Div([icone_colorido('ExportData_icon.png'), html.Span('Exportar dados', className='toolbar-tooltip')]),
+                className='toolbar-upload', disabled = True,
+                multiple=False,
+            ),
+
         ]),
 
         # Linha 3: Layout Principal (Corpo dividido usando as classes CSS do seu painel)
@@ -237,7 +277,7 @@ def criar_app(estado):
                 ]),
 
                 # Seção estática de título
-                html.Div('Canais Disponíveis', className='sidebar-secao-titulo'),
+                html.Div('', className='sidebar-secao-titulo'),
 
                 # Container interno dos canais com rolagem controlada
                 html.Div(id='lista-canais-aba', className='menu-canais-container')
