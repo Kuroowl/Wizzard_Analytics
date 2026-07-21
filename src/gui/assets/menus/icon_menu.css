@@ -4,7 +4,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 12px;
+  padding: 8px 12px;
   background: var(--cor-superficie-escura-2);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -38,7 +38,7 @@
 
 .toolbar-divisor {
   width: 1px;
-  height: 18px;
+  height: 64px;
   background: rgba(231, 236, 234, 0.18);
   margin: 0 4px;
 }
@@ -83,6 +83,22 @@
 .toolbar-botao:hover .toolbar-icone,
 .toolbar-upload:hover .toolbar-icone {
   background-color: var(--cor-accent);
+}
+
+/* ícone com cores originais preservadas (sem máscara) — hover só com opacidade,
+   já que não dá pra recolorir genericamente um ícone que já tem cor própria */
+.toolbar-icone-colorido {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  transition: opacity 0.12s ease;
+}
+
+.toolbar-botao:hover .toolbar-icone-colorido,
+.toolbar-upload:hover .toolbar-icone-colorido {
+  opacity: 0.75;
 }
 
 /* tooltip: nome do botão só aparece com o mouse em cima */
