@@ -1,6 +1,7 @@
 import pandas as pd
 from dash import Dash, dcc, html, Input, Output, State, ctx, ALL
 from dash.exceptions import PreventUpdate
+from dash import no_update
 import plotly.graph_objects as go
 
 from src.gui.components import icone, icone_colorido
@@ -80,13 +81,6 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa):
     return lista_canais
 
 
-# --- Main Application ---
-
-# JS puro (sem round-trip pro servidor Python a cada pixel arrastado) que liga
-# a divisória entre sidebar e centro. Injetado no index_string porque é
-# interação de mouse contínua (mousedown/mousemove/mouseup) — um clientside
-# callback do Dash é pensado pra eventos discretos (clique, mudança de valor),
-# não pra isso.
 SCRIPT_DIVISORIA = """
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -94,7 +88,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var divisor = document.getElementById('divisor-resize');
         var sidebar = document.querySelector('.sidebar');
         if (!divisor || !sidebar) {
-            setTimeout(iniciar, 300);  // o Dash ainda não montou o layout via React
+            setTimeout(iniciar, 300);
             return;
         }
         var arrastando = false;
@@ -126,7 +120,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     iniciar();
 
-    // --- navegação das abas (< / >): aparecem só quando há abas fora de vista ---
     function iniciarNavegacaoAbas() {
         var container = document.getElementById('container-abas-chrome');
         var btnEsquerda = document.getElementById('aba-nav-esquerda');
@@ -136,7 +129,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        var MARGEM = 2;  // tolerância de arredondamento de subpixel
+        var MARGEM = 2;
 
         function atualizarSetas() {
             var temOverflow = container.scrollWidth > container.clientWidth + MARGEM;
@@ -162,9 +155,6 @@ document.addEventListener('DOMContentLoaded', function () {
         container.addEventListener('scroll', atualizarSetas);
         window.addEventListener('resize', atualizarSetas);
 
-        // o Dash re-renderiza as abas (novo arquivo, fechar aba) substituindo os
-        // filhos do container — um MutationObserver garante que as setas sejam
-        // reavaliadas toda vez que isso acontecer, sem precisar de callback extra
         new MutationObserver(atualizarSetas).observe(container, { childList: true });
 
         atualizarSetas();
@@ -177,7 +167,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 def criar_app(estado):
     app = Dash(__name__, external_stylesheets=['https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap'])
-    app.title = 'Análise de dados'
+    app.title = 'Wizard Analytics'
 
     app.index_string = f"""
 <!DOCTYPE html>
@@ -201,17 +191,14 @@ def criar_app(estado):
 """
 
     app.layout = html.Div(className='app-shell', children=[
-        # Memória local estável da UI
         dcc.Store(id='aba-ativa-store', data=None),
 
-        # Linha 1: Menubar Fixo Superior
         html.Div(className='menubar', children=[
             html.Span('Arquivo', className='menubar-item'),
             html.Span('Editar', className='menubar-item'),
             html.Span('Ajuda', className='menubar-item'),
         ]),
 
-        # Linha 2: Toolbar de Importação
         html.Div(className='toolbar', children=[
             dcc.Upload(
                 id='upload-arquivo',
@@ -222,119 +209,124 @@ def criar_app(estado):
             dcc.Upload(
                 id='aparar-dados',
                 children=html.Div([icone_colorido('TrimData_icon.png'), html.Span('Aparar dados', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled = True, 
+                className='toolbar-upload', disabled=True,
                 multiple=False,
             ),
             dcc.Upload(
                 id='excluir-dados',
                 children=html.Div([icone_colorido('CutData_icon.png'), html.Span('Excluir dados', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled = True,
+                className='toolbar-upload', disabled=True,
                 multiple=False,
             ),
             dcc.Upload(
                 id='nova-analise',
                 children=html.Div([icone_colorido('NewAnalysis_icon.png'), html.Span('Nova análise', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled = True, 
+                className='toolbar-upload', disabled=True,
                 multiple=False,
             ),
             dcc.Upload(
                 id='nova-amostra',
                 children=html.Div([icone_colorido('SampleData_icon.png'), html.Span('Nova Amostragem', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled = True, 
+                className='toolbar-upload', disabled=True,
                 multiple=False,
             ),
             dcc.Upload(
                 id='fundir-arquivos',
                 children=html.Div([icone_colorido('MergeData_icon.png'), html.Span('Fundir arquivos', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled = True, 
+                className='toolbar-upload', disabled=True,
                 multiple=False,
             ),
             dcc.Upload(
                 id='exportar-grafico',
                 children=html.Div([icone_colorido('ExportGraph_icon.png'), html.Span('Salvar gráfico', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled = True,  
+                className='toolbar-upload', disabled=True,
                 multiple=False,
             ),
             dcc.Upload(
                 id='exportar-dados',
                 children=html.Div([icone_colorido('ExportData_icon.png'), html.Span('Exportar dados', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled = True,
+                className='toolbar-upload', disabled=True,
                 multiple=False,
             ),
-
         ]),
 
-        # Linha 3: Layout Principal (Corpo dividido usando as classes CSS do seu painel)
         html.Div(className='corpo', children=[
 
-            # 1. PAINEL DA ESQUERDA (Fixo e Isolado)
             html.Div(className='sidebar', children=[
-                # Container superior com abas estilo chrome + navegação lateral
                 html.Div(className='abas-wrapper', children=[
                     html.Button('‹', id='aba-nav-esquerda', className='aba-nav-btn', n_clicks=0),
                     html.Div(id='container-abas-chrome', className='tabs-chrome-container'),
                     html.Button('›', id='aba-nav-direita', className='aba-nav-btn', n_clicks=0),
                 ]),
-
-                # Seção estática de título
                 html.Div('', className='sidebar-secao-titulo'),
-
-                # Container interno dos canais com rolagem controlada
                 html.Div(id='lista-canais-aba', className='menu-canais-container')
             ]),
 
             html.Div(id='divisor-resize', className='divisor-resize'),
 
-            # 2. PAINEL CENTRAL (Controles Superiores Fixos + Área de Gráfico Dinâmica)
             html.Div(className='centro', children=[
-
-                # Barra de Opções Superior do Gráfico (ESTÁTICA, ALINHADA COM O CSS)
-                html.Div(className='selector-tipo-grafico-container', children=[
-                    # Alinhado à esquerda
-                    html.Div(style={'flex': '1'}, children=[
-                        html.Button('Série Temporal', id='btn-serie-temporal', className='tipo-grafico-btn ativo', n_clicks=0),
-                        html.Button('Histograma', id='btn-histograma', className='tipo-grafico-btn', n_clicks=0, disabled=True),
-                        html.Button('X-Y Correlação', id='btn-xy', className='tipo-grafico-btn', n_clicks=0, disabled=True),
-                    ]),
-                    # Botão Fixo de Ação à Direita (Conforme o layout da sua imagem)
-                    html.Button('GERAR GRÁFICO', id='botao-gerar-grafico', className='toolbar-botao', style={
-                        'borderColor': 'var(--cor-accent)',
-                        'background': 'rgba(47, 165, 160, 0.1)',
-                        'color': 'var(--cor-texto-escuro)',
-                        'padding': '6px 14px'
-                    }, n_clicks=0),
-                ]),
-
-                # Espaço reservado para o gráfico (Plotly desligado por padrão)
                 dcc.Loading(
                     id="loading-grafico",
                     type="mono",
-                    children=html.Div(id='container-grafico', style={'flex': '1', 'display': 'flex', 'flexDirection': 'column'}),
+                    children=html.Div(
+                        id='container-grafico',
+                        style={
+                            'flex': '1',
+                            'display': 'flex',
+                            'alignItems': 'center',
+                            'justifyContent': 'center',
+                            'backgroundImage': 'url("/assets/icones/bar-graph.svg")',
+                            'backgroundRepeat': 'no-repeat',
+                            'backgroundPosition': 'center',
+                            'backgroundSize': '220px 220px',
+                            'position': 'relative',
+                            'width': '100%',
+                            'height': '100%'
+                        },
+                        children=[
+                            html.Div(
+                                style={
+                                    'display': 'grid',
+                                    'gridTemplateColumns': 'repeat(3, 1fr)',
+                                    'gap': '16px',
+                                    'backgroundColor': 'rgba(255, 255, 255, 0.88)',
+                                    'padding': '20px',
+                                    'borderRadius': '8px',
+                                    'boxShadow': '0 4px 12px rgba(0,0,0,0.08)',
+                                    'backdropFilter': 'blur(3px)'
+                                },
+                                children=[
+                                    html.Button('Ação 1', id='central-btn-1', className='toolbar-botao', style={'padding': '12px 20px', 'minWidth': '90px'}),
+                                    html.Button('Ação 2', id='central-btn-2', className='toolbar-botao', style={'padding': '12px 20px', 'minWidth': '90px'}),
+                                    html.Button('Ação 3', id='central-btn-3', className='toolbar-botao', style={'padding': '12px 20px', 'minWidth': '90px'}),
+                                    html.Button('Ação 4', id='central-btn-4', className='toolbar-botao', style={'padding': '12px 20px', 'minWidth': '90px'}),
+                                    html.Button('Ação 5', id='central-btn-5', className='toolbar-botao', style={'padding': '12px 20px', 'minWidth': '90px'}),
+                                    html.Button('Ação 6', id='central-btn-6', className='toolbar-botao', style={'padding': '12px 20px', 'minWidth': '90px'}),
+                                ]
+                            )
+                        ]
+                    ),
                 ),
-
-                # Console de eventos para o Desenvolvedor
-                html.Pre(id='console-dev', className='console-dev', children='Aguardando dados...'),
             ]),
 
-            # 3. PAINEL DA DIREITA (Opções adicionais de customização)
             html.Div(className='painel-direito', style={'width': '260px', 'minWidth': '260px'}, children=[
                 html.Div('Opções do gráfico', className='painel-direito-titulo'),
                 html.P('Propriedades e customizações da curva ativa.', className='painel-direito-placeholder'),
             ]),
         ]),
 
-        # Linha 4: Rodapé
         html.Div(className='rodape', children=[
-            html.Span(id='rodape-status', children='Pronto.'),
+            html.Span('infos do sistema (que futuramente vou carregar)', className='rodape-info'),
+            html.Span(' | ', style={'margin': '0 8px', 'opacity': '0.4'}),
+            html.Span(id='rodape-status', children='🧙‍♂️: " Aguardando ações... "')
         ]),
     ])
 
-    # --- Callbacks Totalmente Isolados (Evita loops cruzados e renderizações indesejadas) ---
-
-    # Callback 1: Gerencia o Upload de Arquivos
     @app.callback(
         Output('aba-ativa-store', 'data'),
-        Output('console-dev', 'children'),
+        Output('rodape-status', 'children'),
+        Output('nova-analise', 'disabled'),
+        Output('fundir-arquivos', 'disabled'),
         Input('upload-arquivo', 'contents'),
         State('upload-arquivo', 'filename'),
         State('aba-ativa-store', 'data'),
@@ -344,19 +336,24 @@ def criar_app(estado):
         if conteudo is None:
             raise PreventUpdate
         if nome_arquivo in estado.arquivos:
-            return nome_arquivo, f"Arquivo '{nome_arquivo}' já selecionado."
+            return (nome_arquivo, f'🧙‍♂️: " O arquivo \'{nome_arquivo}\' já foi aberto! "',
+                    len(estado.arquivos) == 0, len(estado.arquivos) < 2)
         try:
             df = carregar_dados_de_upload(conteudo, nome_arquivo)
             estado.adicionar_arquivo(nome_arquivo, df)
-            return nome_arquivo, f"Sucesso: '{nome_arquivo}' carregado com sucesso."
+            return (nome_arquivo, f'🧙‍♂️: " Arquivo \'{nome_arquivo}\' aberto com sucesso! pronto. "',
+                    len(estado.arquivos) == 0, len(estado.arquivos) < 2)
         except Exception as e:
-            return aba_atual, f"Erro ao processar arquivo: {str(e)}"
+            return (aba_atual, f'🧙‍♂️: " Erro ao abrir arquivo: {str(e)} "',
+                    len(estado.arquivos) == 0, len(estado.arquivos) < 2)
 
-    # Callback 2: Gerencia a alternância e fechamento de abas
     @app.callback(
         Output('aba-ativa-store', 'data', allow_duplicate=True),
         Output('container-abas-chrome', 'children'),
         Output('lista-canais-aba', 'children'),
+        Output('rodape-status', 'children', allow_duplicate=True),
+        Output('nova-analise', 'disabled', allow_duplicate=True),
+        Output('fundir-arquivos', 'disabled', allow_duplicate=True),
         Input({'type': 'aba-item', 'arquivo': ALL}, 'n_clicks'),
         Input({'type': 'botao-fechar-aba', 'arquivo': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
@@ -374,14 +371,19 @@ def criar_app(estado):
             estado.remover_arquivo(arquivo_alvo)
             if aba_ativa == arquivo_alvo:
                 aba_ativa = list(estado.arquivos.keys())[0] if estado.arquivos else None
+            mensagem = f'🧙‍♂️: " Arquivo \'{arquivo_alvo}\' fechado. "'
         elif tipo == 'aba-item':
             aba_ativa = arquivo_alvo
+            mensagem = f'🧙‍♂️: " Trabalhando em \'{truncar_nome_arquivo(arquivo_alvo)}\'. "'
+        else:
+            mensagem = no_update
 
-        return aba_ativa, renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa)
+        return (aba_ativa, renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa),
+                mensagem, len(estado.arquivos) == 0, len(estado.arquivos) < 2)
 
-    # Callback 3: Gerencia estritamente a seleção visual das linhas de Canais
     @app.callback(
         Output('lista-canais-aba', 'children', allow_duplicate=True),
+        Output('rodape-status', 'children', allow_duplicate=True),
         Input({'type': 'linha-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
@@ -391,12 +393,16 @@ def criar_app(estado):
             raise PreventUpdate
 
         gatilho_id = ctx.triggered_id
+        mensagem = no_update
         if gatilho_id and gatilho_id.get('type') == 'linha-canal':
-            estado.alternar_selecao_canal(gatilho_id.get('arquivo'), gatilho_id.get('coluna'))
+            arquivo, coluna = gatilho_id.get('arquivo'), gatilho_id.get('coluna')
+            estado.alternar_selecao_canal(arquivo, coluna)
+            ligado = (arquivo, coluna) in estado.canais_selecionados
+            acao = 'ativado' if ligado else 'desativado'
+            mensagem = f'🧙‍♂️: " Canal \'{coluna}\' {acao}. ({len(estado.canais_selecionados)} selecionado(s)) "'
 
-        return renderizar_colunas_da_aba_ativa(estado, aba_ativa)
+        return renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem
 
-    # Callback 4: Sincroniza a barra lateral quando um novo arquivo altera a aba ativa
     @app.callback(
         Output('container-abas-chrome', 'children', allow_duplicate=True),
         Output('lista-canais-aba', 'children', allow_duplicate=True),
@@ -406,17 +412,17 @@ def criar_app(estado):
     def sincronizar_interface_por_aba(aba_ativa):
         return renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa)
 
-    # Callback 5: EXECUÇÃO DO PLOT (Apenas sob demanda do clique do botão!)
     @app.callback(
         Output('container-grafico', 'children'),
-        Input('botao-gerar-grafico', 'n_clicks'),
+        Output('rodape-status', 'children', allow_duplicate=True),
+        Input('central-btn-1', 'n_clicks'),
         prevent_initial_call=True,
     )
     def disparar_plotagem_sob_demanda(n_clicks):
-        # Proteção Absoluta: Se não houver clique ou canais selecionados, impede o carregamento do Plotly
-        if not n_clicks or not estado.canais_selecionados:
-            return html.Div("Selecione os canais desejados e clique em 'GERAR GRÁFICO' para plotar.",
-                            style={'margin': 'auto', 'color': 'var(--cor-texto-mudo)', 'fontSize': '12px', 'fontFamily': 'var(--fonte-ui)'})
+        if not n_clicks:
+            raise PreventUpdate
+        if not estado.canais_selecionados:
+            return no_update, '🧙‍♂️: " Selecione ao menos um canal antes de gerar o gráfico. "'
 
         fig = go.Figure()
 
@@ -437,9 +443,12 @@ def criar_app(estado):
             template="plotly_white",
             margin=dict(l=50, r=20, t=20, b=40),
             hovermode="x unified",
-            uirevision='constant'  # Impede perda de zoom ao re-plotar novos canais
+            uirevision='constant'
         )
 
-        return dcc.Graph(id='grafico-plotly-real', figure=fig, style={'flex': '1'})
+        estado.grafico_gerado = True
+        n_series = len(estado.canais_selecionados)
+        mensagem = f'🧙‍♂️: " Gráfico gerado com {n_series} série(s). "'
+        return dcc.Graph(id='grafico-plotly-real', figure=fig, style={'flex': '1', 'width': '100%', 'height': '100%'}), mensagem
 
     return app

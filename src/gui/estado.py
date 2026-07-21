@@ -17,6 +17,7 @@ class EstadoApp:
         # Guarda quais canais o usuário marcou globalmente para plotar no formato (nome_arquivo, nome_coluna)
         self.canais_selecionados = set()
         self.coluna_x = "Tempo_decorrido_s"  # Padrão universal do seu leitor
+        self.grafico_gerado = False  # vira True quando um gráfico de verdade é plotado
 
     def adicionar_arquivo(self, nome_arquivo, df):
         """Adiciona um novo arquivo ao estado."""
@@ -31,6 +32,9 @@ class EstadoApp:
             del self.arquivos[nome_arquivo]
             # Limpa os canais selecionados que pertenciam a esse arquivo
             self.canais_selecionados = {c for c in self.canais_selecionados if c[0] != nome_arquivo}
+            if not self.arquivos:
+                # sem nenhum arquivo aberto, qualquer gráfico gerado antes perde o sentido
+                self.grafico_gerado = False
 
     def alternar_selecao_canal(self, nome_arquivo, coluna):
         """Marca ou desmarca um canal para plotagem."""
