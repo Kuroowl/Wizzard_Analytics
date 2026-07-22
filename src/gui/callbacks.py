@@ -6,6 +6,17 @@ from src.gui.renderizadores import truncar_nome_arquivo, renderizar_abas_estilo_
 from src.utils.helpers import carregar_dados_de_upload
 
 
+def _clique_real(ctx_triggered):
+    """
+    Protege contra o disparo 'fantasma' que callbacks de padrão (ALL) do
+    Dash costumam dar assim que componentes novos são criados dinamicamente
+    (ex: uma aba nova, uma linha de canal nova), mesmo sem clique nenhum do
+    usuário. n_clicks nasce em 0/None nesses casos — só considera clique de
+    verdade se o valor for truthy (>= 1).
+    """
+    return bool(ctx_triggered) and ctx_triggered[0].get('value') not in (None, 0)
+
+
 def registrar_callbacks(app, estado):
     """
     Registra todos os callbacks do app. Recebe 'app' (pra decorar com
@@ -57,7 +68,7 @@ def registrar_callbacks(app, estado):
         prevent_initial_call=True,
     )
     def gerenciar_abas(_c_item, _c_fechar, aba_ativa):
-        if not ctx.triggered:
+        if not _clique_real(ctx.triggered):
             raise PreventUpdate
 
         gatilho_id = ctx.triggered_id
@@ -90,7 +101,7 @@ def registrar_callbacks(app, estado):
         prevent_initial_call=True,
     )
     def gerenciar_selecao_canais(n_clicks_list, aba_ativa):
-        if not ctx.triggered or not aba_ativa:
+        if not _clique_real(ctx.triggered) or not aba_ativa:
             raise PreventUpdate
 
         gatilho_id = ctx.triggered_id
