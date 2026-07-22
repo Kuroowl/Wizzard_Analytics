@@ -92,7 +92,7 @@ def montar_layout(estado):
             html.Div(className='centro', children=[
                 dcc.Loading(
                     id="loading-grafico",
-                    type="mono",
+                    type="circle",
                     children=html.Div(
                         id='container-grafico',
                         className='area-grafico-container',

@@ -96,7 +96,11 @@ def renderizar_area_grafico(estado):
       dispara a plotagem — os outros 5 esperam você implementar depois)
     """
     if not estado.arquivos:
-        return html.Div('Carregue um arquivo para começar.', className='area-grafico-vazia')
+        # Se quiser mostrar a mensagem dentro do container azul ou direto:
+        return html.Div(
+            'Carregue um arquivo para começar a analisar.', 
+            className='area-grafico-vazia'
+        )
 
     opcoes = []
     for i, nome_icone in enumerate(ICONES_OPCOES_GRAFICO, start=1):
@@ -110,4 +114,5 @@ def renderizar_area_grafico(estado):
             n_clicks=0,
         ))
 
+    # Grade com a classe .grade-opcoes-grafico (onde o azul é aplicado)
     return html.Div(className='grade-opcoes-grafico', children=opcoes)

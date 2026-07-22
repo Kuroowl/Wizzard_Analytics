@@ -1,37 +1,71 @@
-/* Onde o gráfico é plotado */
+/* ==========================================================================
+   Painel Central: Gráfico e Opções
+   ========================================================================== */
 
-/* --- área do gráfico: fundo com o SVG decorativo, ocupa o centro inteiro --- */
-.area-grafico-container {
+/* --- Centro: ocupa todo o espaço restante do .corpo --- */
+.centro {
   flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background-image: url("/assets/icones/bar-graph.svg");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 70% auto;   /* <<< AQUI controla o tamanho do SVG de fundo */
-  position: relative;
-  width: 100%;
+  flex-direction: column;
   height: 100%;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  background-color: var(--cor-superficie-escura, #1B2430); /* Cor escura do tema */
 }
 
-/* --- mensagem antes de qualquer arquivo ser carregado (sem os botões) --- */
+/* --- FORÇAR TODOS OS WRAPPERS INTERNOS DO DASH A PREENCHER A TELA INTEIRA --- */
+.centro > div,
+.centro #loading-grafico,
+.centro .dash-loading-container,
+.centro .dash-loading-callback,
+.centro .dash-loading-nested-components {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+/* --- Área Central com Fundo SVG e Centralização Perfeita --- */
+.area-grafico-container {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;     /* Centraliza a grade verticalmente */
+  justify-content: center;  /* Centraliza a grade horizontalmente */
+  position: relative;
+  background-color: var(--cor-superficie-escura, #1B2430);
+
+  /* SVG de Fundo */
+  background-image: url("/assets/icones/bar-graph.svg");
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: 55% auto;
+}
+
+/* --- Mensagem de estado vazio --- */
 .area-grafico-vazia {
-  color: var(--cor-texto-mudo);
+  color: var(--cor-texto-claro, #E7ECEA);
   font-size: 13px;
   font-family: var(--fonte-ui);
 }
 
-/* --- grade 2x3 de opções de tipo de gráfico (aparece após o 1º arquivo) --- */
+/* --- Grade de opções de gráfico --- */
 .grade-opcoes-grafico {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
-  background-color: rgba(255, 255, 255, 0.88);
-  padding: 20px;
+  background-color: rgba(35, 47, 61, 0.92); /* Usa a var(--cor-superficie-escura-2) com opacidade */
+  padding: 24px;
+  border: 1px solid var(--cor-borda, #DDE4E2);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+  z-index: 2;
 }
 
 .central-btn-opcao {
@@ -39,32 +73,19 @@
   min-width: 90px;
 }
 
-/* --- centro: gráfico --- */
-.centro {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-
+/* --- Estilização do Plotly e Console Dev --- */
 .centro .js-plotly-plot {
   padding: 12px 12px 0 12px;
+  flex: 1;
 }
 
-.centro .console-dev {
-  margin: 8px 12px 12px 12px;
-}
-
-/* --- console de eventos (debug temporário, embaixo do gráfico) --- */
 .console-dev {
   font-family: var(--fonte-dado);
   font-size: 11px;
-  background: var(--cor-superficie-escura);
-  color: var(--cor-accent-suave);
+  background: var(--cor-superficie-escura-2, #232F3D);
+  color: var(--cor-accent-suave, #DCEEEC);
   padding: 8px 12px;
-  margin-top: 8px;
+  margin: 8px 12px 12px 12px;
   border-radius: 3px;
   white-space: pre-wrap;
   max-height: 90px;
