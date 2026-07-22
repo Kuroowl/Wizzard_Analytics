@@ -1,5 +1,7 @@
 from dash import html
 
+from src.gui.components import icone_colorido
+
 
 def truncar_nome_arquivo(nome, limite=15):
     base, ext = nome.rsplit('.', 1) if '.' in nome else (nome, '')
@@ -70,3 +72,42 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa):
         ))
 
     return lista_canais
+
+
+# Nomes dos ícones das 6 opções de tipo de gráfico — placeholders genéricos,
+# troque pelo nome de arquivo real (em assets/icones/) conforme for
+# implementando cada opção de verdade.
+ICONES_OPCOES_GRAFICO = [
+    'ChartOption1_icon.png',
+    'ChartOption2_icon.png',
+    'ChartOption3_icon.png',
+    'ChartOption4_icon.png',
+    'ChartOption5_icon.png',
+    'ChartOption6_icon.png',
+]
+
+
+def renderizar_area_grafico(estado):
+    """
+    Conteúdo do container-grafico ANTES de um gráfico de verdade existir:
+    - nenhum arquivo carregado: mensagem simples, sem os botões de opção
+    - pelo menos 1 arquivo carregado: a grade 2x3 de opções de tipo de
+      gráfico (cada botão ainda não faz nada além do central-btn-1, que já
+      dispara a plotagem — os outros 5 esperam você implementar depois)
+    """
+    if not estado.arquivos:
+        return html.Div('Carregue um arquivo para começar.', className='area-grafico-vazia')
+
+    opcoes = []
+    for i, nome_icone in enumerate(ICONES_OPCOES_GRAFICO, start=1):
+        opcoes.append(html.Button(
+            [
+                icone_colorido(nome_icone, tamanho=32),
+                html.Span(f'Opção {i}', className='toolbar-tooltip'),
+            ],
+            id=f'central-btn-{i}',
+            className='toolbar-botao central-btn-opcao',
+            n_clicks=0,
+        ))
+
+    return html.Div(className='grade-opcoes-grafico', children=opcoes)

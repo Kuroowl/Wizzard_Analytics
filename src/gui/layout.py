@@ -1,6 +1,7 @@
 from dash import dcc, html
 
 from src.gui.components import icone_colorido
+from src.gui.renderizadores import renderizar_area_grafico
 
 
 def montar_layout(estado):
@@ -94,41 +95,8 @@ def montar_layout(estado):
                     type="mono",
                     children=html.Div(
                         id='container-grafico',
-                        style={
-                            'flex': '1',
-                            'display': 'flex',
-                            'alignItems': 'center',
-                            'justifyContent': 'center',
-                            'backgroundImage': 'url("/assets/icones/bar-graph.svg")',
-                            'backgroundRepeat': 'no-repeat',
-                            'backgroundPosition': 'center',
-                            'backgroundSize': '220px 220px',
-                            'position': 'relative',
-                            'width': '100%',
-                            'height': '100%'
-                        },
-                        children=[
-                            html.Div(
-                                style={
-                                    'display': 'grid',
-                                    'gridTemplateColumns': 'repeat(3, 1fr)',
-                                    'gap': '16px',
-                                    'backgroundColor': 'rgba(255, 255, 255, 0.88)',
-                                    'padding': '20px',
-                                    'borderRadius': '8px',
-                                    'boxShadow': '0 4px 12px rgba(0,0,0,0.08)',
-                                    'backdropFilter': 'blur(3px)'
-                                },
-                                children=[
-                                    html.Button('Ação 1', id='central-btn-1', className='toolbar-botao', style={'padding': '12px 20px', 'minWidth': '90px'}),
-                                    html.Button('Ação 2', id='central-btn-2', className='toolbar-botao', style={'padding': '12px 20px', 'minWidth': '90px'}),
-                                    html.Button('Ação 3', id='central-btn-3', className='toolbar-botao', style={'padding': '12px 20px', 'minWidth': '90px'}),
-                                    html.Button('Ação 4', id='central-btn-4', className='toolbar-botao', style={'padding': '12px 20px', 'minWidth': '90px'}),
-                                    html.Button('Ação 5', id='central-btn-5', className='toolbar-botao', style={'padding': '12px 20px', 'minWidth': '90px'}),
-                                    html.Button('Ação 6', id='central-btn-6', className='toolbar-botao', style={'padding': '12px 20px', 'minWidth': '90px'}),
-                                ]
-                            )
-                        ]
+                        className='area-grafico-container',
+                        children=renderizar_area_grafico(estado),
                     ),
                 ),
             ]),

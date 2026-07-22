@@ -1,42 +1,42 @@
 /* Onde o gráfico é plotado */
 
-/* --- seletor de tipo de gráfico (centro) --- */
-.selector-tipo-grafico-container {
+/* --- área do gráfico: fundo com o SVG decorativo, ocupa o centro inteiro --- */
+.area-grafico-container {
+  flex: 1;
   display: flex;
-  gap: 6px;
-  padding: 8px 12px;
-  background: #FFFFFF;
-  border-bottom: 1px solid var(--cor-borda);
   align-items: center;
+  justify-content: center;
+  background-image: url("/assets/icones/bar-graph.svg");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 70% auto;   /* <<< AQUI controla o tamanho do SVG de fundo */
+  position: relative;
+  width: 100%;
+  height: 100%;
 }
 
-.tipo-grafico-btn {
-  font-family: var(--fonte-ui);
-  font-size: 12px;
-  font-weight: 500;
+/* --- mensagem antes de qualquer arquivo ser carregado (sem os botões) --- */
+.area-grafico-vazia {
   color: var(--cor-texto-mudo);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 4px 10px;
-  cursor: pointer;
-  transition: all 0.12s ease;
+  font-size: 13px;
+  font-family: var(--fonte-ui);
 }
 
-.tipo-grafico-btn:hover:not(:disabled) {
-  background: var(--cor-fundo);
-  color: var(--cor-texto-escuro);
+/* --- grade 2x3 de opções de tipo de gráfico (aparece após o 1º arquivo) --- */
+.grade-opcoes-grafico {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  background-color: rgba(255, 255, 255, 0.88);
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(3px);
 }
 
-.tipo-grafico-btn.ativo {
-  background: var(--cor-accent-suave);
-  color: var(--cor-accent);
-  border-color: rgba(47, 165, 160, 0.25);
-}
-
-.tipo-grafico-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.central-btn-opcao {
+  padding: 16px 20px;
+  min-width: 90px;
 }
 
 /* --- centro: gráfico --- */
