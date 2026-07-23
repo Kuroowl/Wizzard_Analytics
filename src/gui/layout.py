@@ -109,7 +109,7 @@ def montar_layout(estado):
 
         html.Div(className='rodape', children=[
             html.Span('infos do sistema (que futuramente vou carregar)', className='rodape-info'),
-            html.Span(' | ', style={'margin': '0 20px', 'opacity': '0.4'}),
+            html.Span(' | ', style={'margin': '0 12px', 'opacity': '0.4'}),
             html.Span(id='rodape-status', children='🧙‍♂️: " Aguardando ações... "')
         ]),
     ])

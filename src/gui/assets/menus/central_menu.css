@@ -10,7 +10,7 @@
   width: 100%;
   position: relative; /* âncora pro .area-grafico-container "flutuar" preenchendo tudo */
   overflow: hidden;
-  background-color: var(--cor-superficie-escura, #FDF6E3);
+  background-color: var(---cor-fundo-grafico, #FDF6E3);
 }
 
 /* O dcc.Loading injeta um wrapper próprio (position:relative, sem classe
@@ -56,7 +56,7 @@
 
 /* --- Mensagem de estado vazio --- */
 .area-grafico-vazia {
-  color: var(--cor-texto-mudo, #1B2430);
+  color: var(--cor-texto-mudo, #6E7A76);
   font-size: 13px;
   font-family: var(--fonte-ui);
 }
@@ -89,7 +89,7 @@
 .console-dev {
   font-family: var(--fonte-dado);
   font-size: 11px;
-  background: var(--cor-superficie-escura-2, #FDF6E3);
+  background: var(---cor-fundo-grafico, #FDF6E3);
   color: var(--cor-accent-suave, #DCEEEC);
   padding: 8px 12px;
   margin: 8px 12px 12px 12px;
@@ -98,3 +98,4 @@
   max-height: 90px;
   overflow-y: auto;
 }
+

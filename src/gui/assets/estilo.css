@@ -24,7 +24,7 @@
   --cor-texto-escuro: #1B2430;
   --cor-texto-claro: #E7ECEA;
   --cor-texto-mudo: #6E7A76;
-
+  --cor-fundo-grafico: #FDF6E3;
   --fonte-ui: 'IBM Plex Sans', -apple-system, sans-serif;
   --fonte-dado: 'IBM Plex Mono', 'Courier New', monospace;
 }
@@ -68,17 +68,62 @@ body, html {
   overflow: hidden; /* impede a página inteira de rolar; cada painel rola por si */
 }
 
+/* Novo bloco adicionado/*
+
+/* ==========================================================================
+   Divisória Redimensionável com Puxador Estilo Pílula
+   ========================================================================== */
+
 .divisor-resize {
-  flex: 0 0 5px;
-  width: 5px;
+  flex: 0 0 8px;             /* Área invisível de clique fácil (12px de largura) */
+  width: 8px;
   cursor: col-resize;
-  background: var(--cor-borda);
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
 }
 
-.divisor-resize:hover,
-.divisor-resize.arrastando {
-  background: var(--cor-accent);
-  box-shadow: 0 0 0 1px rgba(47, 165, 160, 0.35);
+/* 1. A LINHA FINA CONTÍNUA (O fio vertical que cruza de fora a fora) */
+.divisor-resize::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1px;                 /* Espessura da linha */
+  background: var(--cor-borda, #DDE4E2);
+  transition: background 0.2s ease;
+}
+
+/* 2. A PÍLULA CENTRALIZADA (O engordamento/puxador no meio) */
+.divisor-resize::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* Centralização perfeita no meio do comprimento */
+  
+  width: 6px;                 /* Largura da pílula */
+  height: 48px;               /* Altura/Comprimento da pílula */
+  background: var(---cor-borda, #DDE4E2); 
+  border-radius: 10px;        /* Arredondamento total das pontas */
+  
+  transition: background 0.2s ease, width 0.15s ease;
+}
+
+/* 3. EFEITO HOVER / ARRASTANDO (Quando passa o mouse ou segura o clique) */
+.divisor-resize:hover::before,
+.divisor-resize.arrastando::before,
+.divisor-resize:hover::after,
+.divisor-resize.arrastando::after {
+  background: var(--cor-accent, #2FA5A0); /* Cor de destaque ao passar o mouse */
+}
+
+.divisor-resize:hover::after,
+.divisor-resize.arrastando::after {
+  width: 8px;                 /* Leve expandida na largura quando passa o mouse */
 }
