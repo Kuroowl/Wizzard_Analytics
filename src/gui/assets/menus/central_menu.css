@@ -6,50 +6,57 @@
 .centro {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
   height: 100%;
   width: 100%;
-  position: relative;
+  position: relative; /* âncora pro .area-grafico-container "flutuar" preenchendo tudo */
   overflow: hidden;
-  background-color: var(--cor-superficie-escura, #1B2430); /* Cor escura do tema */
+  background-color: var(--cor-superficie-escura, #FDF6E3);
 }
 
-/* --- FORÇAR TODOS OS WRAPPERS INTERNOS DO DASH A PREENCHER A TELA INTEIRA --- */
-.centro > div,
-.centro #loading-grafico,
-.centro .dash-loading-container,
-.centro .dash-loading-callback,
-.centro .dash-loading-nested-components {
-  flex: 1 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 0 !important;
-}
-
-/* --- Área Central com Fundo SVG e Centralização Perfeita --- */
-.area-grafico-container {
-  flex: 1;
-  width: 100%;
+/* O dcc.Loading injeta um wrapper próprio (position:relative, sem classe
+   fixa) como único filho direto de .centro. Esse wrapper não tem altura
+   própria por padrão (o conteúdo dele é absolutamente posicionado, então
+   não "empurra" altura pro pai) — sem isso, o position:absolute+inset:0
+   do .area-grafico-container calcula 0 em cima de um pai de altura 0.
+   Mirar em '.centro > div' pega esse wrapper de forma estável, sem
+   depender do nome de classe que o Dash decidir usar. */
+.centro > div {
   height: 100%;
-  display: flex;
-  align-items: center;     /* Centraliza a grade verticalmente */
-  justify-content: center;  /* Centraliza a grade horizontalmente */
-  position: relative;
-  background-color: var(--cor-superficie-escura, #1B2430);
+  width: 100%;
+}
 
-  /* SVG de Fundo */
-  background-image: url("/assets/icones/bar-graph.svg");
+/* --- Área Central com Fundo SVG e Centralização Perfeita ---
+   Em vez de tentar forçar flex:1/height:100% em cada wrapper que o
+   dcc.Loading insere por baixo dos panos (frágil — muda entre versões do
+   Dash e a gente não controla esses divs), usamos position:absolute com
+   inset:0. Isso ignora completamente quantos wrappers existem entre
+   .centro e este elemento — ele sempre preenche .centro inteiro, não
+   importa a profundidade da árvore no meio. */
+.area-grafico-container {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #FDF6E3; /* ajusto abaixo pro tom que você mandou */
+  /* REMOVE as linhas de background-image/repeat/position/size daqui */
+}
+
+.area-grafico-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("../icones/graph.svg");
   background-repeat: no-repeat;
   background-position: center center;
-  background-size: 55% auto;
+  background-size: 40% auto;
+  opacity: 0.12;        /* <<< AQUI controla o quão "apagado" fica — sobe/desce esse número */
+  pointer-events: none; /* garante que o SVG nunca atrapalha o clique nos botões por cima */
 }
 
 /* --- Mensagem de estado vazio --- */
 .area-grafico-vazia {
-  color: var(--cor-texto-claro, #E7ECEA);
+  color: var(--cor-texto-mudo, #1B2430);
   font-size: 13px;
   font-family: var(--fonte-ui);
 }
@@ -59,12 +66,12 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
-  background-color: rgba(35, 47, 61, 0.92); /* Usa a var(--cor-superficie-escura-2) com opacidade */
+  background-color: transparent; /* trasnparente */
   padding: 24px;
-  border: 1px solid var(--cor-borda, #DDE4E2);
+  border: none;
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(4px);
+  /*backdrop-filter: blur(4px);*/
   z-index: 2;
 }
 
@@ -82,7 +89,7 @@
 .console-dev {
   font-family: var(--fonte-dado);
   font-size: 11px;
-  background: var(--cor-superficie-escura-2, #232F3D);
+  background: var(--cor-superficie-escura-2, #FDF6E3);
   color: var(--cor-accent-suave, #DCEEEC);
   padding: 8px 12px;
   margin: 8px 12px 12px 12px;

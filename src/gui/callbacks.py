@@ -36,24 +36,25 @@ def registrar_callbacks(app, estado):
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
+
     def ao_fazer_upload(conteudo, nome_arquivo, aba_atual):
         if conteudo is None:
             raise PreventUpdate
         if nome_arquivo in estado.arquivos:
             return (nome_arquivo, f'🧙‍♂️: " O arquivo \'{nome_arquivo}\' já foi aberto! "',
-                len(estado.arquivos) == 0, len(estado.arquivos) < 2, no_update)
+                    len(estado.arquivos) == 0, len(estado.arquivos) < 2, no_update)
         try:
             df = carregar_dados_de_upload(conteudo, nome_arquivo)
             estado.adicionar_arquivo(nome_arquivo, df)
-        
+
             # FORÇA a re-renderização da área central para desenhar a grade azul
             area_grafico = renderizar_area_grafico(estado)
-        
+
             return (nome_arquivo, f'🧙‍♂️: " Arquivo \'{nome_arquivo}\' aberto com sucesso! pronto. "',
-                len(estado.arquivos) == 0, len(estado.arquivos) < 2, area_grafico)
+                    len(estado.arquivos) == 0, len(estado.arquivos) < 2, area_grafico)
         except Exception as e:
             return (aba_atual, f'🧙‍♂️: " Erro ao abrir arquivo: {str(e)} "',
-                len(estado.arquivos) == 0, len(estado.arquivos) < 2, no_update)
+                    len(estado.arquivos) == 0, len(estado.arquivos) < 2, no_update)
 
     @app.callback(
         Output('aba-ativa-store', 'data', allow_duplicate=True),
