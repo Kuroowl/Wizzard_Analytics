@@ -96,17 +96,21 @@ def registrar_callbacks(app, estado):
         else:
             mensagem = no_update
 
-        # A aba ativa mudou de verdade (trocou de arquivo, ou a que estava
-        # aberta foi fechada e pulou pra outra)? Se sim, o gráfico que
-        # estava na tela pertence ao arquivo ANTERIOR — não faz sentido
-        # continuar mostrando ele, então volta pra grade de opções e
-        # desabilita de novo os botões que dependiam desse gráfico.
         mudou_de_arquivo = aba_ativa != aba_ativa_anterior
 
-        if mudou_de_arquivo:
-            estado.grafico_gerado = False
+        # Tratamento da área central:
+        if aba_ativa is None:
+            # Sem arquivos restantes -> Reseta para a área vazia/inicial
             area_grafico = renderizar_area_grafico(estado)
-            botoes_dependentes = True  # disabled=True: sem gráfico novo ainda
+            botoes_dependentes = True
+        elif mudou_de_arquivo and aba_ativa in estado.arquivos:
+            dados_aba = estado.arquivos[aba_ativa]
+            if dados_aba.get("grafico_gerado") and dados_aba.get("figura") is not None:
+                area_grafico = renderizar_grafico_com_fechar(dados_aba["figura"])
+                botoes_dependentes = False
+            else:
+                area_grafico = renderizar_area_grafico(estado)
+                botoes_dependentes = True
         else:
             area_grafico = no_update
             botoes_dependentes = no_update
@@ -147,7 +151,7 @@ def registrar_callbacks(app, estado):
         return renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa)
 
     @app.callback(
-        Output('container-grafico', 'children'),
+        Output('container-grafico', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
         Output('aparar-dados', 'disabled', allow_duplicate=True),
         Output('excluir-dados', 'disabled', allow_duplicate=True),
@@ -155,23 +159,28 @@ def registrar_callbacks(app, estado):
         Output('exportar-grafico', 'disabled', allow_duplicate=True),
         Output('exportar-dados', 'disabled', allow_duplicate=True),
         Input('central-btn-1', 'n_clicks'),
+        State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
-    def gerar_grafico_serie_temporal(n_clicks):
+    def gerar_grafico_serie_temporal(n_clicks, aba_ativa):
         """
         Opção 1 da grade: 'Série Temporal' (linhas). O estilo específico
         desse gráfico mora em plotter.construir_figura_serie_temporal —
         cada opção futura (histograma, XY, etc.) deve ganhar sua própria
         função lá, e seu próprio callback aqui, do mesmo jeito.
         """
-        if not n_clicks:
+        if not n_clicks or not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
+
         if not estado.canais_selecionados:
             return (no_update, '🧙‍♂️: " Selecione ao menos um canal antes de gerar o gráfico. "',
                     no_update, no_update, no_update, no_update, no_update)
 
         fig = construir_figura_serie_temporal(estado)
-        estado.grafico_gerado = True
+
+        # 💾 SALVA O GRÁFICO ESPECÍFICO DESSA ABA NO ESTADO
+        estado.arquivos[aba_ativa]["figura"] = fig
+        estado.arquivos[aba_ativa]["grafico_gerado"] = True
 
         n_series = len(estado.canais_selecionados)
         mensagem = f'🧙‍♂️: " Gráfico gerado com {n_series} série(s). "'
@@ -188,17 +197,22 @@ def registrar_callbacks(app, estado):
         Output('exportar-grafico', 'disabled', allow_duplicate=True),
         Output('exportar-dados', 'disabled', allow_duplicate=True),
         Input('fechar-grafico', 'n_clicks'),
+        State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
-    def fechar_grafico(n_clicks):
+    def fechar_grafico(n_clicks, aba_ativa):
         """
         Fecha só a VISUALIZAÇÃO do gráfico, voltando pra grade de opções —
         não fecha arquivo nenhum (isso é o botão 'X' da aba, que já reseta
-        tudo sozinho quando não sobra arquivo carregado)."""
-        if not n_clicks:
+        tudo sozinho quando não sobra arquivo carregado).
+        """
+        if not n_clicks or not aba_ativa:
             raise PreventUpdate
 
-        estado.grafico_gerado = False
+        if aba_ativa in estado.arquivos:
+            estado.arquivos[aba_ativa]["grafico_gerado"] = False
+            estado.arquivos[aba_ativa]["figura"] = None
+
         area_grafico = renderizar_area_grafico(estado)
         mensagem = '🧙‍♂️: " Gráfico fechado. Escolha outra opção. "'
 
