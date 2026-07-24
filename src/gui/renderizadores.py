@@ -1,4 +1,4 @@
-from dash import html
+from dash import dcc, html
 
 from src.gui.components import icone_colorido
 
@@ -96,11 +96,7 @@ def renderizar_area_grafico(estado):
       dispara a plotagem — os outros 5 esperam você implementar depois)
     """
     if not estado.arquivos:
-        # Se quiser mostrar a mensagem dentro do container azul ou direto:
-        return html.Div(
-            'Carregue um arquivo para começar a analisar.', 
-            className='area-grafico-vazia'
-        )
+        return html.Div('Carregue um arquivo para começar.', className='area-grafico-vazia')
 
     opcoes = []
     for i, nome_icone in enumerate(ICONES_OPCOES_GRAFICO, start=1):
@@ -114,5 +110,17 @@ def renderizar_area_grafico(estado):
             n_clicks=0,
         ))
 
-    # Grade com a classe .grade-opcoes-grafico (onde o azul é aplicado)
     return html.Div(className='grade-opcoes-grafico', children=opcoes)
+
+
+def renderizar_grafico_com_fechar(fig):
+    """
+    Embrulha a figura num container com o botão 'X' no canto superior
+    direito. Clicar nele não fecha arquivo nenhum — só volta o
+    container-grafico pra grade de opções (fechar de verdade, via aba,
+    é outra ação, que já reseta tudo porque não sobra arquivo carregado).
+    """
+    return html.Div(className='grafico-wrapper', children=[
+        html.Button('✕', id='fechar-grafico', className='botao-fechar-grafico', n_clicks=0),
+        dcc.Graph(id='grafico-plotly-real', figure=fig, className='grafico-plotly'),
+    ])

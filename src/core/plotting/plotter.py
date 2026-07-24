@@ -49,3 +49,60 @@ def construir_figura(df, coluna_x, colunas_y, gerenciador, titulo=None):
     )
 
     return fig
+
+
+def construir_figura_serie_temporal(estado):
+    """
+    Monta a figura de 'Série Temporal' (linhas) a partir dos canais
+    selecionados em estado.canais_selecionados — que podem vir de vários
+    arquivos ao mesmo tempo (por isso não usa construir_figura, que assume
+    um df/gerenciador únicos).
+
+    Usa o rótulo ATUAL de cada coluna (via o GerenciadorRotulos do arquivo
+    dela) na legenda — não o nome interno bruto — e a mesma paleta de cores
+    compartilhada do resto do app.
+
+    Eixo X: tenta 'Tempo_decorrido_s' primeiro (a coluna que o extractor.py
+    já gera sozinho quando acha Data/Hora no arquivo bruto — é o padrão de
+    estado.coluna_x). Só cai pra primeira coluna numérica do arquivo se ESSE
+    arquivo específico não tiver conseguido gerar essa coluna (ex: sem
+    Data/Hora reconhecível no cabeçalho). Não escondemos nem mexemos nas
+    outras colunas de data/hora no menu lateral — elas continuam lá,
+    disponíveis, mesmo sem serem usadas como eixo X aqui.
+    """
+    fig = go.Figure()
+    multiplos_arquivos = len(estado.arquivos) > 1
+
+    for i, (nome_arquivo, coluna) in enumerate(sorted(estado.canais_selecionados)):
+        if nome_arquivo not in estado.arquivos:
+            continue
+
+        dados = estado.arquivos[nome_arquivo]
+        df = dados['df']
+        gerenciador = dados['gerenciador']
+
+        colunas_numericas = df.select_dtypes(include='number').columns
+        eixo_x = estado.coluna_x if estado.coluna_x in df.columns else (
+            colunas_numericas[0] if len(colunas_numericas) else df.columns[0]
+        )
+
+        rotulo = gerenciador.rotulo_atual(coluna)
+        # com mais de 1 arquivo aberto, prefixa o nome do arquivo — evita
+        # confundir duas colunas de mesmo nome vindas de arquivos diferentes
+        nome_trace = f"{nome_arquivo} → {rotulo}" if multiplos_arquivos else rotulo
+
+        fig.add_trace(go.Scatter(
+            x=df[eixo_x],
+            y=df[coluna],
+            mode='lines',
+            name=nome_trace,
+            line=dict(color=cor_da_coluna(i)),
+        ))
+
+    fig.update_layout(
+        template='plotly_white',
+        margin=dict(l=50, r=20, t=20, b=40),
+        hovermode='x unified',
+        uirevision='constant',
+    )
+    return fig

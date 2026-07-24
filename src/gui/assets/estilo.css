@@ -25,6 +25,7 @@
   --cor-texto-claro: #E7ECEA;
   --cor-texto-mudo: #6E7A76;
   --cor-fundo-grafico: #FDF6E3;
+  --cor-fundo-morto: #FDF6E3;
   --fonte-ui: 'IBM Plex Sans', -apple-system, sans-serif;
   --fonte-dado: 'IBM Plex Mono', 'Courier New', monospace;
 }

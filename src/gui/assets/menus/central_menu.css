@@ -79,6 +79,43 @@
   padding: 16px 20px;
   min-width: 90px;
 }
+ 
+/* --- gráfico gerado: wrapper com o X de fechar no canto superior direito --- */
+.grafico-wrapper {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+ 
+.grafico-plotly {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+}
+ 
+.botao-fechar-grafico {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(27, 36, 48, 0.75);
+  color: var(--cor-texto-claro, #E7ECEA);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease;
+}
+ 
+.botao-fechar-grafico:hover {
+  background: var(--cor-accent, #2FA5A0);
+}
 
 /* --- Estilização do Plotly e Console Dev --- */
 .centro .js-plotly-plot {

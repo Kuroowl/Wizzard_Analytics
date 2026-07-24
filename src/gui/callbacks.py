@@ -1,8 +1,11 @@
-from dash import Input, Output, State, ctx, ALL, no_update, dcc
+from dash import Input, Output, State, ctx, ALL, no_update
 from dash.exceptions import PreventUpdate
-import plotly.graph_objects as go
 
-from src.gui.renderizadores import truncar_nome_arquivo, renderizar_abas_estilo_chrome, renderizar_colunas_da_aba_ativa, renderizar_area_grafico
+from src.core.plotting.plotter import construir_figura_serie_temporal
+from src.gui.renderizadores import (
+    truncar_nome_arquivo, renderizar_abas_estilo_chrome, renderizar_colunas_da_aba_ativa,
+    renderizar_area_grafico, renderizar_grafico_com_fechar,
+)
 from src.utils.helpers import carregar_dados_de_upload
 
 
@@ -36,7 +39,6 @@ def registrar_callbacks(app, estado):
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
-
     def ao_fazer_upload(conteudo, nome_arquivo, aba_atual):
         if conteudo is None:
             raise PreventUpdate
@@ -64,6 +66,11 @@ def registrar_callbacks(app, estado):
         Output('nova-analise', 'disabled', allow_duplicate=True),
         Output('fundir-arquivos', 'disabled', allow_duplicate=True),
         Output('container-grafico', 'children', allow_duplicate=True),
+        Output('aparar-dados', 'disabled', allow_duplicate=True),
+        Output('excluir-dados', 'disabled', allow_duplicate=True),
+        Output('nova-amostra', 'disabled', allow_duplicate=True),
+        Output('exportar-grafico', 'disabled', allow_duplicate=True),
+        Output('exportar-dados', 'disabled', allow_duplicate=True),
         Input({'type': 'aba-item', 'arquivo': ALL}, 'n_clicks'),
         Input({'type': 'botao-fechar-aba', 'arquivo': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
@@ -73,6 +80,7 @@ def registrar_callbacks(app, estado):
         if not _clique_real(ctx.triggered):
             raise PreventUpdate
 
+        aba_ativa_anterior = aba_ativa
         gatilho_id = ctx.triggered_id
         tipo = gatilho_id.get('type')
         arquivo_alvo = gatilho_id.get('arquivo')
@@ -88,12 +96,24 @@ def registrar_callbacks(app, estado):
         else:
             mensagem = no_update
 
-        # só mexe na área do gráfico quando o ÚLTIMO arquivo fecha — fechar
-        # uma aba entre várias não deveria apagar um gráfico já plotado
-        area_grafico = renderizar_area_grafico(estado) if not estado.arquivos else no_update
+        # A aba ativa mudou de verdade (trocou de arquivo, ou a que estava
+        # aberta foi fechada e pulou pra outra)? Se sim, o gráfico que
+        # estava na tela pertence ao arquivo ANTERIOR — não faz sentido
+        # continuar mostrando ele, então volta pra grade de opções e
+        # desabilita de novo os botões que dependiam desse gráfico.
+        mudou_de_arquivo = aba_ativa != aba_ativa_anterior
+
+        if mudou_de_arquivo:
+            estado.grafico_gerado = False
+            area_grafico = renderizar_area_grafico(estado)
+            botoes_dependentes = True  # disabled=True: sem gráfico novo ainda
+        else:
+            area_grafico = no_update
+            botoes_dependentes = no_update
 
         return (aba_ativa, renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa),
-                mensagem, len(estado.arquivos) == 0, len(estado.arquivos) < 2, area_grafico)
+                mensagem, len(estado.arquivos) == 0, len(estado.arquivos) < 2, area_grafico,
+                botoes_dependentes, botoes_dependentes, botoes_dependentes, botoes_dependentes, botoes_dependentes)
 
     @app.callback(
         Output('lista-canais-aba', 'children', allow_duplicate=True),
@@ -129,40 +149,57 @@ def registrar_callbacks(app, estado):
     @app.callback(
         Output('container-grafico', 'children'),
         Output('rodape-status', 'children', allow_duplicate=True),
+        Output('aparar-dados', 'disabled', allow_duplicate=True),
+        Output('excluir-dados', 'disabled', allow_duplicate=True),
+        Output('nova-amostra', 'disabled', allow_duplicate=True),
+        Output('exportar-grafico', 'disabled', allow_duplicate=True),
+        Output('exportar-dados', 'disabled', allow_duplicate=True),
         Input('central-btn-1', 'n_clicks'),
         prevent_initial_call=True,
     )
-    def disparar_plotagem_sob_demanda(n_clicks):
+    def gerar_grafico_serie_temporal(n_clicks):
+        """
+        Opção 1 da grade: 'Série Temporal' (linhas). O estilo específico
+        desse gráfico mora em plotter.construir_figura_serie_temporal —
+        cada opção futura (histograma, XY, etc.) deve ganhar sua própria
+        função lá, e seu próprio callback aqui, do mesmo jeito.
+        """
         if not n_clicks:
             raise PreventUpdate
         if not estado.canais_selecionados:
-            return no_update, '🧙‍♂️: " Selecione ao menos um canal antes de gerar o gráfico. "'
+            return (no_update, '🧙‍♂️: " Selecione ao menos um canal antes de gerar o gráfico. "',
+                    no_update, no_update, no_update, no_update, no_update)
 
-        fig = go.Figure()
-
-        for (nome_arq, coluna) in estado.canais_selecionados:
-            if nome_arq in estado.arquivos:
-                df = estado.arquivos[nome_arq]["df"]
-                colunas_num = df.select_dtypes(include='number').columns
-                eixo_x = estado.coluna_x if estado.coluna_x in df.columns else colunas_num[0]
-
-                fig.add_trace(go.Scatter(
-                    x=df[eixo_x],
-                    y=df[coluna],
-                    mode='lines',
-                    name=f"{truncar_nome_arquivo(nome_arq)} → {coluna}"
-                ))
-
-        fig.update_layout(
-            template="plotly_white",
-            margin=dict(l=50, r=20, t=20, b=40),
-            hovermode="x unified",
-            uirevision='constant'
-        )
-
+        fig = construir_figura_serie_temporal(estado)
         estado.grafico_gerado = True
+
         n_series = len(estado.canais_selecionados)
         mensagem = f'🧙‍♂️: " Gráfico gerado com {n_series} série(s). "'
-        grafico = dcc.Graph(id='grafico-plotly-real', figure=fig, style={'flex': '1', 'width': '100%', 'height': '100%'})
+        grafico = renderizar_grafico_com_fechar(fig)
 
-        return grafico, mensagem
+        return grafico, mensagem, False, False, False, False, False
+
+    @app.callback(
+        Output('container-grafico', 'children', allow_duplicate=True),
+        Output('rodape-status', 'children', allow_duplicate=True),
+        Output('aparar-dados', 'disabled', allow_duplicate=True),
+        Output('excluir-dados', 'disabled', allow_duplicate=True),
+        Output('nova-amostra', 'disabled', allow_duplicate=True),
+        Output('exportar-grafico', 'disabled', allow_duplicate=True),
+        Output('exportar-dados', 'disabled', allow_duplicate=True),
+        Input('fechar-grafico', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def fechar_grafico(n_clicks):
+        """
+        Fecha só a VISUALIZAÇÃO do gráfico, voltando pra grade de opções —
+        não fecha arquivo nenhum (isso é o botão 'X' da aba, que já reseta
+        tudo sozinho quando não sobra arquivo carregado)."""
+        if not n_clicks:
+            raise PreventUpdate
+
+        estado.grafico_gerado = False
+        area_grafico = renderizar_area_grafico(estado)
+        mensagem = '🧙‍♂️: " Gráfico fechado. Escolha outra opção. "'
+
+        return area_grafico, mensagem, True, True, True, True, True
