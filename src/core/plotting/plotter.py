@@ -53,51 +53,47 @@ def construir_figura(df, coluna_x, colunas_y, gerenciador, titulo=None):
 
 def construir_figura_serie_temporal(estado):
     """
-    Monta a figura de 'Série Temporal' (linhas) a partir dos canais
-    selecionados em estado.canais_selecionados — que podem vir de vários
-    arquivos ao mesmo tempo (por isso não usa construir_figura, que assume
-    um df/gerenciador únicos).
-
-    Usa o rótulo ATUAL de cada coluna (via o GerenciadorRotulos do arquivo
-    dela) na legenda — não o nome interno bruto — e a mesma paleta de cores
-    compartilhada do resto do app.
-
-    Eixo X: tenta 'Tempo_decorrido_s' primeiro (a coluna que o extractor.py
-    já gera sozinho quando acha Data/Hora no arquivo bruto — é o padrão de
-    estado.coluna_x). Só cai pra primeira coluna numérica do arquivo se ESSE
-    arquivo específico não tiver conseguido gerar essa coluna (ex: sem
-    Data/Hora reconhecível no cabeçalho). Não escondemos nem mexemos nas
-    outras colunas de data/hora no menu lateral — elas continuam lá,
-    disponíveis, mesmo sem serem usadas como eixo X aqui.
+    Monta a figura de 'Série Temporal' (linhas) plotando AUTOMATICAMENTE
+    todos os canais numéricos disponíveis no(s) arquivo(s) ativo(s), 
+    desconsiderando apenas a coluna definida como Eixo X.
     """
     fig = go.Figure()
     multiplos_arquivos = len(estado.arquivos) > 1
+    indice_cor = 0  # Controle global para a paleta de cores não repetir na mesma figura
 
-    for i, (nome_arquivo, coluna) in enumerate(sorted(estado.canais_selecionados)):
-        if nome_arquivo not in estado.arquivos:
-            continue
-
-        dados = estado.arquivos[nome_arquivo]
+    # Percorre os arquivos abertos no estado
+    for nome_arquivo, dados in estado.arquivos.items():
         df = dados['df']
         gerenciador = dados['gerenciador']
 
+        # 1. Identifica a coluna do Eixo X
         colunas_numericas = df.select_dtypes(include='number').columns
         eixo_x = estado.coluna_x if estado.coluna_x in df.columns else (
             colunas_numericas[0] if len(colunas_numericas) else df.columns[0]
         )
 
-        rotulo = gerenciador.rotulo_atual(coluna)
-        # com mais de 1 arquivo aberto, prefixa o nome do arquivo — evita
-        # confundir duas colunas de mesmo nome vindas de arquivos diferentes
-        nome_trace = f"{nome_arquivo} → {rotulo}" if multiplos_arquivos else rotulo
+        # 2. Pega TODAS as colunas numéricas, removendo apenas o Eixo X
+        colunas_y = [col for col in colunas_numericas if col != eixo_x]
 
-        fig.add_trace(go.Scatter(
-            x=df[eixo_x],
-            y=df[coluna],
-            mode='lines',
-            name=nome_trace,
-            line=dict(color=cor_da_coluna(i)),
-        ))
+        # Caso o arquivo não tenha colunas numéricas extras, tenta usar todas menos o eixo X
+        if not colunas_y:
+            colunas_y = [col for col in df.columns if col != eixo_x]
+
+        # 3. Plota cada canal encontrado
+        for coluna in colunas_y:
+            rotulo = gerenciador.rotulo_atual(coluna)
+            
+            # Se houver múltiplos arquivos, adiciona o nome do arquivo no rótulo da legenda
+            nome_trace = f"{nome_arquivo} → {rotulo}" if multiplos_arquivos else rotulo
+
+            fig.add_trace(go.Scatter(
+                x=df[eixo_x],
+                y=df[coluna],
+                mode='lines',
+                name=nome_trace,
+                line=dict(color=cor_da_coluna(indice_cor)),
+            ))
+            indice_cor += 1
 
     fig.update_layout(
         template='plotly_white',

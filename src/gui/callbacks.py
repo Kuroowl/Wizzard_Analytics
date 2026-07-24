@@ -150,6 +150,8 @@ def registrar_callbacks(app, estado):
     def sincronizar_interface_por_aba(aba_ativa):
         return renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa)
 
+    
+
     @app.callback(
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
@@ -163,30 +165,22 @@ def registrar_callbacks(app, estado):
         prevent_initial_call=True,
     )
     def gerar_grafico_serie_temporal(n_clicks, aba_ativa):
-        """
-        Opção 1 da grade: 'Série Temporal' (linhas). O estilo específico
-        desse gráfico mora em plotter.construir_figura_serie_temporal —
-        cada opção futura (histograma, XY, etc.) deve ganhar sua própria
-        função lá, e seu próprio callback aqui, do mesmo jeito.
-        """
         if not n_clicks or not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
 
-        if not estado.canais_selecionados:
-            return (no_update, '🧙‍♂️: " Selecione ao menos um canal antes de gerar o gráfico. "',
-                    no_update, no_update, no_update, no_update, no_update)
-
+        # Gera o gráfico com TODOS os canais
         fig = construir_figura_serie_temporal(estado)
 
-        # 💾 SALVA O GRÁFICO ESPECÍFICO DESSA ABA NO ESTADO
+        # Salva o gráfico no estado da aba ativa
         estado.arquivos[aba_ativa]["figura"] = fig
         estado.arquivos[aba_ativa]["grafico_gerado"] = True
 
-        n_series = len(estado.canais_selecionados)
-        mensagem = f'🧙‍♂️: " Gráfico gerado com {n_series} série(s). "'
+        mensagem = '🧙‍♂️: " Gráfico de série temporal gerado com todos os canais. "'
         grafico = renderizar_grafico_com_fechar(fig)
 
         return grafico, mensagem, False, False, False, False, False
+
+    
 
     @app.callback(
         Output('container-grafico', 'children', allow_duplicate=True),
