@@ -119,19 +119,29 @@ def registrar_callbacks(app, estado):
                 mensagem, len(estado.arquivos) == 0, len(estado.arquivos) < 2, area_grafico,
                 botoes_dependentes, botoes_dependentes, botoes_dependentes, botoes_dependentes, botoes_dependentes)
 
+    
+
     @app.callback(
         Output('lista-canais-aba', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
+        Output('container-grafico', 'children', allow_duplicate=True), # 👈 AGORA TAMBÉM ATUALIZA O GRÁFICO
         Input({'type': 'linha-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
+
     def gerenciar_selecao_canais(n_clicks_list, aba_ativa):
+        """
+        Ao clicar em um canal na sidebar:
+        1. Alterna a seleção no estado.
+        2. Se o gráfico estiver ativo na tela, atualiza as curvas em tempo real!
+        """
         if not _clique_real(ctx.triggered) or not aba_ativa:
             raise PreventUpdate
 
         gatilho_id = ctx.triggered_id
         mensagem = no_update
+        
         if gatilho_id and gatilho_id.get('type') == 'linha-canal':
             arquivo, coluna = gatilho_id.get('arquivo'), gatilho_id.get('coluna')
             estado.alternar_selecao_canal(arquivo, coluna)
@@ -139,7 +149,16 @@ def registrar_callbacks(app, estado):
             acao = 'ativado' if ligado else 'desativado'
             mensagem = f'🧙‍♂️: " Canal \'{coluna}\' {acao}. ({len(estado.canais_selecionados)} selecionado(s)) "'
 
-        return renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem
+        # Verifica se o gráfico está aberto na aba ativa para re-renderizá-lo
+        dados_aba = estado.arquivos.get(aba_ativa, {})
+        if dados_aba.get("grafico_gerado"):
+            fig = construir_figura_serie_temporal(estado, aba_ativa)
+            dados_aba["figura"] = fig
+            container_grafico = renderizar_grafico_com_fechar(fig)
+        else:
+            container_grafico = no_update
+
+        return renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem, container_grafico
 
     @app.callback(
         Output('container-abas-chrome', 'children', allow_duplicate=True),
@@ -165,19 +184,24 @@ def registrar_callbacks(app, estado):
         prevent_initial_call=True,
     )
     def gerar_grafico_serie_temporal(n_clicks, aba_ativa):
+        """
+        Ao clicar em 'Série Temporal', abre a tela do gráfico imediatamente
+        (mesmo sem canais selecionados).
+        """
         if not n_clicks or not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
 
-        # Gera o gráfico com TODOS os canais
-        fig = construir_figura_serie_temporal(estado)
-
-        # Salva o gráfico no estado da aba ativa
-        estado.arquivos[aba_ativa]["figura"] = fig
+        # Marca no estado que o gráfico foi iniciado nesta aba
         estado.arquivos[aba_ativa]["grafico_gerado"] = True
 
-        mensagem = '🧙‍♂️: " Gráfico de série temporal gerado com todos os canais. "'
+        # Constrói a figura (estará vazia se canais_selecionados estiver vazio)
+        fig = construir_figura_serie_temporal(estado, aba_ativa)
+        estado.arquivos[aba_ativa]["figura"] = fig
+
+        mensagem = '🧙‍♂️: " Modo Série Temporal ativo. Selecione os canais na barra lateral. "'
         grafico = renderizar_grafico_com_fechar(fig)
 
+        # Habilita os botões da barra superior
         return grafico, mensagem, False, False, False, False, False
 
     

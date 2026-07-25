@@ -51,54 +51,62 @@ def construir_figura(df, coluna_x, colunas_y, gerenciador, titulo=None):
     return fig
 
 
-def construir_figura_serie_temporal(estado):
+def construir_figura_serie_temporal(estado, aba_ativa):
     """
-    Monta a figura de 'Série Temporal' (linhas) plotando AUTOMATICAMENTE
-    todos os canais numéricos disponíveis no(s) arquivo(s) ativo(s), 
-    desconsiderando apenas a coluna definida como Eixo X.
+    Monta a figura de 'Série Temporal' considerando APENAS os canais
+    selecionados pertencentes ao arquivo da aba ativa atual.
     """
     fig = go.Figure()
-    multiplos_arquivos = len(estado.arquivos) > 1
-    indice_cor = 0  # Controle global para a paleta de cores não repetir na mesma figura
 
-    # Percorre os arquivos abertos no estado
-    for nome_arquivo, dados in estado.arquivos.items():
-        df = dados['df']
-        gerenciador = dados['gerenciador']
+    # Se a aba_ativa não estiver nos arquivos carregados, retorna figura vazia
+    if not aba_ativa or aba_ativa not in estado.arquivos:
+        return fig
 
-        # 1. Identifica a coluna do Eixo X
-        colunas_numericas = df.select_dtypes(include='number').columns
-        eixo_x = estado.coluna_x if estado.coluna_x in df.columns else (
-            colunas_numericas[0] if len(colunas_numericas) else df.columns[0]
-        )
+    dados = estado.arquivos[aba_ativa]
+    df = dados['df']
+    gerenciador = dados['gerenciador']
 
-        # 2. Pega TODAS as colunas numéricas, removendo apenas o Eixo X
-        colunas_y = [col for col in colunas_numericas if col != eixo_x]
+    # 1. Filtra os canais selecionados apenas do arquivo PAÍS/ATIVO desta aba
+    canais_da_aba = [
+        (arq, col) for (arq, col) in estado.canais_selecionados 
+        if arq == aba_ativa
+    ]
 
-        # Caso o arquivo não tenha colunas numéricas extras, tenta usar todas menos o eixo X
-        if not colunas_y:
-            colunas_y = [col for col in df.columns if col != eixo_x]
+    # 2. Descobre o Eixo X
+    colunas_numericas = df.select_dtypes(include='number').columns
+    eixo_x = estado.coluna_x if estado.coluna_x in df.columns else (
+        colunas_numericas[0] if len(colunas_numericas) else df.columns[0]
+    )
 
-        # 3. Plota cada canal encontrado
-        for coluna in colunas_y:
-            rotulo = gerenciador.rotulo_atual(coluna)
-            
-            # Se houver múltiplos arquivos, adiciona o nome do arquivo no rótulo da legenda
-            nome_trace = f"{nome_arquivo} → {rotulo}" if multiplos_arquivos else rotulo
+    # 3. Desenha apenas os canais selecionados desta aba
+    for i, (nome_arquivo, coluna) in enumerate(sorted(canais_da_aba)):
+        rotulo = gerenciador.rotulo_atual(coluna)
 
-            fig.add_trace(go.Scatter(
-                x=df[eixo_x],
-                y=df[coluna],
-                mode='lines',
-                name=nome_trace,
-                line=dict(color=cor_da_coluna(indice_cor)),
-            ))
-            indice_cor += 1
+        fig.add_trace(go.Scatter(
+            x=df[eixo_x],
+            y=df[coluna],
+            mode='lines',
+            name=rotulo,
+            line=dict(color=cor_da_coluna(i)),
+        ))
 
+    # 4. Configura o layout
     fig.update_layout(
         template='plotly_white',
         margin=dict(l=50, r=20, t=20, b=40),
         hovermode='x unified',
-        uirevision='constant',
+        uirevision='constant',  # Preserva pan/zoom interativo
+        xaxis_title=estado.coluna_x if estado.coluna_x in df.columns else eixo_x,
+        yaxis_title="Valor",
     )
+
+    # Se não tiver nenhum canal selecionado nesta aba, exibe a instrução
+    if not canais_da_aba:
+        fig.add_annotation(
+            text="Selecione um ou mais canais na barra lateral para visualizar no gráfico.",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=14, color="gray")
+        )
+
     return fig
