@@ -1,6 +1,7 @@
 import re
 import pandas as pd
 import numpy as np
+from src.core.rotulos import GerenciadorRotulos  # ou o nome do seu arquivo .py
 
 # Palavras que costumam aparecer nos nomes das colunas de dados
 COLUNAS_CHAVE = [
@@ -332,7 +333,7 @@ def carregar_dados(caminho_arquivo):
         # filtro/gráfico. As colunas originais de Data/Hora continuam
         # disponíveis como texto, para exibição.
         df = _adicionar_tempo_decorrido(df)
-
+        gerenciador = GerenciadorRotulos(df.columns)
         return df
 
     except Exception as e:
