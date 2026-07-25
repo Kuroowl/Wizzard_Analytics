@@ -1,3 +1,4 @@
+import pandas as pd
 import plotly.graph_objects as go
 
 # Paleta fixa (é a paleta padrão do próprio Plotly) — compartilhada com a
@@ -13,6 +14,27 @@ def cor_da_coluna(indice):
     """Cor que a N-ésima coluna plotada vai receber — usada tanto aqui
     quanto na sidebar, pra manter os dois sincronizados."""
     return PALETA_CORES[indice % len(PALETA_CORES)]
+
+
+def _parece_coluna_contador(serie):
+    """
+    Detecta colunas que são só um CONTADOR/ÍNDICE de linha (ex: 'N#' de
+    aparelhos Novus), não um canal de sinal de verdade — reconhece pelo
+    COMPORTAMENTO (incrementa exatamente +1 a cada linha), não pelo nome,
+    porque cada fabricante rotula essa coluna de um jeito diferente.
+
+    Por quê isso importa: se essa coluna entrar na lista de canais
+    plotados junto com sinais reais (pressão, temperatura, etc.), ela
+    domina a escala do eixo Y (pode ir de 0 a dezenas de milhares de
+    linhas) e "achata" todas as curvas de sinal de verdade numa linha
+    invisível grudada no zero — o gráfico parece estar em branco, mas na
+    verdade só está com a escala errada.
+    """
+    valores = pd.to_numeric(serie, errors='coerce')
+    if valores.isna().any() or len(valores) < 3:
+        return False
+    diffs = valores.diff().dropna()
+    return len(diffs) > 0 and (diffs == 1).all()
 
 
 def construir_figura(df, coluna_x, colunas_y, gerenciador, titulo=None):
@@ -51,40 +73,72 @@ def construir_figura(df, coluna_x, colunas_y, gerenciador, titulo=None):
     return fig
 
 
-def construir_figura_serie_temporal(estado, aba_ativa):
-    fig = go.Figure()
+def construir_figura_serie_temporal(estado, nome_arquivo):
+    """
+    Monta a figura de 'Série Temporal' (linhas) para UM ÚNICO arquivo — o
+    da aba que está sendo plotada — nunca para todos os arquivos abertos ao
+    mesmo tempo. Cada aba tem seu próprio gráfico, independente: gerar ou
+    alterar o gráfico de uma aba não deve tocar no gráfico de nenhuma
+    outra aba já gerada, e trocar de aba só troca qual gráfico já pronto é
+    exibido (isso é responsabilidade dos callbacks, não desta função).
 
-    if not aba_ativa or aba_ativa not in estado.arquivos:
-        return fig
+    Eixo X: automaticamente 'Tempo_decorrido_s' (tempo decorrido em
+    segundos), que o extractor já calcula no carregamento — esse é o
+    padrão pra qualquer plot do tipo 'série temporal'.
 
-    dados = estado.arquivos[aba_ativa]
+    Canais (eixo Y): SÓ os que o usuário selecionou manualmente para ESTE
+    arquivo (estado.canais_selecionados, filtrado por nome_arquivo). Se
+    nenhum canal desse arquivo estiver selecionado ainda, cai no modo
+    automático: todas as colunas numéricas exceto o eixo X e colunas tipo
+    'contador de linha' (ex: 'N#'), que dominariam a escala do eixo Y e
+    esconderiam os canais de sinal de verdade (ver _parece_coluna_contador).
+
+    Combinar vários arquivos numa mesma figura (o botão 'fundir arquivos')
+    é uma ação DIFERENTE e explícita — ver
+    construir_figura_serie_temporal_combinada — não acontece aqui.
+    """
+    if nome_arquivo not in estado.arquivos:
+        return go.Figure()
+
+    dados = estado.arquivos[nome_arquivo]
     df = dados['df']
     gerenciador = dados['gerenciador']
 
-    # Proteção Anti-Travamento (Downsampling para Plotly liso):
-    # Se o arquivo tiver mais de 10.000 pontos, reduz o número de pontos do gráfico
-    MAX_PONTOS_PLOT = 10000
-    passo = max(1, len(df) // MAX_PONTOS_PLOT)
-    df_plot = df.iloc[::passo] if passo > 1 else df
+    fig = go.Figure()
 
-    canais_da_aba = [
-        (arq, col) for (arq, col) in estado.canais_selecionados 
-        if arq == aba_ativa
-    ]
-
+    # 1. Identifica a coluna do Eixo X (tempo decorrido, calculado no
+    # carregamento; cai pra primeira numérica só se por algum motivo essa
+    # coluna não existir nesse arquivo)
     colunas_numericas = df.select_dtypes(include='number').columns
     eixo_x = estado.coluna_x if estado.coluna_x in df.columns else (
         colunas_numericas[0] if len(colunas_numericas) else df.columns[0]
     )
 
-    for i, (nome_arquivo, coluna) in enumerate(sorted(canais_da_aba)):
-        rotulo = gerenciador.rotulo_atual(coluna)
+    # 2. Canais selecionados manualmente pelo usuário PARA ESTE arquivo
+    canais_marcados = [
+        coluna for (arq, coluna) in estado.canais_selecionados
+        if arq == nome_arquivo and coluna in df.columns and coluna != eixo_x
+    ]
 
+    if canais_marcados:
+        colunas_y = canais_marcados
+    else:
+        # Nada selecionado ainda: modo automático — todas as numéricas,
+        # menos o eixo X e colunas tipo 'contador de linha'.
+        colunas_y = [
+            col for col in colunas_numericas
+            if col != eixo_x and not _parece_coluna_contador(df[col])
+        ]
+        if not colunas_y:
+            colunas_y = [col for col in df.columns if col != eixo_x]
+
+    # 3. Plota cada canal encontrado
+    for i, coluna in enumerate(colunas_y):
         fig.add_trace(go.Scatter(
-            x=df_plot[eixo_x],
-            y=df_plot[coluna],
+            x=df[eixo_x],
+            y=df[coluna],
             mode='lines',
-            name=rotulo,
+            name=gerenciador.rotulo_atual(coluna),
             line=dict(color=cor_da_coluna(i)),
         ))
 
@@ -93,16 +147,61 @@ def construir_figura_serie_temporal(estado, aba_ativa):
         margin=dict(l=50, r=20, t=20, b=40),
         hovermode='x unified',
         uirevision='constant',
-        xaxis_title=estado.coluna_x if estado.coluna_x in df.columns else eixo_x,
-        yaxis_title="Valor",
+        xaxis_title=gerenciador.rotulo_atual(eixo_x) if eixo_x in df.columns else None,
     )
+    return fig
 
-    if not canais_da_aba:
-        fig.add_annotation(
-            text="Selecione um ou mais canais na barra lateral para visualizar no gráfico.",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
-            font=dict(size=14, color="gray")
+
+def construir_figura_serie_temporal_combinada(estado, nomes_arquivos=None):
+    """
+    Versão MULTI-arquivo: combina os canais selecionados de vários arquivos
+    numa única figura, prefixando a legenda com o nome do arquivo. Isso é
+    uma ação EXPLÍCITA e separada (pensada pro botão 'fundir arquivos'),
+    nunca o comportamento padrão de gerar/atualizar o gráfico de uma aba.
+
+    nomes_arquivos: lista de arquivos a combinar; se None, usa todos os
+    arquivos abertos em estado.arquivos.
+    """
+    fig = go.Figure()
+    nomes = nomes_arquivos if nomes_arquivos is not None else list(estado.arquivos.keys())
+    indice_cor = 0
+
+    for nome_arquivo in nomes:
+        if nome_arquivo not in estado.arquivos:
+            continue
+        dados = estado.arquivos[nome_arquivo]
+        df = dados['df']
+        gerenciador = dados['gerenciador']
+
+        colunas_numericas = df.select_dtypes(include='number').columns
+        eixo_x = estado.coluna_x if estado.coluna_x in df.columns else (
+            colunas_numericas[0] if len(colunas_numericas) else df.columns[0]
         )
 
+        canais_marcados = [
+            coluna for (arq, coluna) in estado.canais_selecionados
+            if arq == nome_arquivo and coluna in df.columns and coluna != eixo_x
+        ]
+        colunas_y = canais_marcados or [
+            col for col in colunas_numericas
+            if col != eixo_x and not _parece_coluna_contador(df[col])
+        ]
+
+        for coluna in colunas_y:
+            rotulo = gerenciador.rotulo_atual(coluna)
+            fig.add_trace(go.Scatter(
+                x=df[eixo_x],
+                y=df[coluna],
+                mode='lines',
+                name=f"{nome_arquivo} → {rotulo}",
+                line=dict(color=cor_da_coluna(indice_cor)),
+            ))
+            indice_cor += 1
+
+    fig.update_layout(
+        template='plotly_white',
+        margin=dict(l=50, r=20, t=20, b=40),
+        hovermode='x unified',
+        uirevision='constant',
+    )
     return fig

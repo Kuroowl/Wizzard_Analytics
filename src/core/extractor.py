@@ -1,7 +1,6 @@
 import re
 import pandas as pd
 import numpy as np
-from src.core.rotulos import GerenciadorRotulos  # ou o nome do seu arquivo .py
 
 # Palavras que costumam aparecer nos nomes das colunas de dados
 COLUNAS_CHAVE = [
@@ -158,6 +157,41 @@ def _dividir_rotulos_colados(token):
     return partes if partes else [token]
 
 
+def _desduplicar_rotulos(rotulos):
+    """
+    Garante nomes de coluna ÚNICOS. Aparelhos tipo Novus permitem configurar
+    dois canais físicos com o MESMO rótulo (ex: dois canais chamados 'P1',
+    ou dois 'Temp') — válido no aparelho, mas um DataFrame com colunas
+    duplicadas quebra silenciosamente o pipeline mais na frente: df['P1']
+    deixa de devolver uma Series e passa a devolver um DataFrame (uma coluna
+    por duplicata), o que faz o Plotly (e o GerenciadorRotulos, que usa um
+    dict nome->rótulo) falhar bem longe de onde o problema realmente
+    começou. Por isso a deduplicação acontece aqui, na origem dos nomes,
+    igual ao que o próprio pandas faz ao ler CSVs com cabeçalho repetido:
+    sufixa as ocorrências repetidas com '.2', '.3', etc.
+    """
+    contagem = {}
+    resultado = []
+    duplicados_avisados = set()
+    for rotulo in rotulos:
+        contagem[rotulo] = contagem.get(rotulo, 0) + 1
+        if contagem[rotulo] == 1:
+            resultado.append(rotulo)
+        else:
+            novo_rotulo = f'{rotulo}.{contagem[rotulo]}'
+            if rotulo not in duplicados_avisados:
+                print(
+                    f"Aviso: o rótulo '{rotulo}' aparece mais de uma vez no cabeçalho "
+                    f"(comum quando dois canais do aparelho foram configurados com o "
+                    f"mesmo nome). Renomeando as ocorrências repetidas para "
+                    f"'{rotulo}.2', '{rotulo}.3', etc., para não gerar colunas "
+                    f"duplicadas no DataFrame."
+                )
+                duplicados_avisados.add(rotulo)
+            resultado.append(novo_rotulo)
+    return resultado
+
+
 def _gerar_nomes_colunas(tokens_cabecalho, n_colunas_dados):
     """
     Gera a lista final de nomes de coluna, corrigindo o caso em que o
@@ -167,14 +201,18 @@ def _gerar_nomes_colunas(tokens_cabecalho, n_colunas_dados):
          genéricos 'colunaN' — não trava o carregamento por causa de um
          rótulo que não deu pra recuperar;
       3) se sobrar rótulo (cabeçalho com mais tokens que os dados), avisa e
-         descarta os excedentes do final.
+         descarta os excedentes do final;
+      4) por fim, garante que os rótulos são únicos (ver
+         _desduplicar_rotulos) — passo sempre aplicado, porque duplicatas
+         podem vir tanto do cabeçalho original quanto dos nomes genéricos
+         gerados no passo 2.
     """
     rotulos = []
     for tok in tokens_cabecalho:
         rotulos.extend(_dividir_rotulos_colados(tok))
 
     if len(rotulos) == n_colunas_dados:
-        return rotulos
+        return _desduplicar_rotulos(rotulos)
 
     if len(rotulos) < n_colunas_dados:
         faltam = n_colunas_dados - len(rotulos)
@@ -188,13 +226,13 @@ def _gerar_nomes_colunas(tokens_cabecalho, n_colunas_dados):
         for _ in range(faltam):
             rotulos.append(f'coluna{proximo_indice}')
             proximo_indice += 1
-        return rotulos
+        return _desduplicar_rotulos(rotulos)
 
     print(
         f"Aviso: o cabeçalho rendeu {len(rotulos)} rótulo(s) mas os dados têm apenas "
         f"{n_colunas_dados} coluna(s). Descartando os rótulos excedentes do final."
     )
-    return rotulos[:n_colunas_dados]
+    return _desduplicar_rotulos(rotulos[:n_colunas_dados])
 
 
 def _linha_valida_de_dados(linha):
@@ -333,7 +371,7 @@ def carregar_dados(caminho_arquivo):
         # filtro/gráfico. As colunas originais de Data/Hora continuam
         # disponíveis como texto, para exibição.
         df = _adicionar_tempo_decorrido(df)
-        gerenciador = GerenciadorRotulos(df.columns)
+
         return df
 
     except Exception as e:
