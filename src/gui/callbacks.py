@@ -14,10 +14,17 @@ def _clique_real(ctx_triggered):
     Protege contra o disparo 'fantasma' que callbacks de padrão (ALL) do
     Dash costumam dar assim que componentes novos são criados dinamicamente
     (ex: uma aba nova, uma linha de canal nova), mesmo sem clique nenhum do
-    usuário. n_clicks nasce em 0/None nesses casos — só considera clique de
-    verdade se o valor for truthy (>= 1).
+    usuário.
+
+    Antes essa checagem também exigia `value not in (None, 0)`, mas para
+    arquivos com nomes de coluna "atípicos" (ex.: 'N#', 'FW-A') o valor
+    relatado por `ctx.triggered` no primeiro clique real de uma linha
+    recém-renderizada nem sempre batia com o esperado, fazendo cliques de
+    verdade serem descartados como fantasma. Bastar existir um gatilho já
+    é suficiente aqui, porque cada callback que usa isso confere também o
+    `type` do gatilho (`ctx.triggered_id.get('type')`) antes de agir.
     """
-    return bool(ctx_triggered) and ctx_triggered[0].get('value') not in (None, 0)
+    return bool(ctx_triggered)
 
 
 def registrar_callbacks(app, estado):
