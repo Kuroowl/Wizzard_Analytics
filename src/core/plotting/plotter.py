@@ -1,4 +1,3 @@
-import pandas as pd
 import plotly.graph_objects as go
 
 # Paleta fixa (é a paleta padrão do próprio Plotly) — compartilhada com a
@@ -14,27 +13,6 @@ def cor_da_coluna(indice):
     """Cor que a N-ésima coluna plotada vai receber — usada tanto aqui
     quanto na sidebar, pra manter os dois sincronizados."""
     return PALETA_CORES[indice % len(PALETA_CORES)]
-
-
-def _parece_coluna_contador(serie):
-    """
-    Detecta colunas que são só um CONTADOR/ÍNDICE de linha (ex: 'N#' de
-    aparelhos Novus), não um canal de sinal de verdade — reconhece pelo
-    COMPORTAMENTO (incrementa exatamente +1 a cada linha), não pelo nome,
-    porque cada fabricante rotula essa coluna de um jeito diferente.
-
-    Por quê isso importa: se essa coluna entrar na lista de canais
-    plotados junto com sinais reais (pressão, temperatura, etc.), ela
-    domina a escala do eixo Y (pode ir de 0 a dezenas de milhares de
-    linhas) e "achata" todas as curvas de sinal de verdade numa linha
-    invisível grudada no zero — o gráfico parece estar em branco, mas na
-    verdade só está com a escala errada.
-    """
-    valores = pd.to_numeric(serie, errors='coerce')
-    if valores.isna().any() or len(valores) < 3:
-        return False
-    diffs = valores.diff().dropna()
-    return len(diffs) > 0 and (diffs == 1).all()
 
 
 def construir_figura(df, coluna_x, colunas_y, gerenciador, titulo=None):
@@ -73,135 +51,74 @@ def construir_figura(df, coluna_x, colunas_y, gerenciador, titulo=None):
     return fig
 
 
-def construir_figura_serie_temporal(estado, nome_arquivo):
+def construir_figura_serie_temporal(estado, aba_ativa):
     """
-    Monta a figura de 'Série Temporal' (linhas) para UM ÚNICO arquivo — o
-    da aba que está sendo plotada — nunca para todos os arquivos abertos ao
-    mesmo tempo. Cada aba tem seu próprio gráfico, independente: gerar ou
-    alterar o gráfico de uma aba não deve tocar no gráfico de nenhuma
-    outra aba já gerada, e trocar de aba só troca qual gráfico já pronto é
-    exibido (isso é responsabilidade dos callbacks, não desta função).
+    Monta a figura de 'Série Temporal' (linhas) plotando SOMENTE os canais
+    que o usuário marcou (estado.canais_selecionados) para o ARQUIVO DA ABA
+    ATIVA. Se nenhum canal estiver marcado, retorna uma figura vazia (só os
+    eixos, sem nenhuma curva) — a curva só aparece quando o canal é
+    selecionado no menu da esquerda.
 
-    Eixo X: automaticamente 'Tempo_decorrido_s' (tempo decorrido em
-    segundos), que o extractor já calcula no carregamento — esse é o
-    padrão pra qualquer plot do tipo 'série temporal'.
-
-    Canais (eixo Y): SÓ os que o usuário selecionou manualmente para ESTE
-    arquivo (estado.canais_selecionados, filtrado por nome_arquivo). Se
-    nenhum canal desse arquivo estiver selecionado ainda, cai no modo
-    automático: todas as colunas numéricas exceto o eixo X e colunas tipo
-    'contador de linha' (ex: 'N#'), que dominariam a escala do eixo Y e
-    esconderiam os canais de sinal de verdade (ver _parece_coluna_contador).
-
-    Combinar vários arquivos numa mesma figura (o botão 'fundir arquivos')
-    é uma ação DIFERENTE e explícita — ver
-    construir_figura_serie_temporal_combinada — não acontece aqui.
+    Importante: só considera o arquivo da aba ativa. Cada aba tem seu
+    próprio gráfico e sua própria seleção de canais; um arquivo aberto em
+    outra aba nunca deve aparecer aqui.
     """
-    if nome_arquivo not in estado.arquivos:
-        return go.Figure()
+    fig = go.Figure()
 
-    dados = estado.arquivos[nome_arquivo]
+    if not aba_ativa or aba_ativa not in estado.arquivos:
+        fig.update_layout(
+            template='plotly_white',
+            margin=dict(l=50, r=20, t=20, b=40),
+            hovermode='closest',
+            uirevision='constant',
+        )
+        return fig
+
+    dados = estado.arquivos[aba_ativa]
     df = dados['df']
     gerenciador = dados['gerenciador']
 
-    fig = go.Figure()
-
-    # 1. Identifica a coluna do Eixo X (tempo decorrido, calculado no
-    # carregamento; cai pra primeira numérica só se por algum motivo essa
-    # coluna não existir nesse arquivo)
+    # 1. Identifica a coluna do Eixo X
     colunas_numericas = df.select_dtypes(include='number').columns
     eixo_x = estado.coluna_x if estado.coluna_x in df.columns else (
         colunas_numericas[0] if len(colunas_numericas) else df.columns[0]
     )
 
-    # 2. Canais selecionados manualmente pelo usuário PARA ESTE arquivo
-    canais_marcados = [
-        coluna for (arq, coluna) in estado.canais_selecionados
-        if arq == nome_arquivo and coluna in df.columns and coluna != eixo_x
+    # 2. Só entram no gráfico os canais deste arquivo que estão marcados
+    #    em estado.canais_selecionados — respeitando a ordem das colunas
+    #    do df pra manter a cor sempre consistente com a sidebar.
+    colunas_y = [
+        col for col in df.columns
+        if col != eixo_x and (aba_ativa, col) in estado.canais_selecionados
     ]
 
-    if canais_marcados:
-        colunas_y = canais_marcados
-    else:
-        # Nada selecionado ainda: modo automático — todas as numéricas,
-        # menos o eixo X e colunas tipo 'contador de linha'.
-        colunas_y = [
-            col for col in colunas_numericas
-            if col != eixo_x and not _parece_coluna_contador(df[col])
-        ]
-        if not colunas_y:
-            colunas_y = [col for col in df.columns if col != eixo_x]
+    # 3. Plota cada canal selecionado
+    #    IMPORTANTE: go.Scattergl (WebGL), não go.Scatter (SVG). Com
+    #    arquivos de dezenas de milhares de linhas, marcar vários canais
+    #    pode facilmente passar de meio milhão de pontos plotados de uma
+    #    vez — SVG cria um nó no DOM por ponto e trava a aba do navegador
+    #    inteira (o clique de fechar aba "não responde" nesse cenário
+    #    porque a thread principal do navegador está ocupada demais pra
+    #    processar qualquer clique, não porque o callback não disparou).
+    #    Scattergl desenha via GPU/canvas e aguenta essa escala numa boa.
+    for indice_cor, coluna in enumerate(colunas_y):
+        rotulo = gerenciador.rotulo_atual(coluna)
 
-    # 3. Plota cada canal encontrado
-    for i, coluna in enumerate(colunas_y):
-        fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scattergl(
             x=df[eixo_x],
             y=df[coluna],
             mode='lines',
-            name=gerenciador.rotulo_atual(coluna),
-            line=dict(color=cor_da_coluna(i)),
+            name=rotulo,
+            line=dict(color=cor_da_coluna(indice_cor)),
         ))
 
     fig.update_layout(
         template='plotly_white',
         margin=dict(l=50, r=20, t=20, b=40),
-        hovermode='x unified',
-        uirevision='constant',
-        xaxis_title=gerenciador.rotulo_atual(eixo_x) if eixo_x in df.columns else None,
-    )
-    return fig
-
-
-def construir_figura_serie_temporal_combinada(estado, nomes_arquivos=None):
-    """
-    Versão MULTI-arquivo: combina os canais selecionados de vários arquivos
-    numa única figura, prefixando a legenda com o nome do arquivo. Isso é
-    uma ação EXPLÍCITA e separada (pensada pro botão 'fundir arquivos'),
-    nunca o comportamento padrão de gerar/atualizar o gráfico de uma aba.
-
-    nomes_arquivos: lista de arquivos a combinar; se None, usa todos os
-    arquivos abertos em estado.arquivos.
-    """
-    fig = go.Figure()
-    nomes = nomes_arquivos if nomes_arquivos is not None else list(estado.arquivos.keys())
-    indice_cor = 0
-
-    for nome_arquivo in nomes:
-        if nome_arquivo not in estado.arquivos:
-            continue
-        dados = estado.arquivos[nome_arquivo]
-        df = dados['df']
-        gerenciador = dados['gerenciador']
-
-        colunas_numericas = df.select_dtypes(include='number').columns
-        eixo_x = estado.coluna_x if estado.coluna_x in df.columns else (
-            colunas_numericas[0] if len(colunas_numericas) else df.columns[0]
-        )
-
-        canais_marcados = [
-            coluna for (arq, coluna) in estado.canais_selecionados
-            if arq == nome_arquivo and coluna in df.columns and coluna != eixo_x
-        ]
-        colunas_y = canais_marcados or [
-            col for col in colunas_numericas
-            if col != eixo_x and not _parece_coluna_contador(df[col])
-        ]
-
-        for coluna in colunas_y:
-            rotulo = gerenciador.rotulo_atual(coluna)
-            fig.add_trace(go.Scatter(
-                x=df[eixo_x],
-                y=df[coluna],
-                mode='lines',
-                name=f"{nome_arquivo} → {rotulo}",
-                line=dict(color=cor_da_coluna(indice_cor)),
-            ))
-            indice_cor += 1
-
-    fig.update_layout(
-        template='plotly_white',
-        margin=dict(l=50, r=20, t=20, b=40),
-        hovermode='x unified',
+        # 'x unified' recalcula a distância do mouse contra TODOS os
+        # pontos de TODAS as séries a cada movimento — outro ponto pesado
+        # com dezenas de milhares de linhas. 'closest' é O(1) por trace.
+        hovermode='closest',
         uirevision='constant',
     )
     return fig

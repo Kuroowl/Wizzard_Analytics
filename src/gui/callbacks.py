@@ -120,9 +120,9 @@ def registrar_callbacks(app, estado):
                 botoes_dependentes, botoes_dependentes, botoes_dependentes, botoes_dependentes, botoes_dependentes)
 
     @app.callback(
-        Output('container-grafico', 'children', allow_duplicate=True),
         Output('lista-canais-aba', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
+        Output('container-grafico', 'children', allow_duplicate=True),
         Input({'type': 'linha-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
@@ -133,8 +133,6 @@ def registrar_callbacks(app, estado):
 
         gatilho_id = ctx.triggered_id
         mensagem = no_update
-        area_grafico = no_update
-
         if gatilho_id and gatilho_id.get('type') == 'linha-canal':
             arquivo, coluna = gatilho_id.get('arquivo'), gatilho_id.get('coluna')
             estado.alternar_selecao_canal(arquivo, coluna)
@@ -142,16 +140,18 @@ def registrar_callbacks(app, estado):
             acao = 'ativado' if ligado else 'desativado'
             mensagem = f'🧙‍♂️: " Canal \'{coluna}\' {acao}. ({len(estado.canais_selecionados)} selecionado(s)) "'
 
-            # Se o canal alterado pertence à aba que está sendo VISUALIZADA
-            # agora, e essa aba já tem um gráfico gerado, atualiza esse
-            # gráfico ao vivo (insere/retira a curva) — sem tocar em
-            # nenhuma outra aba, e sem exigir clicar em 'Gerar' de novo.
-            if arquivo == aba_ativa and estado.arquivos.get(aba_ativa, {}).get("grafico_gerado"):
-                fig = construir_figura_serie_temporal(estado, aba_ativa)
-                estado.arquivos[aba_ativa]["figura"] = fig
-                area_grafico = renderizar_grafico_com_fechar(fig)
+        # Se já existe um gráfico aberto para esta aba, redesenha na hora
+        # pra curva aparecer/sumir sem precisar clicar em "Série Temporal"
+        # de novo. Se o gráfico ainda não foi gerado, não mexe na área
+        # central (o usuário ainda está na grade de opções).
+        area_grafico = no_update
+        dados_aba = estado.arquivos.get(aba_ativa)
+        if dados_aba and dados_aba.get("grafico_gerado"):
+            fig = construir_figura_serie_temporal(estado, aba_ativa)
+            dados_aba["figura"] = fig
+            area_grafico = renderizar_grafico_com_fechar(fig)
 
-        return area_grafico, renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem
+        return renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem, area_grafico
 
     @app.callback(
         Output('container-abas-chrome', 'children', allow_duplicate=True),
@@ -180,19 +180,18 @@ def registrar_callbacks(app, estado):
         if not n_clicks or not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
 
-        # Gera o gráfico SÓ com os dados do arquivo da aba ativa — nunca
-        # mistura com outros arquivos abertos em outras abas. Eixo X:
-        # 'Tempo_decorrido_s' automaticamente (ver construir_figura_serie_temporal).
-        # Canais: os que já estiverem selecionados para ESTE arquivo, ou
-        # todos (menos colunas tipo contador) se nenhum foi selecionado ainda.
+        # Gera o gráfico só com os canais já marcados para esta aba
+        # (se nada estiver marcado, sai vazio de propósito)
         fig = construir_figura_serie_temporal(estado, aba_ativa)
 
-        # Salva o gráfico no estado DESSA aba especificamente — outras abas
-        # não são tocadas.
+        # Salva o gráfico no estado da aba ativa
         estado.arquivos[aba_ativa]["figura"] = fig
         estado.arquivos[aba_ativa]["grafico_gerado"] = True
 
-        mensagem = '🧙‍♂️: " Gráfico de série temporal gerado. "'
+        if any(arq == aba_ativa for arq, _ in estado.canais_selecionados):
+            mensagem = '🧙‍♂️: " Gráfico de série temporal gerado. "'
+        else:
+            mensagem = '🧙‍♂️: " Gráfico criado vazio. Selecione os canais na lista à esquerda para plotar. "'
         grafico = renderizar_grafico_com_fechar(fig)
 
         return grafico, mensagem, False, False, False, False, False
