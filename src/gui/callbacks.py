@@ -133,6 +133,8 @@ def registrar_callbacks(app, estado):
 
         gatilho_id = ctx.triggered_id
         mensagem = no_update
+        area_grafico = no_update
+
         if gatilho_id and gatilho_id.get('type') == 'linha-canal':
             arquivo, coluna = gatilho_id.get('arquivo'), gatilho_id.get('coluna')
             estado.alternar_selecao_canal(arquivo, coluna)
@@ -140,16 +142,14 @@ def registrar_callbacks(app, estado):
             acao = 'ativado' if ligado else 'desativado'
             mensagem = f'🧙‍♂️: " Canal \'{coluna}\' {acao}. ({len(estado.canais_selecionados)} selecionado(s)) "'
 
-        # Se já existe um gráfico aberto para esta aba, redesenha na hora
-        # pra curva aparecer/sumir sem precisar clicar em "Série Temporal"
-        # de novo. Se o gráfico ainda não foi gerado, não mexe na área
-        # central (o usuário ainda está na grade de opções).
-        area_grafico = no_update
-        dados_aba = estado.arquivos.get(aba_ativa)
-        if dados_aba and dados_aba.get("grafico_gerado"):
-            fig = construir_figura_serie_temporal(estado, aba_ativa)
-            dados_aba["figura"] = fig
-            area_grafico = renderizar_grafico_com_fechar(fig)
+            # Só redesenha o gráfico se a aba ativa já estiver com um
+            # gráfico aberto (senão ainda estamos na grade de opções, e
+            # marcar um canal não deve pular direto pra visualização).
+            dados_aba = estado.arquivos.get(aba_ativa)
+            if dados_aba and dados_aba.get("grafico_gerado"):
+                fig = construir_figura_serie_temporal(estado, aba_ativa)
+                dados_aba["figura"] = fig
+                area_grafico = renderizar_grafico_com_fechar(fig)
 
         return renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem, area_grafico
 
@@ -180,18 +180,21 @@ def registrar_callbacks(app, estado):
         if not n_clicks or not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
 
-        # Gera o gráfico só com os canais já marcados para esta aba
-        # (se nada estiver marcado, sai vazio de propósito)
+        # Gera o gráfico com os canais já marcados até agora (pode ser
+        # nenhum ainda — nesse caso nasce em branco, e o usuário vai
+        # populando ao marcar colunas na barra lateral).
         fig = construir_figura_serie_temporal(estado, aba_ativa)
 
         # Salva o gráfico no estado da aba ativa
         estado.arquivos[aba_ativa]["figura"] = fig
         estado.arquivos[aba_ativa]["grafico_gerado"] = True
 
-        if any(arq == aba_ativa for arq, _ in estado.canais_selecionados):
-            mensagem = '🧙‍♂️: " Gráfico de série temporal gerado. "'
-        else:
-            mensagem = '🧙‍♂️: " Gráfico criado vazio. Selecione os canais na lista à esquerda para plotar. "'
+        tem_canal = any(arq == aba_ativa for arq, _ in estado.canais_selecionados)
+        mensagem = (
+            '🧙‍♂️: " Gráfico de série temporal gerado. Marque os canais na barra lateral. "'
+            if not tem_canal else
+            '🧙‍♂️: " Gráfico de série temporal gerado. "'
+        )
         grafico = renderizar_grafico_com_fechar(fig)
 
         return grafico, mensagem, False, False, False, False, False
