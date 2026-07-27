@@ -1,72 +1,138 @@
-/* Onde o gráfico é plotado */
+/* ==========================================================================
+   Painel Central: Gráfico e Opções
+   ========================================================================== */
 
-/* --- seletor de tipo de gráfico (centro) --- */
-.selector-tipo-grafico-container {
-  display: flex;
-  gap: 6px;
-  padding: 8px 12px;
-  background: #FFFFFF;
-  border-bottom: 1px solid var(--cor-borda);
-  align-items: center;
-}
-
-.tipo-grafico-btn {
-  font-family: var(--fonte-ui);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--cor-texto-mudo);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 4px 10px;
-  cursor: pointer;
-  transition: all 0.12s ease;
-}
-
-.tipo-grafico-btn:hover:not(:disabled) {
-  background: var(--cor-fundo);
-  color: var(--cor-texto-escuro);
-}
-
-.tipo-grafico-btn.ativo {
-  background: var(--cor-accent-suave);
-  color: var(--cor-accent);
-  border-color: rgba(47, 165, 160, 0.25);
-}
-
-.tipo-grafico-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* --- centro: gráfico --- */
+/* --- Centro: ocupa todo o espaço restante do .corpo --- */
 .centro {
   flex: 1;
   min-width: 0;
+  height: 100%;
+  width: 100%;
+  position: relative; /* âncora pro .area-grafico-container "flutuar" preenchendo tudo */
+  overflow: hidden;
+  background-color: var(---cor-fundo-grafico, #FDF6E3);
+}
+
+/* O dcc.Loading injeta um wrapper próprio (position:relative, sem classe
+   fixa) como único filho direto de .centro. Esse wrapper não tem altura
+   própria por padrão (o conteúdo dele é absolutamente posicionado, então
+   não "empurra" altura pro pai) — sem isso, o position:absolute+inset:0
+   do .area-grafico-container calcula 0 em cima de um pai de altura 0.
+   Mirar em '.centro > div' pega esse wrapper de forma estável, sem
+   depender do nome de classe que o Dash decidir usar. */
+.centro > div {
+  height: 100%;
+  width: 100%;
+}
+
+/* --- Área Central com Fundo SVG e Centralização Perfeita ---
+   Em vez de tentar forçar flex:1/height:100% em cada wrapper que o
+   dcc.Loading insere por baixo dos panos (frágil — muda entre versões do
+   Dash e a gente não controla esses divs), usamos position:absolute com
+   inset:0. Isso ignora completamente quantos wrappers existem entre
+   .centro e este elemento — ele sempre preenche .centro inteiro, não
+   importa a profundidade da árvore no meio. */
+.area-grafico-container {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #FDF6E3; /* ajusto abaixo pro tom que você mandou */
+  /* REMOVE as linhas de background-image/repeat/position/size daqui */
+}
+
+.area-grafico-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("../icones/graph.svg");
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: 40% auto;
+  opacity: 0.12;        /* <<< AQUI controla o quão "apagado" fica — sobe/desce esse número */
+  pointer-events: none; /* garante que o SVG nunca atrapalha o clique nos botões por cima */
+}
+
+/* --- Mensagem de estado vazio --- */
+.area-grafico-vazia {
+  color: var(--cor-texto-mudo, #6E7A76);
+  font-size: 13px;
+  font-family: var(--fonte-ui);
+}
+
+/* --- Grade de opções de gráfico --- */
+.grade-opcoes-grafico {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  background-color: transparent; /* trasnparente */
+  padding: 24px;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  /*backdrop-filter: blur(4px);*/
+  z-index: 2;
+}
+
+.central-btn-opcao {
+  padding: 16px 20px;
+  min-width: 90px;
+}
+ 
+/* --- gráfico gerado: wrapper com o X de fechar no canto superior direito --- */
+.grafico-wrapper {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
+}
+ 
+.grafico-plotly {
+  flex: 1;
+  width: 100%;
   height: 100%;
-  overflow: hidden;
+}
+ 
+.botao-fechar-grafico {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(27, 36, 48, 0.75);
+  color: var(--cor-texto-claro, #E7ECEA);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease;
+}
+ 
+.botao-fechar-grafico:hover {
+  background: var(--cor-accent, #2FA5A0);
 }
 
+/* --- Estilização do Plotly e Console Dev --- */
 .centro .js-plotly-plot {
   padding: 12px 12px 0 12px;
+  flex: 1;
 }
 
-.centro .console-dev {
-  margin: 8px 12px 12px 12px;
-}
-
-/* --- console de eventos (debug temporário, embaixo do gráfico) --- */
 .console-dev {
   font-family: var(--fonte-dado);
   font-size: 11px;
-  background: var(--cor-superficie-escura);
-  color: var(--cor-accent-suave);
+  background: var(---cor-fundo-grafico, #FDF6E3);
+  color: var(--cor-accent-suave, #DCEEEC);
   padding: 8px 12px;
-  margin-top: 8px;
+  margin: 8px 12px 12px 12px;
   border-radius: 3px;
   white-space: pre-wrap;
   max-height: 90px;
   overflow-y: auto;
 }
+

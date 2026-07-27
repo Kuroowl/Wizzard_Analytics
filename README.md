@@ -18,9 +18,13 @@ wizard-analytics/
 │   ├── gui/                    # 1. CAMADA VISUAL (INTERFACE)
 │   │   ├── __init__.py
 │   │   ├── app.py              # Janela principal
+|   |   ├── callabcks.py        # 
 │   │   ├── components.py       # Botões, menus e modais personalizados
 |   |   ├── estado.py           # estado
-│   │   ├── eventos_graficos.py # eventos       
+│   │   ├── eventos_graficos.py # eventos 
+│   │   ├── layout.py           # Monta a árvore de componentes do app.       
+│   │   ├── rendereizadores.py  # funçoes puras que constroem o html.       
+│   │   ├── scripts_js.py       # js de interação continua       
 │   │   └── assests/            # Cálculos matemáticos, filtros, downsampling, merges
 |   |       |── estilo.ccs
 |   |       |── menus/
@@ -31,7 +35,8 @@ wizard-analytics/
 |   |       |   ├── status_menu.css    # menu no rodapé 
 |   |       |   ├── top_menu.css       # onde fica arquivo, editar 
 |   |       └─── icones/
-|   |            ├── AddFile_icon.png
+|   |            ├── AddFile_icon.svg
+|   |            ├── bar-graph.svg     
 |   |
 │   ├── core/                   # 2. CAMADA DE LÓGICA (OPERAÇÕES E PROCESSAMENTO)
 │   │   ├── __init__.py

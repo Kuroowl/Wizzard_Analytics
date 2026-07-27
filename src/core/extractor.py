@@ -45,44 +45,130 @@ def _tokenizar(linha):
     return [t.strip() for t in re.split(r'\s+', linha.strip()) if t.strip()], r'\s+'
 
 
-def encontrar_cabecalho_e_delimitador(caminho_arquivo, encoding, max_linhas=80):
+def _linha_parece_numerica(tokens, limiar=0.7):
     """
-    Localiza a linha de cabeçalho de forma robusta: em vez de checar se uma
-    palavra-chave aparece em QUALQUER lugar da linha (o que gera falso
-    positivo, ex: 'p1' dentro de 'T25_P1_PAD' no título do ensaio), quebra a
-    linha em tokens e conta quantos tokens BATEM (inteiros ou por prefixo)
-    com nomes de coluna conhecidos. Exige pelo menos 2 acertos para aceitar.
+    Diz se uma linha já tokenizada 'parece dado' (maioria dos tokens dá pra
+    converter em número) em vez de 'parece cabeçalho' (nomes de coluna,
+    texto). Aceita tanto decimal com ponto quanto com vírgula.
+    """
+    if not tokens:
+        return False
+    numericos = 0
+    for t in tokens:
+        try:
+            float(t.replace(',', '.'))
+            numericos += 1
+        except ValueError:
+            pass
+    return (numericos / len(tokens)) >= limiar
+
+
+def detectar_delimitador(caminho_arquivo, encoding, max_linhas=40):
+    """
+    Detecta o delimitador olhando para os DADOS do arquivo, não para o
+    cabeçalho. Isso é importante porque um cabeçalho com rótulos fora do
+    comum (ex: nomes de canal customizados de um programa antigo) não deve
+    impedir a detecção do delimitador — o delimitador é uma propriedade do
+    arquivo inteiro, não dos nomes das colunas.
+
+    Testa cada candidato (tab / ';' / ',' / largura fixa) tokenizando as
+    primeiras linhas não-vazias e não-decorativas, e escolhe o que produz
+    a contagem de colunas mais consistente (mesma contagem se repetindo em
+    mais linhas, com pelo menos 2 colunas).
+    """
+    with open(caminho_arquivo, 'r', encoding=encoding, errors='ignore') as f:
+        linhas = [f.readline() for _ in range(max_linhas)]
+    linhas = [l for l in linhas if l.strip() and not _linha_e_separador_decorativo(l)]
+
+    candidatos = ['\t', ';', ',', r'\s+']
+    melhor_delim, melhor_pontuacao = ',', -1
+
+    for delim in candidatos:
+        contagens = [
+            len(_tokenizar_com_delimitador(linha, delim)) for linha in linhas
+        ]
+        contagens = [c for c in contagens if c >= 2]
+        if not contagens:
+            continue
+        n_colunas_moda = max(set(contagens), key=contagens.count)
+        n_linhas_batendo = contagens.count(n_colunas_moda)
+        # prioriza delimitador que (a) concorda em mais linhas e (b) rende
+        # mais colunas (desempate: um separador que quebra tudo em 2
+        # colunas "por acidente" perde pra um que quebra em 9 de forma
+        # consistente)
+        pontuacao = n_linhas_batendo * n_colunas_moda
+        if pontuacao > melhor_pontuacao:
+            melhor_delim, melhor_pontuacao = delim, pontuacao
+
+    return melhor_delim
+
+
+def encontrar_linha_cabecalho(caminho_arquivo, encoding, delimitador, max_linhas=80):
+    """
+    Localiza a linha de cabeçalho JÁ CONHECENDO o delimitador certo
+    (detectado separadamente a partir dos dados, ver 'detectar_delimitador').
+
+    Primeiro tenta achar por palavras-chave conhecidas em COLUNAS_CHAVE,
+    exigindo pelo menos 2 tokens batendo (integralmente ou por prefixo) —
+    evita falso positivo tipo 'p1' dentro de 'T25_P1_PAD' no título do
+    ensaio, porque aqui comparamos tokens inteiros, não substrings soltas.
+
+    Se nenhuma linha bater com as palavras-chave (comum quando o aparelho
+    usa nomes de canal customizados, tipo 'Analise_9_fil_2_amost_erro'),
+    cai num critério mais genérico: a primeira linha não-decorativa cujos
+    tokens NÃO parecem numéricos — já que cabeçalho é texto e dados são
+    número, essa é uma heurística que não depende de conhecer os nomes
+    das colunas de antemão.
     """
     with open(caminho_arquivo, 'r', encoding=encoding, errors='ignore') as f:
         linhas = [f.readline() for _ in range(max_linhas)]
 
-    melhor_idx, melhor_delim, melhor_score = None, ',', 0
+    melhor_idx, melhor_score = None, 0
+    idx_primeira_linha_textual = None
 
     for i, linha in enumerate(linhas):
-        if not linha.strip():
+        if not linha.strip() or _linha_e_separador_decorativo(linha):
             continue
-        tokens, delim = _tokenizar(linha)
+        tokens = _tokenizar_com_delimitador(linha, delimitador)
         if len(tokens) < 3:
             continue
+
         tokens_lower = [t.lower() for t in tokens]
         score = sum(
             1 for t in tokens_lower
-            if any(t == chave or t.startswith(chave) for chave in COLUNAS_CHAVE)
+            if any(t == chave.lower() or t.startswith(chave.lower()) for chave in COLUNAS_CHAVE)
         )
         if score >= 2 and score > melhor_score:
-            melhor_idx, melhor_delim, melhor_score = i, delim, score
+            melhor_idx, melhor_score = i, score
 
-    if melhor_idx is None:
-        # não achamos nada parecido com cabeçalho: assume que os dados
-        # começam do topo do arquivo
-        return 0, ','
+        if idx_primeira_linha_textual is None and not _linha_parece_numerica(tokens):
+            idx_primeira_linha_textual = i
 
-    return melhor_idx, melhor_delim
+    if melhor_idx is not None:
+        return melhor_idx
+
+    if idx_primeira_linha_textual is not None:
+        # não achamos palavra-chave conhecida, mas achamos uma linha que
+        # claramente não é numérica (nomes de coluna) antes dos dados
+        return idx_primeira_linha_textual
+
+    # não achamos nada parecido com cabeçalho nem linha textual: assume
+    # que os dados começam do topo do arquivo
+    return 0
 
 
 def _linha_e_separador_decorativo(linha):
     """Detecta linhas tipo '---  ---------- ----------  -------  -------' """
     tokens = re.split(r'\s+', linha.strip())
+    return _tokens_sao_decorativos(tokens)
+
+
+def _tokens_sao_decorativos(tokens):
+    """Mesma checagem de '_linha_e_separador_decorativo', mas recebendo
+    tokens JÁ EXTRAÍDOS — evita tokenizar a mesma linha duas vezes (uma
+    pra checar se é decorativa, outra pra pegar os campos de verdade),
+    que é o principal gargalo em arquivos com dezenas de milhares de
+    linhas."""
     return len(tokens) > 0 and all(re.fullmatch(r'-{2,}', t) for t in tokens)
 
 
@@ -111,10 +197,18 @@ def _tokenizar_com_delimitador(linha, delimitador):
     linha) — importante porque linhas de dados com decimal em vírgula têm
     várias vírgulas, e se cada linha redetectasse seu próprio delimitador
     (como _tokenizar faz), a vírgula decimal seria confundida com separador
-    de coluna."""
+    de coluna.
+
+    No modo largura fixa (\\s+) descarta tokens vazios, porque ali espaços
+    múltiplos são só alinhamento visual entre colunas, sem significado de
+    campo. Já com delimitador explícito (';', ',', tab) PRESERVA tokens
+    vazios: uma posição entre dois delimitadores (ex: '1.2;;;4.5') é um
+    campo vazio de verdade (canal não amostrado naquele instante), e
+    descartá-lo desalinha todas as colunas seguintes e faz a linha parecer
+    ter menos campos do que realmente tem."""
     if delimitador == r'\s+':
         return [t.strip() for t in re.split(r'\s+', linha.strip()) if t.strip()]
-    return [t.strip() for t in linha.split(delimitador) if t.strip()]
+    return [t.strip() for t in linha.rstrip('\r\n').split(delimitador)]
 
 
 def _ler_linha(caminho_arquivo, encoding, indice):
@@ -262,8 +356,9 @@ def carregar_dados(caminho_arquivo):
     separador decimal, e retorna um DataFrame limpo.
     """
     encoding_detectado = detectar_encoding(caminho_arquivo)
-    linha_cabecalho, delimitador = encontrar_cabecalho_e_delimitador(
-        caminho_arquivo, encoding_detectado
+    delimitador = detectar_delimitador(caminho_arquivo, encoding_detectado)
+    linha_cabecalho = encontrar_linha_cabecalho(
+        caminho_arquivo, encoding_detectado, delimitador
     )
     decimal_detectado = detectar_separador_decimal(
         caminho_arquivo, encoding_detectado, linha_cabecalho, delimitador
@@ -289,10 +384,19 @@ def carregar_dados(caminho_arquivo):
             for i, linha in enumerate(f):
                 if i <= linha_cabecalho:
                     continue
-                if not _linha_valida_de_dados(linha):
+                if not linha.strip():
                     continue
 
+                # Tokeniza UMA vez só: antes, a linha era tokenizada aqui e
+                # de novo dentro de '_linha_valida_de_dados' (pra checar se
+                # era uma linha decorativa de hífens) — dobrando o custo de
+                # regex por linha. Em arquivos de dezenas de milhares de
+                # linhas isso é o principal motivo do carregamento
+                # (e, por consequência, a interface inteira) travar.
                 tokens = _tokenizar_com_delimitador(linha, delimitador)
+
+                if _tokens_sao_decorativos(tokens):
+                    continue
 
                 if len(tokens) == n_colunas:
                     linhas_validas.append(tokens)
@@ -351,7 +455,8 @@ def extrair_metadados(caminho_arquivo):
     """
     metadados = {}
     encoding_detectado = detectar_encoding(caminho_arquivo)
-    linha_cabecalho, _ = encontrar_cabecalho_e_delimitador(caminho_arquivo, encoding_detectado)
+    delimitador = detectar_delimitador(caminho_arquivo, encoding_detectado)
+    linha_cabecalho = encontrar_linha_cabecalho(caminho_arquivo, encoding_detectado, delimitador)
 
     try:
         with open(caminho_arquivo, 'r', encoding=encoding_detectado, errors='ignore') as f:
