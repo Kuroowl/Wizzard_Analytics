@@ -82,11 +82,6 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa):
 
 # --- Main Application ---
 
-# JS puro (sem round-trip pro servidor Python a cada pixel arrastado) que liga
-# a divisória entre sidebar e centro. Injetado no index_string porque é
-# interação de mouse contínua (mousedown/mousemove/mouseup) — um clientside
-# callback do Dash é pensado pra eventos discretos (clique, mudança de valor),
-# não pra isso.
 SCRIPT_DIVISORIA = """
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -94,7 +89,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var divisor = document.getElementById('divisor-resize');
         var sidebar = document.querySelector('.sidebar');
         if (!divisor || !sidebar) {
-            setTimeout(iniciar, 300);  // o Dash ainda não montou o layout via React
+            setTimeout(iniciar, 300);
             return;
         }
         var arrastando = false;
@@ -126,7 +121,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     iniciar();
 
-    // --- navegação das abas (< / >): aparecem só quando há abas fora de vista ---
     function iniciarNavegacaoAbas() {
         var container = document.getElementById('container-abas-chrome');
         var btnEsquerda = document.getElementById('aba-nav-esquerda');
@@ -136,7 +130,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        var MARGEM = 2;  // tolerância de arredondamento de subpixel
+        var MARGEM = 2;
 
         function atualizarSetas() {
             var temOverflow = container.scrollWidth > container.clientWidth + MARGEM;
@@ -162,9 +156,6 @@ document.addEventListener('DOMContentLoaded', function () {
         container.addEventListener('scroll', atualizarSetas);
         window.addEventListener('resize', atualizarSetas);
 
-        // o Dash re-renderiza as abas (novo arquivo, fechar aba) substituindo os
-        // filhos do container — um MutationObserver garante que as setas sejam
-        // reavaliadas toda vez que isso acontecer, sem precisar de callback extra
         new MutationObserver(atualizarSetas).observe(container, { childList: true });
 
         atualizarSetas();
@@ -222,101 +213,151 @@ def criar_app(estado):
             dcc.Upload(
                 id='aparar-dados',
                 children=html.Div([icone_colorido('TrimData_icon.png'), html.Span('Aparar dados', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled = True, 
+                className='toolbar-upload', disabled=True, 
                 multiple=False,
             ),
             dcc.Upload(
                 id='excluir-dados',
                 children=html.Div([icone_colorido('CutData_icon.png'), html.Span('Excluir dados', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled = True,
+                className='toolbar-upload', disabled=True,
                 multiple=False,
             ),
             dcc.Upload(
                 id='nova-analise',
                 children=html.Div([icone_colorido('NewAnalysis_icon.png'), html.Span('Nova análise', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled = True, 
+                className='toolbar-upload', disabled=True, 
                 multiple=False,
             ),
             dcc.Upload(
                 id='nova-amostra',
                 children=html.Div([icone_colorido('SampleData_icon.png'), html.Span('Nova Amostragem', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled = True, 
+                className='toolbar-upload', disabled=True, 
                 multiple=False,
             ),
             dcc.Upload(
                 id='fundir-arquivos',
                 children=html.Div([icone_colorido('MergeData_icon.png'), html.Span('Fundir arquivos', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled = True, 
+                className='toolbar-upload', disabled=True, 
                 multiple=False,
             ),
             dcc.Upload(
                 id='exportar-grafico',
                 children=html.Div([icone_colorido('ExportGraph_icon.png'), html.Span('Salvar gráfico', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled = True,  
+                className='toolbar-upload', disabled=True,  
                 multiple=False,
             ),
             dcc.Upload(
                 id='exportar-dados',
                 children=html.Div([icone_colorido('ExportData_icon.png'), html.Span('Exportar dados', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled = True,
+                className='toolbar-upload', disabled=True,
                 multiple=False,
             ),
-
         ]),
 
-        # Linha 3: Layout Principal (Corpo dividido usando as classes CSS do seu painel)
+        # Linha 3: Layout Principal
         html.Div(className='corpo', children=[
 
-            # 1. PAINEL DA ESQUERDA (Fixo e Isolado)
+            # 1. PAINEL DA ESQUERDA
             html.Div(className='sidebar', children=[
-                # Container superior com abas estilo chrome + navegação lateral
                 html.Div(className='abas-wrapper', children=[
                     html.Button('‹', id='aba-nav-esquerda', className='aba-nav-btn', n_clicks=0),
                     html.Div(id='container-abas-chrome', className='tabs-chrome-container'),
                     html.Button('›', id='aba-nav-direita', className='aba-nav-btn', n_clicks=0),
                 ]),
 
-                # Seção estática de título
                 html.Div('', className='sidebar-secao-titulo'),
 
-                # Container interno dos canais com rolagem controlada
                 html.Div(id='lista-canais-aba', className='menu-canais-container')
             ]),
 
             html.Div(id='divisor-resize', className='divisor-resize'),
 
-            # 2. PAINEL CENTRAL (Controles Superiores Fixos + Área de Gráfico Dinâmica)
+            # 2. PAINEL CENTRAL (Com Background do SVG + Grade de 6 Ícones)
             html.Div(className='centro', children=[
 
-                # Barra de Opções Superior do Gráfico (ESTÁTICA, ALINHADA COM O CSS)
-                html.Div(className='selector-tipo-grafico-container', children=[
-                    # Alinhado à esquerda
-                    html.Div(style={'flex': '1'}, children=[
-                        html.Button('Série Temporal', id='btn-serie-temporal', className='tipo-grafico-btn ativo', n_clicks=0),
-                        html.Button('Histograma', id='btn-histograma', className='tipo-grafico-btn', n_clicks=0, disabled=True),
-                        html.Button('X-Y Correlação', id='btn-xy', className='tipo-grafico-btn', n_clicks=0, disabled=True),
-                    ]),
-                    # Botão Fixo de Ação à Direita (Conforme o layout da sua imagem)
-                    html.Button('GERAR GRÁFICO', id='botao-gerar-grafico', className='toolbar-botao', style={
-                        'borderColor': 'var(--cor-accent)',
-                        'background': 'rgba(47, 165, 160, 0.1)',
-                        'color': 'var(--cor-texto-escuro)',
-                        'padding': '6px 14px'
-                    }, n_clicks=0),
-                ]),
+                # Grade Centralizada de 6 Ícones (Matriz 3x2)
+                html.Div(
+                    className='grid-botoes-central',
+                    style={
+                        'display': 'grid',
+                        'gridTemplateColumns': 'repeat(3, minmax(100px, 1fr))',
+                        'gap': '12px',
+                        'padding': '16px',
+                        'justifyContent': 'center',
+                        'alignItems': 'center',
+                        'margin': '0 auto',
+                        'maxWidth': '450px'
+                    },
+                    children=[
+                        # O primeiro botão assume a função de gerar o gráfico para manter o callback 5 intacto
+                        html.Button(
+                            [html.Div("📊"), html.Span("Gerar Gráfico", style={'fontSize': '11px', 'marginTop': '4px'})],
+                            id='botao-gerar-grafico',
+                            className='toolbar-botao btn-painel-central',
+                            style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center', 'padding': '10px'},
+                            n_clicks=0
+                        ),
+                        html.Button(
+                            [html.Div("⚙️"), html.Span("Painel Central 2", style={'fontSize': '11px', 'marginTop': '4px'})],
+                            id='btn-painel-central-2',
+                            className='toolbar-botao btn-painel-central',
+                            style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center', 'padding': '10px'},
+                            n_clicks=0
+                        ),
+                        html.Button(
+                            [html.Div("📈"), html.Span("Painel Central 3", style={'fontSize': '11px', 'marginTop': '4px'})],
+                            id='btn-painel-central-3',
+                            className='toolbar-botao btn-painel-central',
+                            style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center', 'padding': '10px'},
+                            n_clicks=0
+                        ),
+                        html.Button(
+                            [html.Div("🔍"), html.Span("Painel Central 4", style={'fontSize': '11px', 'marginTop': '4px'})],
+                            id='btn-painel-central-4',
+                            className='toolbar-botao btn-painel-central',
+                            style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center', 'padding': '10px'},
+                            n_clicks=0
+                        ),
+                        html.Button(
+                            [html.Div("📋"), html.Span("Painel Central 5", style={'fontSize': '11px', 'marginTop': '4px'})],
+                            id='btn-painel-central-5',
+                            className='toolbar-botao btn-painel-central',
+                            style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center', 'padding': '10px'},
+                            n_clicks=0
+                        ),
+                        html.Button(
+                            [html.Div("📌"), html.Span("Painel Central 6", style={'fontSize': '11px', 'marginTop': '4px'})],
+                            id='btn-painel-central-6',
+                            className='toolbar-botao btn-painel-central',
+                            style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center', 'padding': '10px'},
+                            n_clicks=0
+                        ),
+                    ]
+                ),
 
-                # Espaço reservado para o gráfico (Plotly desligado por padrão)
+                # Espaço reservado para o gráfico com imagem de fundo bar-graph.svg
                 dcc.Loading(
                     id="loading-grafico",
                     type="mono",
-                    children=html.Div(id='container-grafico', style={'flex': '1', 'display': 'flex', 'flexDirection': 'column'}),
+                    children=html.Div(
+                        id='container-grafico',
+                        style={
+                            'flex': '1',
+                            'display': 'flex',
+                            'flexDirection': 'column',
+                            'backgroundImage': 'url("/gui/assets/icones/bar-graph.svg")',
+                            'backgroundRepeat': 'no-repeat',
+                            'backgroundPosition': 'center',
+                            'backgroundSize': 'contain'
+                        }
+                    ),
                 ),
 
                 # Console de eventos para o Desenvolvedor
                 html.Pre(id='console-dev', className='console-dev', children='Aguardando dados...'),
             ]),
 
-            # 3. PAINEL DA DIREITA (Opções adicionais de customização)
+            # 3. PAINEL DA DIREITA
             html.Div(className='painel-direito', style={'width': '260px', 'minWidth': '260px'}, children=[
                 html.Div('Opções do gráfico', className='painel-direito-titulo'),
                 html.P('Propriedades e customizações da curva ativa.', className='painel-direito-placeholder'),
@@ -329,9 +370,8 @@ def criar_app(estado):
         ]),
     ])
 
-    # --- Callbacks Totalmente Isolados (Evita loops cruzados e renderizações indesejadas) ---
+    # --- Callbacks ---
 
-    # Callback 1: Gerencia o Upload de Arquivos
     @app.callback(
         Output('aba-ativa-store', 'data'),
         Output('console-dev', 'children'),
@@ -352,7 +392,6 @@ def criar_app(estado):
         except Exception as e:
             return aba_atual, f"Erro ao processar arquivo: {str(e)}"
 
-    # Callback 2: Gerencia a alternância e fechamento de abas
     @app.callback(
         Output('aba-ativa-store', 'data', allow_duplicate=True),
         Output('container-abas-chrome', 'children'),
@@ -379,7 +418,6 @@ def criar_app(estado):
 
         return aba_ativa, renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa)
 
-    # Callback 3: Gerencia estritamente a seleção visual das linhas de Canais
     @app.callback(
         Output('lista-canais-aba', 'children', allow_duplicate=True),
         Input({'type': 'linha-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
@@ -396,7 +434,6 @@ def criar_app(estado):
 
         return renderizar_colunas_da_aba_ativa(estado, aba_ativa)
 
-    # Callback 4: Sincroniza a barra lateral quando um novo arquivo altera a aba ativa
     @app.callback(
         Output('container-abas-chrome', 'children', allow_duplicate=True),
         Output('lista-canais-aba', 'children', allow_duplicate=True),
@@ -406,16 +443,14 @@ def criar_app(estado):
     def sincronizar_interface_por_aba(aba_ativa):
         return renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa)
 
-    # Callback 5: EXECUÇÃO DO PLOT (Apenas sob demanda do clique do botão!)
     @app.callback(
         Output('container-grafico', 'children'),
         Input('botao-gerar-grafico', 'n_clicks'),
         prevent_initial_call=True,
     )
     def disparar_plotagem_sob_demanda(n_clicks):
-        # Proteção Absoluta: Se não houver clique ou canais selecionados, impede o carregamento do Plotly
         if not n_clicks or not estado.canais_selecionados:
-            return html.Div("Selecione os canais desejados e clique em 'GERAR GRÁFICO' para plotar.",
+            return html.Div("Selecione os canais desejados e clique em 'Gerar Gráfico' para plotar.",
                             style={'margin': 'auto', 'color': 'var(--cor-texto-mudo)', 'fontSize': '12px', 'fontFamily': 'var(--fonte-ui)'})
 
         fig = go.Figure()
@@ -437,7 +472,7 @@ def criar_app(estado):
             template="plotly_white",
             margin=dict(l=50, r=20, t=20, b=40),
             hovermode="x unified",
-            uirevision='constant'  # Impede perda de zoom ao re-plotar novos canais
+            uirevision='constant'
         )
 
         return dcc.Graph(id='grafico-plotly-real', figure=fig, style={'flex': '1'})
