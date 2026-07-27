@@ -1,42 +1,30 @@
-from src.core.rotulos import GerenciadorRotulos
+from src.core.arquivo import Arquivo
 
 
 class EstadoApp:
     """
-    Estado global da execução adaptado para múltiplos arquivos.
-    Gerencia quais arquivos estão abertos, seus DataFrames, rótulos e canais selecionados.
+    Estado global da execução, adaptado para múltiplos arquivos.
+
+    Cada arquivo aberto vira um objeto Arquivo (src/core/arquivo.py),
+    que já guarda seu próprio df, canais, figura e preferências de
+    exibição. EstadoApp só guarda a COLEÇÃO de arquivos abertos e o
+    que é necessariamente global entre eles:
+
+      - canais_selecionados: quais canais (de qualquer arquivo) estão
+        marcados pra entrar no gráfico ATUAL. É global (não por
+        arquivo) porque a feature de combinar canais de arquivos
+        diferentes num mesmo gráfico depende disso.
+      - coluna_x: nome padrão da coluna usada como eixo X.
     """
-    #def __init__(self):
-        # Dicionário estruturado:
-        # {
-        #   "ensaio_01.csv": { "df": DataFrame, "gerenciador": GerenciadorRotulos },
-        #   "ensaio_02.txt": { "df": DataFrame, "gerenciador": GerenciadorRotulos }
-        # }
-    #    self.arquivos = {}
-    # Guarda quais canais o usuário marcou globalmente para plotar no formato (nome_arquivo, nome_coluna)
-        # self.canais_selecionados = set()
-        # self.coluna_x = "Tempo_decorrido_s"  # Padrão universal do seu leitor
-        # self.grafico_gerado = False  # vira True quando um gráfico de verdade é plotado
-     
+
     def __init__(self):
-        self.arquivos = {}
+        self.arquivos: dict[str, Arquivo] = {}
         self.canais_selecionados = set()
         self.coluna_x = "Tempo_decorrido_s"
-        self.grafico_gerado = False  # vira True quando um gráfico de verdade é plotado
-        self.canais_selecionados = set()
-
-        
-    #def adicionar_arquivo(self, nome_arquivo, df):
-    #    """Adiciona um novo arquivo ao estado."""
-    #    self.arquivos[nome_arquivo] = {
-    #        "df": df,
-    #        "gerenciador": GerenciadorRotulos(df.columns)
-    #    }
 
     def adicionar_arquivo(self, nome_arquivo, df, avisos=None, info=None):
         """
-        Adiciona um novo arquivo guardando também o estado visual do
-        gráfico dele.
+        Adiciona um novo arquivo ao estado.
 
         'avisos' e 'info' vêm do carregador (src/core/extractor.py via
         helpers.carregar_dados_de_upload) e alimentam o rodapé da GUI:
@@ -45,41 +33,19 @@ class EstadoApp:
           - info: dict com 'encoding', 'delimitador', 'n_linhas',
             'n_colunas' — mostrado como texto fixo do rodapé.
         """
-        self.arquivos[nome_arquivo] = {
-            "df": df,
-            "gerenciador": GerenciadorRotulos(df.columns),
-            "figura": None,          # Armazena o objeto Figure do Plotly
-            "grafico_gerado": False,  # Flag individual por arquivo
-            "avisos": list(avisos) if avisos else [],
-            "info": info or {},
-        }
-
-
-    #def remover_arquivo(self, nome_arquivo):
-    #    """Remove o arquivo e limpa as seleções dele."""
-    #    if nome_arquivo in self.arquivos:
-    #        del self.arquivos[nome_arquivo]
-    #        # Limpa os canais selecionados que pertenciam a esse arquivo
-    #        self.canais_selecionados = {c for c in self.canais_selecionados if c[0] != nome_arquivo}
-    #        if not self.arquivos:
-                # sem nenhum arquivo aberto, qualquer gráfico gerado antes perde o sentido
-    #            self.grafico_gerado = False
+        self.arquivos[nome_arquivo] = Arquivo(
+            nome=nome_arquivo,
+            df_original=df.copy(),
+            df_editado=df.copy(),
+            avisos=list(avisos) if avisos else [],
+            info=info or {},
+        )
 
     def remover_arquivo(self, nome_arquivo):
-        """Remove o arquivo e limpa os canais."""
+        """Remove o arquivo e limpa os canais dele da seleção global."""
         if nome_arquivo in self.arquivos:
             del self.arquivos[nome_arquivo]
             self.canais_selecionados = {c for c in self.canais_selecionados if c[0] != nome_arquivo}
-
-
-
-    #def alternar_selecao_canal(self, nome_arquivo, coluna):
-    #    """Marca ou desmarca um canal para plotagem."""
-    #    par = (nome_arquivo, coluna)
-    #    if par in self.canais_selecionados:
-    #        self.canais_selecionados.remove(par)
-    #    else:
-    #        self.canais_selecionados.add(par)
 
     def alternar_selecao_canal(self, nome_arquivo, coluna):
         """Marca ou desmarca um canal para plotagem."""
@@ -89,14 +55,11 @@ class EstadoApp:
         else:
             self.canais_selecionados.add(par)
 
-    #def obter_colunas(self, nome_arquivo):
-    #    """Retorna a lista de colunas de um arquivo específico."""
-    #    if nome_arquivo in self.arquivos:
-    #        return list(self.arquivos[nome_arquivo]["df"].columns)
-    #    return []
-
     def obter_colunas(self, nome_arquivo):
-        """Retorna a lista de colunas de um arquivo específico."""
-        if nome_arquivo in self.arquivos:
-            return list(self.arquivos[nome_arquivo]["df"].columns)
-        return []
+        """Retorna as colunas visíveis de um arquivo específico."""
+        arquivo = self.arquivos.get(nome_arquivo)
+        return arquivo.colunas_visiveis() if arquivo else []
+
+    def algum_arquivo_com_grafico(self):
+        """True se pelo menos um arquivo aberto já tem um gráfico gerado."""
+        return any(arquivo.grafico_gerado for arquivo in self.arquivos.values())

@@ -21,7 +21,7 @@ def montar_layout(estado):
     """
     sem_arquivo = len(estado.arquivos) == 0
     menos_de_2_arquivos = len(estado.arquivos) < 2
-    sem_grafico = not estado.grafico_gerado
+    sem_grafico = not estado.algum_arquivo_com_grafico()
 
     return html.Div(className='app-shell', children=[
         dcc.Store(id='aba-ativa-store', data=None),

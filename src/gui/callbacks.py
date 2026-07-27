@@ -176,9 +176,9 @@ def registrar_callbacks(app, estado):
             area_grafico = renderizar_area_grafico(estado)
             botoes_dependentes = True
         elif mudou_de_arquivo and aba_ativa in estado.arquivos:
-            dados_aba = estado.arquivos[aba_ativa]
-            if dados_aba.get("grafico_gerado") and dados_aba.get("figura") is not None:
-                area_grafico = renderizar_grafico_com_fechar(dados_aba["figura"])
+            arquivo = estado.arquivos[aba_ativa]
+            if arquivo.grafico_gerado:
+                area_grafico = renderizar_grafico_com_fechar(arquivo.figura)
                 botoes_dependentes = False
             else:
                 area_grafico = renderizar_area_grafico(estado)
@@ -226,13 +226,13 @@ def registrar_callbacks(app, estado):
             # Só redesenha o gráfico se a aba ativa já estiver com um
             # gráfico aberto (senão ainda estamos na grade de opções, e
             # marcar um canal não deve pular direto pra visualização).
-            dados_aba = estado.arquivos.get(aba_ativa)
-            if dados_aba and dados_aba.get("grafico_gerado"):
+            arquivo = estado.arquivos.get(aba_ativa)
+            if arquivo and arquivo.grafico_gerado:
                 # Pode empurrar o aviso de amostragem (>5000 linhas) pra
                 # lista de avisos da aba — por isso recalculamos o badge
                 #/popup do rodapé logo abaixo, depois desta chamada.
                 fig = construir_figura_serie_temporal(estado, aba_ativa)
-                dados_aba["figura"] = fig
+                arquivo.figura = fig
                 area_grafico = renderizar_grafico_com_fechar(fig)
 
         _, badge_texto, badge_classe, popup_children = _valores_rodape(estado, aba_ativa)
@@ -276,9 +276,10 @@ def registrar_callbacks(app, estado):
         # amostragem pra lista de avisos da aba (ver plotter.py).
         fig = construir_figura_serie_temporal(estado, aba_ativa)
 
-        # Salva o gráfico no estado da aba ativa
-        estado.arquivos[aba_ativa]["figura"] = fig
-        estado.arquivos[aba_ativa]["grafico_gerado"] = True
+        # Salva o gráfico no estado da aba ativa. 'grafico_gerado' é uma
+        # property derivada de 'figura' (ver src/core/arquivo.py) — não
+        # precisa (e não pode) ser setada à parte.
+        estado.arquivos[aba_ativa].figura = fig
 
         tem_canal = any(arq == aba_ativa for arq, _ in estado.canais_selecionados)
         mensagem = (
@@ -316,8 +317,7 @@ def registrar_callbacks(app, estado):
             raise PreventUpdate
 
         if aba_ativa in estado.arquivos:
-            estado.arquivos[aba_ativa]["grafico_gerado"] = False
-            estado.arquivos[aba_ativa]["figura"] = None
+            estado.arquivos[aba_ativa].invalidar_grafico()
 
         area_grafico = renderizar_area_grafico(estado)
         mensagem = '🧙‍♂️: " Gráfico fechado. Escolha outra opção. "'

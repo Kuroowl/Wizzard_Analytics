@@ -8,8 +8,8 @@ def renderizar_info_rodape(estado, aba_ativa):
     Texto fixo da esquerda do rodapé: 'ln N  col N  [encoding]' da aba
     ativa. Sem arquivo/aba selecionada, mostra um placeholder neutro.
     """
-    dados = estado.arquivos.get(aba_ativa) if aba_ativa else None
-    info = (dados or {}).get('info') or {}
+    arquivo = estado.arquivos.get(aba_ativa) if aba_ativa else None
+    info = arquivo.info if arquivo else {}
 
     if not info:
         # ln (5) | col (5) | encoding (10)
@@ -27,8 +27,8 @@ def renderizar_info_rodape(estado, aba_ativa):
 
 def renderizar_badge_alerta(estado, aba_ativa):
     """Texto do botão de alerta do rodapé: '⚠ (N)', N = nº de avisos da aba ativa."""
-    dados = estado.arquivos.get(aba_ativa) if aba_ativa else None
-    avisos = (dados or {}).get('avisos') or []
+    arquivo = estado.arquivos.get(aba_ativa) if aba_ativa else None
+    avisos = arquivo.avisos if arquivo else []
     return f'⚠ ({len(avisos)})'
 
 
@@ -37,8 +37,8 @@ def classe_badge_alerta(estado, aba_ativa):
     Classe CSS do botão de alerta: destaca (âmbar) quando a aba ativa tem
     pelo menos 1 aviso pendente, neutro quando não tem nenhum.
     """
-    dados = estado.arquivos.get(aba_ativa) if aba_ativa else None
-    avisos = (dados or {}).get('avisos') or []
+    arquivo = estado.arquivos.get(aba_ativa) if aba_ativa else None
+    avisos = arquivo.avisos if arquivo else []
     return 'rodape-alerta-badge com-avisos' if avisos else 'rodape-alerta-badge'
 
 
@@ -49,8 +49,8 @@ def renderizar_popup_alerta(estado, aba_ativa):
     arquivo da aba ativa (cabeçalho ajustado, linhas descartadas, NaN
     encontrado, amostragem do gráfico, etc.).
     """
-    dados = estado.arquivos.get(aba_ativa) if aba_ativa else None
-    avisos = (dados or {}).get('avisos') or []
+    arquivo = estado.arquivos.get(aba_ativa) if aba_ativa else None
+    avisos = arquivo.avisos if arquivo else []
 
     if not avisos:
         return [html.Div('Nenhum aviso.', className='rodape-popup-vazio')]
@@ -104,13 +104,11 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa):
     if not aba_ativa or aba_ativa not in estado.arquivos:
         return html.Div('Abra um arquivo.', className='abas-placeholder', style={'padding': '14px'})
 
-    dados = estado.arquivos[aba_ativa]
-    df_completo = dados["df"]
-    gerenciador = dados["gerenciador"]
+    arquivo = estado.arquivos[aba_ativa]
 
     lista_canais = []
-    for coluna in df_completo.columns:
-        rotulo = gerenciador.rotulo_atual(coluna)
+    for coluna in arquivo.colunas_visiveis():
+        rotulo = arquivo.rotulo(coluna)
         par_canal = (aba_ativa, coluna)
         selecionado = par_canal in estado.canais_selecionados
 
