@@ -12,12 +12,17 @@ def renderizar_info_rodape(estado, aba_ativa):
     info = (dados or {}).get('info') or {}
 
     if not info:
-        return 'ln —   col —   [—]'
+        # ln (5) | col (5) | encoding (10)
+        return 'ln ()   col ()    [          ]'
 
-    n_linhas = info.get('n_linhas', '—')
-    n_colunas = info.get('n_colunas', '—')
-    encoding = info.get('encoding', '—')
-    return f'ln {n_linhas}   col {n_colunas}   [{encoding}]'
+    # Extrai os valores convertendo para string
+    n_linhas = str(info.get('n_linhas', '—'))
+    n_colunas = str(info.get('n_colunas', '—'))
+    encoding = str(info.get('encoding', '—'))
+
+    # <5  -> alinha à esquerda em um espaço reservado de 5 caracteres
+    # <10 -> alinha à esquerda em um espaço reservado de 10 caracteres
+    return f'ln {n_linhas:<5} col {n_colunas:<5} [{encoding:<10}]'
 
 
 def renderizar_badge_alerta(estado, aba_ativa):

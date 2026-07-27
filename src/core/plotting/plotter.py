@@ -13,7 +13,7 @@ PALETA_CORES = [
 # de exibição: os dados completos no DataFrame nunca são tocados, então
 # qualquer operação futura (corte, filtro, exportação) continua enxergando
 # a série inteira. Só o que vai pro Plotly é que fica mais leve.
-MAX_PONTOS_EXIBICAO = 5000
+MAX_PONTOS_EXIBICAO = 8000
 
 
 def cor_da_coluna(indice):
