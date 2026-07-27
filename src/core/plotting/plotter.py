@@ -171,4 +171,16 @@ def construir_figura_serie_temporal(estado, aba_ativa):
             showarrow=False, font=dict(size=11, color='#888'),
         )
 
+        # Alimenta a caixinha de alerta do rodapé (só uma vez por arquivo —
+        # regenerar o gráfico ao marcar/desmarcar canal não deve empilhar
+        # o mesmo aviso de novo).
+        mensagem = (
+            f"Aviso: o arquivo tem mais de {MAX_PONTOS_EXIBICAO:,} linhas — o gráfico "
+            f"exibe uma amostra uniforme por curva, mas os dados completos "
+            f"continuam preservados para filtros/exportação."
+        ).replace(',', '.')
+        avisos_aba = dados.setdefault('avisos', [])
+        if mensagem not in avisos_aba:
+            avisos_aba.append(mensagem)
+
     return fig

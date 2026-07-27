@@ -8,7 +8,12 @@ from src.core.extractor import carregar_dados
 def carregar_dados_de_upload(content_string, nome_arquivo):
     """
     Recebe o conteúdo de um arquivo vindo do dcc.Upload do Dash (string
-    'data:<mediatype>;base64,<dados>') e devolve o DataFrame carregado.
+    'data:<mediatype>;base64,<dados>') e devolve (df, avisos, info):
+      - df: o DataFrame carregado;
+      - avisos: lista de avisos de sanitização (cabeçalho/colunas/NaN),
+        pra alimentar a caixinha de alerta do rodapé;
+      - info: dict com 'encoding', 'delimitador', 'n_linhas', 'n_colunas',
+        pra alimentar o texto de status do rodapé.
 
     O extractor.carregar_dados espera um CAMINHO de arquivo em disco (ele
     reabre o arquivo várias vezes: uma pra detectar encoding, outra pra
@@ -28,7 +33,7 @@ def carregar_dados_de_upload(content_string, nome_arquivo):
     try:
         arquivo_temp.write(conteudo_bytes)
         arquivo_temp.close()
-        df = carregar_dados(arquivo_temp.name)
-        return df
+        df, avisos, info = carregar_dados(arquivo_temp.name)
+        return df, avisos, info
     finally:
         os.remove(arquivo_temp.name)  # apaga o temporário, sempre — mesmo se der erro no meio

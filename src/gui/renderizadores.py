@@ -3,6 +3,56 @@ from dash import dcc, html
 from src.gui.components import icone_colorido
 
 
+def renderizar_info_rodape(estado, aba_ativa):
+    """
+    Texto fixo da esquerda do rodapé: 'ln N  col N  [encoding]' da aba
+    ativa. Sem arquivo/aba selecionada, mostra um placeholder neutro.
+    """
+    dados = estado.arquivos.get(aba_ativa) if aba_ativa else None
+    info = (dados or {}).get('info') or {}
+
+    if not info:
+        return 'ln —   col —   [—]'
+
+    n_linhas = info.get('n_linhas', '—')
+    n_colunas = info.get('n_colunas', '—')
+    encoding = info.get('encoding', '—')
+    return f'ln {n_linhas}   col {n_colunas}   [{encoding}]'
+
+
+def renderizar_badge_alerta(estado, aba_ativa):
+    """Texto do botão de alerta do rodapé: '⚠ (N)', N = nº de avisos da aba ativa."""
+    dados = estado.arquivos.get(aba_ativa) if aba_ativa else None
+    avisos = (dados or {}).get('avisos') or []
+    return f'⚠ ({len(avisos)})'
+
+
+def classe_badge_alerta(estado, aba_ativa):
+    """
+    Classe CSS do botão de alerta: destaca (âmbar) quando a aba ativa tem
+    pelo menos 1 aviso pendente, neutro quando não tem nenhum.
+    """
+    dados = estado.arquivos.get(aba_ativa) if aba_ativa else None
+    avisos = (dados or {}).get('avisos') or []
+    return 'rodape-alerta-badge com-avisos' if avisos else 'rodape-alerta-badge'
+
+
+def renderizar_popup_alerta(estado, aba_ativa):
+    """
+    Conteúdo da subjanela (hide/show) que aparece ao clicar no alerta do
+    rodapé — lista cada aviso de sanitização gerado no carregamento do
+    arquivo da aba ativa (cabeçalho ajustado, linhas descartadas, NaN
+    encontrado, amostragem do gráfico, etc.).
+    """
+    dados = estado.arquivos.get(aba_ativa) if aba_ativa else None
+    avisos = (dados or {}).get('avisos') or []
+
+    if not avisos:
+        return [html.Div('Nenhum aviso.', className='rodape-popup-vazio')]
+
+    return [html.Div(aviso, className='rodape-popup-item') for aviso in avisos]
+
+
 def truncar_nome_arquivo(nome, limite=15):
     base, ext = nome.rsplit('.', 1) if '.' in nome else (nome, '')
     if len(base) <= limite:

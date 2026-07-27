@@ -33,13 +33,25 @@ class EstadoApp:
     #        "gerenciador": GerenciadorRotulos(df.columns)
     #    }
 
-    def adicionar_arquivo(self, nome_arquivo, df):
-        """Adiciona um novo arquivo guardando também o estado visual do gráfico dele."""
+    def adicionar_arquivo(self, nome_arquivo, df, avisos=None, info=None):
+        """
+        Adiciona um novo arquivo guardando também o estado visual do
+        gráfico dele.
+
+        'avisos' e 'info' vêm do carregador (src/core/extractor.py via
+        helpers.carregar_dados_de_upload) e alimentam o rodapé da GUI:
+          - avisos: lista de strings (cabeçalho/coluna ajustados, NaN
+            encontrado, etc.) — mostrada na caixinha de alerta.
+          - info: dict com 'encoding', 'delimitador', 'n_linhas',
+            'n_colunas' — mostrado como texto fixo do rodapé.
+        """
         self.arquivos[nome_arquivo] = {
             "df": df,
             "gerenciador": GerenciadorRotulos(df.columns),
             "figura": None,          # Armazena o objeto Figure do Plotly
-            "grafico_gerado": False  # Flag individual por arquivo
+            "grafico_gerado": False,  # Flag individual por arquivo
+            "avisos": list(avisos) if avisos else [],
+            "info": info or {},
         }
 
 

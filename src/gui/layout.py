@@ -1,7 +1,15 @@
 from dash import dcc, html
 
 from src.gui.components import icone_colorido
-from src.gui.renderizadores import renderizar_area_grafico
+from src.gui.renderizadores import (
+    renderizar_area_grafico, renderizar_info_rodape,
+    renderizar_badge_alerta, renderizar_popup_alerta,
+)
+
+# Tempo (ms) que uma mensagem "temporária" do mago fica visível antes de
+# desaparecer sozinha — ver 'rodape-timer-mensagem' e o callback
+# '_expirar_mensagem_temporaria' em callbacks.py.
+DURACAO_MENSAGEM_TEMPORARIA_MS = 3500
 
 
 def montar_layout(estado):
@@ -108,8 +116,35 @@ def montar_layout(estado):
         ]),
 
         html.Div(className='rodape', children=[
-            html.Span('infos do sistema (que futuramente vou carregar)', className='rodape-info'),
-            html.Span(' | ', style={'margin': '0 12px', 'opacity': '0.4'}),
-            html.Span(id='rodape-status', children='🧙‍♂️: " Aguardando ações... "')
+            html.Span(id='rodape-info-arquivo', className='rodape-info',
+                      children=renderizar_info_rodape(estado, None)),
+
+            html.Span(' | ', className='rodape-separador'),
+
+            html.Div(id='rodape-alerta-wrapper', className='rodape-alerta-wrapper', children=[
+                html.Div(id='rodape-alerta-popup', className='rodape-alerta-popup',
+                         children=renderizar_popup_alerta(estado, None)),
+                html.Button(id='rodape-alerta-badge', className='rodape-alerta-badge',
+                            children=renderizar_badge_alerta(estado, None), n_clicks=0),
+            ]),
+
+            html.Span(' | ', className='rodape-separador'),
+
+            html.Span(id='rodape-status', children='🧙‍♂️: " Carregue um arquivo para começar... "'),
+
+            # --- Máquina da mensagem temporária do mago ---
+            # 'rodape-mensagem-seguinte' guarda o que deve aparecer QUANDO a
+            # mensagem atual expirar (string vazia = simplesmente some).
+            # 'rodape-timer-mensagem' já nasce ativo (disabled=False) pra
+            # fazer a mensagem inicial acima desaparecer sozinha nos
+            # primeiros segundos, sem precisar de nenhuma ação do usuário.
+            dcc.Store(id='rodape-mensagem-seguinte', data=''),
+            dcc.Interval(
+                id='rodape-timer-mensagem',
+                interval=DURACAO_MENSAGEM_TEMPORARIA_MS,
+                n_intervals=0,
+                max_intervals=1,
+                disabled=False,
+            ),
         ]),
     ])

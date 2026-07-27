@@ -5,6 +5,7 @@ from src.core.plotting.plotter import construir_figura_serie_temporal
 from src.gui.renderizadores import (
     truncar_nome_arquivo, renderizar_abas_estilo_chrome, renderizar_colunas_da_aba_ativa,
     renderizar_area_grafico, renderizar_grafico_com_fechar,
+    renderizar_info_rodape, renderizar_badge_alerta, classe_badge_alerta, renderizar_popup_alerta,
 )
 from src.utils.helpers import carregar_dados_de_upload
 
@@ -27,6 +28,21 @@ def _clique_real(ctx_triggered):
     return bool(ctx_triggered)
 
 
+def _valores_rodape(estado, aba_ativa):
+    """
+    Agrupa os 4 valores que qualquer callback que mexe no rodapé precisa
+    devolver, sempre na mesma ordem: (info, badge_texto, badge_classe,
+    popup_children). Existe só pra não repetir as mesmas 4 chamadas em
+    cada callback abaixo.
+    """
+    return (
+        renderizar_info_rodape(estado, aba_ativa),
+        renderizar_badge_alerta(estado, aba_ativa),
+        classe_badge_alerta(estado, aba_ativa),
+        renderizar_popup_alerta(estado, aba_ativa),
+    )
+
+
 def registrar_callbacks(app, estado):
     """
     Registra todos os callbacks do app. Recebe 'app' (pra decorar com
@@ -41,6 +57,13 @@ def registrar_callbacks(app, estado):
         Output('nova-analise', 'disabled'),
         Output('fundir-arquivos', 'disabled'),
         Output('container-grafico', 'children', allow_duplicate=True),
+        Output('rodape-info-arquivo', 'children'),
+        Output('rodape-alerta-badge', 'children'),
+        Output('rodape-alerta-badge', 'className'),
+        Output('rodape-alerta-popup', 'children'),
+        Output('rodape-mensagem-seguinte', 'data'),
+        Output('rodape-timer-mensagem', 'disabled'),
+        Output('rodape-timer-mensagem', 'n_intervals'),
         Input('upload-arquivo', 'contents'),
         State('upload-arquivo', 'filename'),
         State('aba-ativa-store', 'data'),
@@ -49,21 +72,58 @@ def registrar_callbacks(app, estado):
     def ao_fazer_upload(conteudo, nome_arquivo, aba_atual):
         if conteudo is None:
             raise PreventUpdate
+
         if nome_arquivo in estado.arquivos:
-            return (nome_arquivo, f'🧙‍♂️: " O arquivo \'{nome_arquivo}\' já foi aberto! "',
-                    len(estado.arquivos) == 0, len(estado.arquivos) < 2, no_update)
+            # Arquivo já aberto: mensagem PERSISTENTE — cancela qualquer
+            # timer pendente (senão uma expiração antiga poderia
+            # sobrescrever essa mensagem daqui a pouco).
+            mensagem = f'🧙‍♂️: " O arquivo \'{nome_arquivo}\' já foi aberto! "'
+            return (nome_arquivo, mensagem,
+                    len(estado.arquivos) == 0, len(estado.arquivos) < 2, no_update,
+                    *_valores_rodape(estado, nome_arquivo),
+                    no_update, True, no_update)
         try:
-            df = carregar_dados_de_upload(conteudo, nome_arquivo)
-            estado.adicionar_arquivo(nome_arquivo, df)
+            df, avisos, info = carregar_dados_de_upload(conteudo, nome_arquivo)
+            estado.adicionar_arquivo(nome_arquivo, df, avisos, info)
 
             # FORÇA a re-renderização da área central para desenhar a grade azul
             area_grafico = renderizar_area_grafico(estado)
 
-            return (nome_arquivo, f'🧙‍♂️: " Arquivo \'{nome_arquivo}\' aberto com sucesso! pronto. "',
-                    len(estado.arquivos) == 0, len(estado.arquivos) < 2, area_grafico)
+            # Mensagem TEMPORÁRIA: aparece, some sozinha em ~3.5s e dá lugar
+            # à próxima instrução ("Escolha uma opção de gráfico...") — ver
+            # 'rodape-timer-mensagem' / expirar_mensagem_temporaria() abaixo.
+            mensagem = f'🧙‍♂️: " Arquivo \'{nome_arquivo}\' carregado com sucesso! "'
+            mensagem_seguinte = '🧙‍♂️: " Escolha uma opção de gráfico... "'
+
+            return (nome_arquivo, mensagem,
+                    len(estado.arquivos) == 0, len(estado.arquivos) < 2, area_grafico,
+                    *_valores_rodape(estado, nome_arquivo),
+                    mensagem_seguinte, False, 0)
         except Exception as e:
-            return (aba_atual, f'🧙‍♂️: " Erro ao abrir arquivo: {str(e)} "',
-                    len(estado.arquivos) == 0, len(estado.arquivos) < 2, no_update)
+            mensagem = f'🧙‍♂️: " Erro ao abrir arquivo: {str(e)} "'
+            return (aba_atual, mensagem,
+                    len(estado.arquivos) == 0, len(estado.arquivos) < 2, no_update,
+                    *_valores_rodape(estado, aba_atual),
+                    no_update, True, no_update)
+
+    @app.callback(
+        Output('rodape-status', 'children', allow_duplicate=True),
+        Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
+        Input('rodape-timer-mensagem', 'n_intervals'),
+        State('rodape-mensagem-seguinte', 'data'),
+        prevent_initial_call=True,
+    )
+    def expirar_mensagem_temporaria(n_intervals, mensagem_seguinte):
+        """
+        Dispara quando uma mensagem temporária do mago (a inicial, ou o
+        'Arquivo carregado com sucesso!') termina seu tempo de exibição.
+        Troca o texto do rodapé pelo que ficou guardado em
+        'rodape-mensagem-seguinte' (pode ser '' — nesse caso a mensagem
+        simplesmente some) e desarma o timer de novo.
+        """
+        if not n_intervals:
+            raise PreventUpdate
+        return (mensagem_seguinte or ''), True
 
     @app.callback(
         Output('aba-ativa-store', 'data', allow_duplicate=True),
@@ -78,6 +138,11 @@ def registrar_callbacks(app, estado):
         Output('nova-amostra', 'disabled', allow_duplicate=True),
         Output('exportar-grafico', 'disabled', allow_duplicate=True),
         Output('exportar-dados', 'disabled', allow_duplicate=True),
+        Output('rodape-info-arquivo', 'children', allow_duplicate=True),
+        Output('rodape-alerta-badge', 'children', allow_duplicate=True),
+        Output('rodape-alerta-badge', 'className', allow_duplicate=True),
+        Output('rodape-alerta-popup', 'children', allow_duplicate=True),
+        Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
         Input({'type': 'aba-item', 'arquivo': ALL}, 'n_clicks'),
         Input({'type': 'botao-fechar-aba', 'arquivo': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
@@ -124,12 +189,21 @@ def registrar_callbacks(app, estado):
 
         return (aba_ativa, renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa),
                 mensagem, len(estado.arquivos) == 0, len(estado.arquivos) < 2, area_grafico,
-                botoes_dependentes, botoes_dependentes, botoes_dependentes, botoes_dependentes, botoes_dependentes)
+                botoes_dependentes, botoes_dependentes, botoes_dependentes, botoes_dependentes, botoes_dependentes,
+                # Trocar/fechar aba muda qual arquivo é "o ativo": info, badge
+                # e popup do rodapé precisam refletir a NOVA aba, e qualquer
+                # mensagem temporária pendente da aba anterior é cancelada.
+                *_valores_rodape(estado, aba_ativa),
+                True)
 
     @app.callback(
         Output('lista-canais-aba', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
         Output('container-grafico', 'children', allow_duplicate=True),
+        Output('rodape-alerta-badge', 'children', allow_duplicate=True),
+        Output('rodape-alerta-badge', 'className', allow_duplicate=True),
+        Output('rodape-alerta-popup', 'children', allow_duplicate=True),
+        Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
         Input({'type': 'linha-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
@@ -154,11 +228,17 @@ def registrar_callbacks(app, estado):
             # marcar um canal não deve pular direto pra visualização).
             dados_aba = estado.arquivos.get(aba_ativa)
             if dados_aba and dados_aba.get("grafico_gerado"):
+                # Pode empurrar o aviso de amostragem (>5000 linhas) pra
+                # lista de avisos da aba — por isso recalculamos o badge
+                #/popup do rodapé logo abaixo, depois desta chamada.
                 fig = construir_figura_serie_temporal(estado, aba_ativa)
                 dados_aba["figura"] = fig
                 area_grafico = renderizar_grafico_com_fechar(fig)
 
-        return renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem, area_grafico
+        _, badge_texto, badge_classe, popup_children = _valores_rodape(estado, aba_ativa)
+        return (renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem, area_grafico,
+                badge_texto, badge_classe, popup_children,
+                True)
 
     @app.callback(
         Output('container-abas-chrome', 'children', allow_duplicate=True),
@@ -169,8 +249,6 @@ def registrar_callbacks(app, estado):
     def sincronizar_interface_por_aba(aba_ativa):
         return renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa)
 
-    
-
     @app.callback(
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
@@ -179,6 +257,10 @@ def registrar_callbacks(app, estado):
         Output('nova-amostra', 'disabled', allow_duplicate=True),
         Output('exportar-grafico', 'disabled', allow_duplicate=True),
         Output('exportar-dados', 'disabled', allow_duplicate=True),
+        Output('rodape-alerta-badge', 'children', allow_duplicate=True),
+        Output('rodape-alerta-badge', 'className', allow_duplicate=True),
+        Output('rodape-alerta-popup', 'children', allow_duplicate=True),
+        Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
         Input('central-btn-1', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
@@ -189,7 +271,9 @@ def registrar_callbacks(app, estado):
 
         # Gera o gráfico com os canais já marcados até agora (pode ser
         # nenhum ainda — nesse caso nasce em branco, e o usuário vai
-        # populando ao marcar colunas na barra lateral).
+        # populando ao marcar colunas na barra lateral). Se o arquivo tiver
+        # mais de 5000 linhas, essa chamada também empurra um aviso de
+        # amostragem pra lista de avisos da aba (ver plotter.py).
         fig = construir_figura_serie_temporal(estado, aba_ativa)
 
         # Salva o gráfico no estado da aba ativa
@@ -204,9 +288,10 @@ def registrar_callbacks(app, estado):
         )
         grafico = renderizar_grafico_com_fechar(fig)
 
-        return grafico, mensagem, False, False, False, False, False
-
-    
+        _, badge_texto, badge_classe, popup_children = _valores_rodape(estado, aba_ativa)
+        return (grafico, mensagem, False, False, False, False, False,
+                badge_texto, badge_classe, popup_children,
+                True)
 
     @app.callback(
         Output('container-grafico', 'children', allow_duplicate=True),
@@ -216,6 +301,7 @@ def registrar_callbacks(app, estado):
         Output('nova-amostra', 'disabled', allow_duplicate=True),
         Output('exportar-grafico', 'disabled', allow_duplicate=True),
         Output('exportar-dados', 'disabled', allow_duplicate=True),
+        Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
         Input('fechar-grafico', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
@@ -236,4 +322,4 @@ def registrar_callbacks(app, estado):
         area_grafico = renderizar_area_grafico(estado)
         mensagem = '🧙‍♂️: " Gráfico fechado. Escolha outra opção. "'
 
-        return area_grafico, mensagem, True, True, True, True, True
+        return area_grafico, mensagem, True, True, True, True, True, True

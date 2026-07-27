@@ -77,6 +77,32 @@ document.addEventListener('DOMContentLoaded', function () {
         atualizarSetas();
     }
     iniciarNavegacaoAbas();
+
+    function iniciarAlertaRodape() {
+        // Delegação no 'document' (em vez de pegar o elemento e grudar o
+        // listener nele) porque o conteúdo do badge/popup é reescrito pelo
+        // Dash a cada callback (children/className mudam) — um listener
+        // preso direto no nó corre risco de sumir junto se o Dash trocar o
+        // nó por um novo. Delegar no document nunca perde o gancho.
+        document.addEventListener('click', function (e) {
+            var badge = e.target.closest && e.target.closest('#rodape-alerta-badge');
+            var popup = document.getElementById('rodape-alerta-popup');
+            if (!popup) return;
+
+            if (badge) {
+                popup.classList.toggle('aberta');
+                e.stopPropagation();
+                return;
+            }
+
+            // Clique fora do popup (e fora do badge, já tratado acima):
+            // fecha se estiver aberto.
+            if (popup.classList.contains('aberta') && !e.target.closest('#rodape-alerta-popup')) {
+                popup.classList.remove('aberta');
+            }
+        });
+    }
+    iniciarAlertaRodape();
 });
 </script>
 """

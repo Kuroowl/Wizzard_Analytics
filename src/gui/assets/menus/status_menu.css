@@ -9,4 +9,93 @@
   font-size: 11px;
   padding: 0 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative; /* referência de posicionamento pro popup de alerta */
+}
+
+.rodape-info {
+  white-space: nowrap;
+}
+
+.rodape-separador {
+  margin: 0 12px;
+  opacity: 0.4;
+}
+
+/* --- Botão de alerta (⚠) e a subjanela hide/show que abre acima dele --- */
+
+.rodape-alerta-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.rodape-alerta-badge {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font-family: var(--fonte-dado);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.rodape-alerta-badge:hover {
+  opacity: 1;
+}
+
+/* Quando existe pelo menos 1 aviso, o badge fica destacado (âmbar) em vez
+   de neutro, pra chamar atenção sem precisar abrir o popup. A contagem
+   "(0)" no texto é o que decide isso — ver 'renderizar_badge_alerta'. */
+.rodape-alerta-badge.com-avisos {
+  color: #E0A82E;
+  opacity: 1;
+}
+
+.rodape-alerta-popup {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 260px;
+  max-width: 420px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--cor-superficie-escura-2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 8px 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  z-index: 20;
+}
+
+.rodape-alerta-popup.aberta {
+  display: block;
+}
+
+.rodape-popup-item {
+  color: var(--cor-texto-claro);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  white-space: normal;
+}
+
+.rodape-popup-item:last-child {
+  border-bottom: none;
+}
+
+.rodape-popup-vazio {
+  color: var(--cor-texto-mudo);
+  font-size: 11px;
+  padding: 4px 0;
+}
+
+/* --- Mensagem do mago: some suavemente quando expira (ver rodape-timer-mensagem) --- */
+
+#rodape-status {
+  transition: opacity 0.25s ease;
 }

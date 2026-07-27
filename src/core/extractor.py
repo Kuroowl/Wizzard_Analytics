@@ -251,7 +251,7 @@ def _dividir_rotulos_colados(token):
     return partes if partes else [token]
 
 
-def _gerar_nomes_colunas(tokens_cabecalho, n_colunas_dados):
+def _gerar_nomes_colunas(tokens_cabecalho, n_colunas_dados, avisos=None):
     """
     Gera a lista final de nomes de coluna, corrigindo o caso em que o
     cabeçalho tem menos rótulos do que colunas de dados de verdade:
@@ -261,6 +261,12 @@ def _gerar_nomes_colunas(tokens_cabecalho, n_colunas_dados):
          rótulo que não deu pra recuperar;
       3) se sobrar rótulo (cabeçalho com mais tokens que os dados), avisa e
          descarta os excedentes do final.
+
+    'avisos', se passado, é uma lista que recebe (via append) o texto de
+    qualquer aviso gerado aqui — usado pela interface pra alimentar a
+    caixinha de alerta do rodapé, em vez de só jogar no console (print).
+    Se None, o aviso só vai pro console (mantém a função utilizável fora
+    do fluxo da GUI).
     """
     rotulos = []
     for tok in tokens_cabecalho:
@@ -271,22 +277,26 @@ def _gerar_nomes_colunas(tokens_cabecalho, n_colunas_dados):
 
     if len(rotulos) < n_colunas_dados:
         faltam = n_colunas_dados - len(rotulos)
-        print(
+        mensagem = (
             f"Aviso: o cabeçalho rendeu {len(rotulos)} rótulo(s) mas os dados têm "
             f"{n_colunas_dados} coluna(s) (provavelmente um rótulo colou com o "
             f"seguinte sem espaço, e não foi possível separar automaticamente). "
             f"Preenchendo {faltam} coluna(s) com nome genérico no final."
         )
+        print(mensagem)
+        (avisos if avisos is not None else []).append(mensagem)
         proximo_indice = len(rotulos) + 1
         for _ in range(faltam):
             rotulos.append(f'coluna{proximo_indice}')
             proximo_indice += 1
         return rotulos
 
-    print(
+    mensagem = (
         f"Aviso: o cabeçalho rendeu {len(rotulos)} rótulo(s) mas os dados têm apenas "
         f"{n_colunas_dados} coluna(s). Descartando os rótulos excedentes do final."
     )
+    print(mensagem)
+    (avisos if avisos is not None else []).append(mensagem)
     return rotulos[:n_colunas_dados]
 
 
@@ -354,7 +364,17 @@ def carregar_dados(caminho_arquivo):
     Lê arquivos TXT ou CSV, descobre dinamicamente onde começam os dados
     (pulando metadados decorativos), detecta encoding, delimitador e
     separador decimal, e retorna um DataFrame limpo.
+
+    Retorna uma tupla (df, avisos, info):
+      - avisos: lista de strings com qualquer aviso de sanitização gerado
+        durante o carregamento (rótulo faltando/sobrando, linhas com
+        número de campos diferente do esperado, etc.) — usada pela GUI
+        pra alimentar a caixinha de alerta do rodapé.
+      - info: dict com metadados de exibição do rodapé
+        ('encoding', 'delimitador', 'n_linhas', 'n_colunas').
     """
+    avisos = []
+
     encoding_detectado = detectar_encoding(caminho_arquivo)
     delimitador = detectar_delimitador(caminho_arquivo, encoding_detectado)
     linha_cabecalho = encontrar_linha_cabecalho(
@@ -371,7 +391,7 @@ def carregar_dados(caminho_arquivo):
     tokens_cabecalho = _tokenizar_com_delimitador(texto_cabecalho, delimitador)
     n_colunas_dados = _contar_colunas_dados(caminho_arquivo, encoding_detectado, linha_cabecalho, delimitador)
     nomes_colunas = (
-        _gerar_nomes_colunas(tokens_cabecalho, n_colunas_dados)
+        _gerar_nomes_colunas(tokens_cabecalho, n_colunas_dados, avisos)
         if n_colunas_dados is not None else tokens_cabecalho
     )
 
@@ -416,10 +436,12 @@ def carregar_dados(caminho_arquivo):
                     linhas_ajustadas += 1  # linha claramente incompleta: descarta
 
         if linhas_ajustadas > 0:
-            print(
+            mensagem = (
                 f"Aviso: {linhas_ajustadas} linha(s) com número de campos diferente "
                 f"do esperado ({n_colunas}) foram ajustadas ou descartadas."
             )
+            print(mensagem)
+            avisos.append(mensagem)
 
         df = pd.DataFrame(linhas_validas, columns=nomes_colunas)
         df.columns = [col.strip() for col in df.columns]
@@ -437,7 +459,23 @@ def carregar_dados(caminho_arquivo):
         # disponíveis como texto, para exibição.
         df = _adicionar_tempo_decorrido(df)
 
-        return df
+        # Avisa se sobrou algum NaN "de verdade" no meio dos dados (célula
+        # vazia/corrompida que não veio de ajuste de linha, e sim de uma
+        # conversão numérica que falhou célula a célula).
+        total_nan = int(df.isna().sum().sum())
+        if total_nan > 0:
+            avisos.append(
+                f"Aviso: {total_nan} valor(es) ausente(s) (NaN) encontrado(s) nos dados."
+            )
+
+        info = {
+            'encoding': encoding_detectado,
+            'delimitador': delimitador,
+            'n_linhas': int(df.shape[0]),
+            'n_colunas': int(df.shape[1]),
+        }
+
+        return df, avisos, info
 
     except Exception as e:
         raise ValueError(
@@ -482,6 +520,11 @@ if __name__ == '__main__':
     for k, v in extrair_metadados(caminho).items():
         print(f"{k}: {v}")
     print("\n=== DADOS ===")
-    df = carregar_dados(caminho)
+    df, avisos, info = carregar_dados(caminho)
     print(df.dtypes)
     print(df)
+    print("\n=== INFO ===", info)
+    if avisos:
+        print("\n=== AVISOS ===")
+        for a in avisos:
+            print(a)
