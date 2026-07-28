@@ -2,14 +2,59 @@
 
 .rodape {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   background: var(--cor-superficie-escura);
   color: var(--cor-texto-mudo);
   font-family: var(--fonte-dado);
   font-size: 11px;
-  padding: 0 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  position: relative; /* referência de posicionamento pro popup de alerta */
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   As 3 seções do rodapé — cada uma vinculada em LARGURA (não em conteúdo)
+   ao painel logo acima dela. As seções de arquivo/edição recebem sua
+   largura via JS, em sincronia com .sidebar/.painel-direito (ver
+   'habilitarDivisor' em scripts_js.py); a seção central sempre absorve o
+   espaço restante, do mesmo jeito que .centro faz no corpo.
+   ========================================================================== */
+.rodape-secao {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.rodape-secao-arquivo {
+  flex: 0 0 auto;
+  width: 280px;              /* valor inicial — JS assume o controle após montar */
+  padding: 0 14px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rodape-secao-central {
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;         /* âncora pro preenchimento de carregamento e pro popup de alerta */
+  padding: 0 14px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rodape-secao-edit {
+  flex: 0 0 auto;
+  width: 260px;               /* valor inicial — JS assume o controle após montar */
+  padding: 0 14px;
+}
+
+.rodape-central-conteudo {
+  position: relative;
+  z-index: 1;                 /* fica por cima do preenchimento de carregamento */
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .rodape-info {
@@ -100,45 +145,35 @@
   transition: opacity 0.25s ease;
 }
 
-/* --- Barra de carregamento embutida na mensagem do mago ---
+/* --- Barra de carregamento da seção central do rodapé ---
    Enquanto um arquivo é processado (dcc.Loading de 'container-grafico'
    ativo — ver 'data-dash-is-loading' e iniciarBarraCarregamentoRodape()
-   em scripts_js.py), um preenchimento verde cresce POR TRÁS do texto da
-   mensagem, sem escondê-la nem trocar seu conteúdo. A largura é
-   controlada via a variável --rodape-progresso, atualizada em JS. */
+   em scripts_js.py), um preenchimento verde cresce por trás do conteúdo
+   (aviso + mensagem do mago), ocupando sempre a LARGURA TOTAL da seção
+   central — não só a largura do texto da mensagem. Assim, mesmo uma
+   mensagem curta como "oi" preenche visualmente a barra inteira. A
+   largura é controlada diretamente via JS (style.width). */
 
-#rodape-status {
-  position: relative;
-  display: inline-block;
-  --rodape-progresso: 0%;
-  padding: 1px 5px;
-  border-radius: 3px;
-  z-index: 0; /* cria contexto de empilhamento pro ::before ficar atrás do texto */
-}
-
-#rodape-status::before {
-  content: '';
+.rodape-progresso-central {
   position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: var(--rodape-progresso, 0%);
+  inset: 0;
+  width: 0%;
   background: var(--cor-accent);
   opacity: 0;
-  z-index: -1;
-  border-radius: 3px;
+  z-index: 0; /* fica atrás de .rodape-central-conteudo (z-index: 1) */
   transition: width 0.15s linear, opacity 0.2s ease;
+  pointer-events: none;
 }
 
 /* Enquanto carrega: preenchimento visível, crescendo (ver JS). */
-#rodape-status.rodape-carregando::before {
+.rodape-progresso-central.rodape-carregando {
   opacity: 0.45;
 }
 
 /* Ao concluir: salta pra 100%, fica visível um instante e some sozinho
    (a remoção da classe, feita em JS, é o que dispara o fade de volta ao
    normal — ver setTimeout em concluirProgresso()). */
-#rodape-status.rodape-concluido::before {
+.rodape-progresso-central.rodape-concluido {
   opacity: 0.7;
   transition: width 0.2s ease-out, opacity 0.35s ease 0.05s;
 }

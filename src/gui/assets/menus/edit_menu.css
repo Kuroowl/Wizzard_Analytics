@@ -1,6 +1,11 @@
 /* A direita, onde ficam as opções de edição */
 
 .painel-direito {
+  flex: 0 0 auto;
+  width: 260px;
+  min-width: 200px;
+  max-width: 500px;
+  height: 100%;
   background: #FFFFFF;
   border-left: 1px solid var(--cor-borda);
   padding: 16px;

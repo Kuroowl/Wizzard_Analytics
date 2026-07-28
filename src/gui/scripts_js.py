@@ -1,16 +1,18 @@
 SCRIPT_DIVISORIA = """
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    function iniciar() {
-        var divisor = document.getElementById('divisor-resize');
-        var sidebar = document.querySelector('.sidebar');
-        if (!divisor || !sidebar) {
-            setTimeout(iniciar, 300);
-            return;
-        }
+    // Liga um divisor arrastável (elemento com a classe '.divisor-resize') a
+    // um painel-alvo, cujo 'width' é atualizado ao vivo durante o arraste.
+    // 'rodapeAlvo', se passado, recebe exatamente a mesma largura em cada
+    // movimento — é assim que a seção do rodapé fica "vinculada ao tamanho"
+    // do painel de cima, sem precisar de nenhum acoplamento de conteúdo.
+    // 'calcularLargura(e)' decide a direção do cálculo (painel à esquerda
+    // do cursor cresce com clientX crescente; painel à direita é o oposto).
+    function habilitarDivisor(divisorId, painelAlvo, rodapeAlvo, larguraMin, larguraMax, calcularLargura) {
+        var divisor = document.getElementById(divisorId);
+        if (!divisor || !painelAlvo) return;
+
         var arrastando = false;
-        var LARGURA_MIN = 200;
-        var LARGURA_MAX = 600;
 
         divisor.addEventListener('mousedown', function (e) {
             arrastando = true;
@@ -22,9 +24,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         document.addEventListener('mousemove', function (e) {
             if (!arrastando) return;
-            var novaLargura = e.clientX - sidebar.getBoundingClientRect().left;
-            novaLargura = Math.max(LARGURA_MIN, Math.min(LARGURA_MAX, novaLargura));
-            sidebar.style.width = novaLargura + 'px';
+            var novaLargura = calcularLargura(e);
+            novaLargura = Math.max(larguraMin, Math.min(larguraMax, novaLargura));
+            painelAlvo.style.width = novaLargura + 'px';
+            if (rodapeAlvo) rodapeAlvo.style.width = novaLargura + 'px';
         });
 
         document.addEventListener('mouseup', function () {
@@ -34,6 +37,39 @@ document.addEventListener('DOMContentLoaded', function () {
             document.body.style.cursor = 'default';
             document.body.style.userSelect = 'auto';
         });
+    }
+
+    function iniciar() {
+        var sidebar = document.querySelector('.sidebar');
+        var painelDireito = document.querySelector('.painel-direito');
+        var rodapeArquivo = document.getElementById('rodape-secao-arquivo');
+        var rodapeEdit = document.getElementById('rodape-secao-edit');
+
+        if (!sidebar || !painelDireito || !rodapeArquivo || !rodapeEdit) {
+            setTimeout(iniciar, 300);
+            return;
+        }
+
+        // Divisor esquerdo: sidebar (file menu) <-> centro.
+        // Cresce pra direita conforme o cursor se afasta da borda esquerda
+        // fixa da sidebar.
+        habilitarDivisor('divisor-resize', sidebar, rodapeArquivo, 200, 600, function (e) {
+            return e.clientX - sidebar.getBoundingClientRect().left;
+        });
+
+        // Divisor direito: centro <-> painel-direito (edit menu).
+        // O painel fica encostado na borda direita da janela, que não se
+        // move — então a largura cresce conforme o cursor se afasta DELA
+        // pra esquerda (direção oposta ao divisor da sidebar).
+        habilitarDivisor('divisor-resize-edit', painelDireito, rodapeEdit, 200, 500, function (e) {
+            return painelDireito.getBoundingClientRect().right - e.clientX;
+        });
+
+        // Sincroniza a largura inicial das seções do rodapé com a dos
+        // painéis assim que tudo estiver montado, caso os valores padrão
+        // definidos em CSS (280px / 260px) algum dia se desalinhem.
+        rodapeArquivo.style.width = sidebar.getBoundingClientRect().width + 'px';
+        rodapeEdit.style.width = painelDireito.getBoundingClientRect().width + 'px';
     }
     iniciar();
 
@@ -113,8 +149,11 @@ document.addEventListener('DOMContentLoaded', function () {
         // nenhum Output/State novo no Python, só observar esse atributo.
         function tentar() {
             var alvo = document.getElementById('container-grafico');
-            var status = document.getElementById('rodape-status');
-            if (!alvo || !status) {
+            // Barra ocupa a seção central inteira do rodapé (não só o texto
+            // da mensagem do mago) — ver '.rodape-progresso-central' em
+            // status_menu.css e o motivo no comentário logo acima.
+            var barra = document.getElementById('rodape-progresso-central');
+            if (!alvo || !barra) {
                 setTimeout(tentar, 300);
                 return;
             }
@@ -124,13 +163,13 @@ document.addEventListener('DOMContentLoaded', function () {
             var estavaCarregando = false;
 
             function definirLargura(pct) {
-                status.style.setProperty('--rodape-progresso', pct + '%');
+                barra.style.width = pct + '%';
             }
 
             function iniciarProgresso() {
                 clearInterval(intervalo);
-                status.classList.remove('rodape-concluido');
-                status.classList.add('rodape-carregando');
+                barra.classList.remove('rodape-concluido');
+                barra.classList.add('rodape-carregando');
                 progresso = 0;
                 definirLargura(0);
 
@@ -149,15 +188,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
             function concluirProgresso() {
                 clearInterval(intervalo);
-                status.classList.remove('rodape-carregando');
+                barra.classList.remove('rodape-carregando');
                 definirLargura(100);
-                status.classList.add('rodape-concluido');
+                barra.classList.add('rodape-concluido');
 
                 // Some sozinha pouco depois de concluir — a mensagem do
                 // mago (texto do '#rodape-status') nunca é tocada aqui,
-                // só o preenchimento por trás dela.
+                // só a camada de preenchimento atrás de todo o conteúdo
+                // da seção central.
                 setTimeout(function () {
-                    status.classList.remove('rodape-concluido');
+                    barra.classList.remove('rodape-concluido');
                     definirLargura(0);
                 }, 450);
             }
