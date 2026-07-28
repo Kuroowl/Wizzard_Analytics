@@ -38,6 +38,25 @@ def _indices_amostra_uniforme(n_pontos, max_pontos=MAX_PONTOS_EXIBICAO):
     return np.linspace(0, n_pontos - 1, max_pontos).round().astype(int)
 
 
+def resolver_eixo_x(estado, df):
+    """
+    Decide qual coluna de UM arquivo serve de eixo X: a preferência
+    global (`estado.coluna_x`, hoje sempre 'Tempo_decorrido_s') se ela
+    existir nesse arquivo; senão a primeira coluna numérica; senão a
+    primeira coluna de qualquer tipo (fallback pra nunca travar).
+
+    Compartilhada entre o plotter (que monta a figura) e a sidebar
+    (`renderizadores.renderizar_colunas_da_aba_ativa`, que precisa saber
+    qual canal NÃO oferecer como curva plotável) — as duas precisam
+    concordar sobre qual é o eixo X, senão a sidebar deixa marcar um
+    canal que o gráfico depois descarta silenciosamente.
+    """
+    if estado.coluna_x in df.columns:
+        return estado.coluna_x
+    colunas_numericas = df.select_dtypes(include='number').columns
+    return colunas_numericas[0] if len(colunas_numericas) else df.columns[0]
+
+
 def construir_figura_serie_temporal(estado, aba_ativa):
     """
     Monta a figura de 'Série Temporal' (linhas) para UM ÚNICO arquivo: o da
@@ -76,17 +95,15 @@ def construir_figura_serie_temporal(estado, aba_ativa):
     houve_amostragem = False
 
     # 1. Identifica a coluna do Eixo X (deste arquivo)
-    colunas_numericas = df.select_dtypes(include='number').columns
-    eixo_x = estado.coluna_x if estado.coluna_x in df.columns else (
-        colunas_numericas[0] if len(colunas_numericas) else df.columns[0]
-    )
+    eixo_x = resolver_eixo_x(estado, df)
 
     # 2. Só entram as colunas DESTE arquivo que estão visíveis (não
-    #    excluídas) e que o usuário marcou explicitamente na barra
-    #    lateral (e nunca o próprio eixo X).
+    #    excluídas/ocultas — o próprio eixo X já nasce OCULTO, ver
+    #    Arquivo.__post_init__ em src/core/arquivo.py) e que o usuário
+    #    marcou explicitamente na barra lateral.
     colunas_y = [
         col for col in arquivo.colunas_visiveis()
-        if col != eixo_x and (aba_ativa, col) in estado.canais_selecionados
+        if (aba_ativa, col) in estado.canais_selecionados
     ]
 
     if colunas_y:

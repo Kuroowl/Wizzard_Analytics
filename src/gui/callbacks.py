@@ -1,7 +1,7 @@
 from dash import Input, Output, State, ctx, ALL, no_update
 from dash.exceptions import PreventUpdate
 
-from src.core.plotting.plotter import construir_figura_serie_temporal
+from src.core.plotting.plotter import construir_figura_serie_temporal, resolver_eixo_x
 from src.gui.renderizadores import (
     truncar_nome_arquivo, renderizar_abas_estilo_chrome, renderizar_colunas_da_aba_ativa,
     renderizar_area_grafico, renderizar_grafico_com_fechar,
@@ -274,6 +274,7 @@ def registrar_callbacks(app, estado):
 
     @app.callback(
         Output('container-grafico', 'children', allow_duplicate=True),
+        Output('lista-canais-aba', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
         Output('aparar-dados', 'disabled', allow_duplicate=True),
         Output('excluir-dados', 'disabled', allow_duplicate=True),
@@ -292,6 +293,8 @@ def registrar_callbacks(app, estado):
         if not n_clicks or not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
 
+        arquivo = estado.arquivos[aba_ativa]
+
         # Gera o gráfico com os canais já marcados até agora (pode ser
         # nenhum ainda — nesse caso nasce em branco, e o usuário vai
         # populando ao marcar colunas na barra lateral). Se o arquivo tiver
@@ -302,7 +305,14 @@ def registrar_callbacks(app, estado):
         # Salva o gráfico no estado da aba ativa. 'grafico_gerado' é uma
         # property derivada de 'figura' (ver src/core/arquivo.py) — não
         # precisa (e não pode) ser setada à parte.
-        estado.arquivos[aba_ativa].figura = fig
+        arquivo.figura = fig
+
+        # A partir de agora esse canal ESTÁ sendo usado como eixo X deste
+        # gráfico — some da lista de canais plotáveis da barra lateral
+        # (ver Arquivo.ocultar_canal_eixo). Fechar o gráfico desfaz isso
+        # (ver fechar_grafico, abaixo).
+        eixo_x = resolver_eixo_x(estado, arquivo.df_editado)
+        arquivo.ocultar_canal_eixo(eixo_x)
 
         tem_canal = any(arq == aba_ativa for arq, _ in estado.canais_selecionados)
         mensagem = (
@@ -313,12 +323,14 @@ def registrar_callbacks(app, estado):
         grafico = renderizar_grafico_com_fechar(fig)
 
         _, badge_texto, badge_classe, popup_children = _valores_rodape(estado, aba_ativa)
-        return (grafico, mensagem, False, False, False, False, False,
+        return (grafico, renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem,
+                False, False, False, False, False,
                 badge_texto, badge_classe, popup_children,
                 True)
 
     @app.callback(
         Output('container-grafico', 'children', allow_duplicate=True),
+        Output('lista-canais-aba', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
         Output('aparar-dados', 'disabled', allow_duplicate=True),
         Output('excluir-dados', 'disabled', allow_duplicate=True),
@@ -339,10 +351,19 @@ def registrar_callbacks(app, estado):
         if not n_clicks or not aba_ativa:
             raise PreventUpdate
 
+        lista_canais = no_update
         if aba_ativa in estado.arquivos:
-            estado.arquivos[aba_ativa].invalidar_grafico()
+            arquivo = estado.arquivos[aba_ativa]
+            arquivo.invalidar_grafico()
+
+            # O canal do eixo X só ficava oculto enquanto ESTE gráfico
+            # estava aberto (ver gerar_grafico_serie_temporal) — fechando
+            # o gráfico, ele volta a aparecer normalmente na barra lateral.
+            eixo_x = resolver_eixo_x(estado, arquivo.df_editado)
+            arquivo.exibir_canal_eixo(eixo_x)
+            lista_canais = renderizar_colunas_da_aba_ativa(estado, aba_ativa)
 
         area_grafico = renderizar_area_grafico(estado)
         mensagem = '🧙‍♂️: " Gráfico fechado. Escolha outra opção. "'
 
-        return area_grafico, mensagem, True, True, True, True, True, True
+        return area_grafico, lista_canais, mensagem, True, True, True, True, True, True

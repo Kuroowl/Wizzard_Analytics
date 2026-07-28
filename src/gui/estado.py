@@ -32,6 +32,13 @@ class EstadoApp:
             encontrado, etc.) — mostrada na caixinha de alerta.
           - info: dict com 'encoding', 'delimitador', 'n_linhas',
             'n_colunas' — mostrado como texto fixo do rodapé.
+
+        O canal do eixo X (ex: 'Tempo_decorrido_s') NÃO é ocultado aqui —
+        no momento em que o arquivo é lido ele ainda não está sendo usado
+        como eixo de nada. Ele só passa a ser "o eixo X" quando algum
+        gráfico que o usa é efetivamente gerado; essa transição de status
+        (ocultar/exibir) é feita em src/gui/callbacks.py, junto com o
+        ciclo de vida de abrir/fechar o gráfico de Série Temporal.
         """
         info = info or {}
         self.arquivos[nome_arquivo] = Arquivo(

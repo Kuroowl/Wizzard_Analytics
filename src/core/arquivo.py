@@ -196,6 +196,31 @@ class Arquivo:
             self.canais[nome_interno].restaurar()
             self.invalidar_grafico()
 
+    def ocultar_canal_eixo(self, nome_interno: str) -> None:
+        """
+        Oculta o canal usado como eixo X de um gráfico (ex:
+        'Tempo_decorrido_s') — chamado quando esse gráfico é gerado (ver
+        callbacks.gerar_grafico_serie_temporal). Diferente de
+        excluir_canal, este canal continua "vivo": não é dado plotado
+        como série, é o próprio eixo, então ocultá-lo/exibi-lo NÃO invalida
+        a figura em cache (não muda nada do que já está desenhado).
+        """
+        canal = self.canais.get(nome_interno)
+        if canal:
+            canal.ocultar()
+
+    def exibir_canal_eixo(self, nome_interno: str) -> None:
+        """
+        Contrapartida de ocultar_canal_eixo: chamado ao fechar o gráfico
+        (ver callbacks.fechar_grafico), pra o canal do eixo voltar a
+        aparecer na lista. Só mexe se ele ainda estiver OCULTO — não
+        reverte uma exclusão manual (soft-delete) que o usuário tenha
+        feito por conta própria enquanto o gráfico estava aberto.
+        """
+        canal = self.canais.get(nome_interno)
+        if canal and canal.status == StatusCanal.OCULTO:
+            canal.restaurar()
+
     def criar_canal_calculado(self, nome_saida: str, operacao_fn, *args, **kwargs) -> None:
         """
         Aplica uma função de src/core/operations/*.py sobre o
