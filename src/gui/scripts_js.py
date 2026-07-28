@@ -103,6 +103,78 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
     iniciarAlertaRodape();
+
+    function iniciarBarraCarregamentoRodape() {
+        // Liga o preenchimento verde do '#rodape-status' ao estado REAL de
+        // carregamento do Dash: o dcc.Loading que envolve 'container-grafico'
+        // (ver layout.py, id='loading-grafico') marca esse elemento com o
+        // atributo 'data-dash-is-loading="true"' enquanto um callback que o
+        // atualiza está rodando (ex: upload de arquivo) — não precisamos de
+        // nenhum Output/State novo no Python, só observar esse atributo.
+        function tentar() {
+            var alvo = document.getElementById('container-grafico');
+            var status = document.getElementById('rodape-status');
+            if (!alvo || !status) {
+                setTimeout(tentar, 300);
+                return;
+            }
+
+            var progresso = 0;
+            var intervalo = null;
+            var estavaCarregando = false;
+
+            function definirLargura(pct) {
+                status.style.setProperty('--rodape-progresso', pct + '%');
+            }
+
+            function iniciarProgresso() {
+                clearInterval(intervalo);
+                status.classList.remove('rodape-concluido');
+                status.classList.add('rodape-carregando');
+                progresso = 0;
+                definirLargura(0);
+
+                // Cresce rápido no início e desacelera perto de 90% —
+                // como não dá pra saber a duração real do processamento
+                // (é um callback síncrono do Dash), a barra só "assume"
+                // os últimos 10% quando o carregamento termina de fato
+                // (ver concluirProgresso), em vez de fingir 100% antes da
+                // hora.
+                intervalo = setInterval(function () {
+                    var passo = (90 - progresso) * 0.08;
+                    progresso = Math.min(90, progresso + Math.max(passo, 0.4));
+                    definirLargura(progresso);
+                }, 120);
+            }
+
+            function concluirProgresso() {
+                clearInterval(intervalo);
+                status.classList.remove('rodape-carregando');
+                definirLargura(100);
+                status.classList.add('rodape-concluido');
+
+                // Some sozinha pouco depois de concluir — a mensagem do
+                // mago (texto do '#rodape-status') nunca é tocada aqui,
+                // só o preenchimento por trás dela.
+                setTimeout(function () {
+                    status.classList.remove('rodape-concluido');
+                    definirLargura(0);
+                }, 450);
+            }
+
+            new MutationObserver(function () {
+                var carregando = alvo.getAttribute('data-dash-is-loading') === 'true';
+                if (carregando && !estavaCarregando) {
+                    iniciarProgresso();
+                } else if (!carregando && estavaCarregando) {
+                    concluirProgresso();
+                }
+                estavaCarregando = carregando;
+            }).observe(alvo, { attributes: true, attributeFilter: ['data-dash-is-loading'] });
+        }
+        tentar();
+    }
+    iniciarBarraCarregamentoRodape();
 });
 </script>
 """

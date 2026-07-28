@@ -99,3 +99,46 @@
 #rodape-status {
   transition: opacity 0.25s ease;
 }
+
+/* --- Barra de carregamento embutida na mensagem do mago ---
+   Enquanto um arquivo é processado (dcc.Loading de 'container-grafico'
+   ativo — ver 'data-dash-is-loading' e iniciarBarraCarregamentoRodape()
+   em scripts_js.py), um preenchimento verde cresce POR TRÁS do texto da
+   mensagem, sem escondê-la nem trocar seu conteúdo. A largura é
+   controlada via a variável --rodape-progresso, atualizada em JS. */
+
+#rodape-status {
+  position: relative;
+  display: inline-block;
+  --rodape-progresso: 0%;
+  padding: 1px 5px;
+  border-radius: 3px;
+  z-index: 0; /* cria contexto de empilhamento pro ::before ficar atrás do texto */
+}
+
+#rodape-status::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--rodape-progresso, 0%);
+  background: var(--cor-accent);
+  opacity: 0;
+  z-index: -1;
+  border-radius: 3px;
+  transition: width 0.15s linear, opacity 0.2s ease;
+}
+
+/* Enquanto carrega: preenchimento visível, crescendo (ver JS). */
+#rodape-status.rodape-carregando::before {
+  opacity: 0.45;
+}
+
+/* Ao concluir: salta pra 100%, fica visível um instante e some sozinho
+   (a remoção da classe, feita em JS, é o que dispara o fade de volta ao
+   normal — ver setTimeout em concluirProgresso()). */
+#rodape-status.rodape-concluido::before {
+  opacity: 0.7;
+  transition: width 0.2s ease-out, opacity 0.35s ease 0.05s;
+}
