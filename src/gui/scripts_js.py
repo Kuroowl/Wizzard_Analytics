@@ -192,14 +192,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 definirLargura(100);
                 barra.classList.add('rodape-concluido');
 
-                // Some sozinha pouco depois de concluir — a mensagem do
-                // mago (texto do '#rodape-status') nunca é tocada aqui,
-                // só a camada de preenchimento atrás de todo o conteúdo
-                // da seção central.
+                // A classe 'rodape-concluido' dispara a animação CSS
+                // 'rodape-progresso-concluir' (0.7s): a barra fica cheia e
+                // some por transparência, sem encolher de volta. Só depois
+                // que a animação termina é que resetamos a largura pra 0 —
+                // nesse ponto já está com opacity 0, então o reset não
+                // aparece. A mensagem do mago (texto do '#rodape-status')
+                // nunca é tocada aqui, só essa camada de preenchimento.
                 setTimeout(function () {
                     barra.classList.remove('rodape-concluido');
                     definirLargura(0);
-                }, 450);
+                }, 700);
             }
 
             new MutationObserver(function () {

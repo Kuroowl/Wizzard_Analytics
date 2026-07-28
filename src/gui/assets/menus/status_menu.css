@@ -31,6 +31,7 @@
   width: 280px;              /* valor inicial — JS assume o controle após montar */
   padding: 0 14px;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: visible;         /* o popup do alerta (rodape-alerta-popup) precisa poder "vazar" pra cima */
 }
 
 .rodape-secao-central {
@@ -170,10 +171,19 @@
   opacity: 0.45;
 }
 
-/* Ao concluir: salta pra 100%, fica visível um instante e some sozinho
-   (a remoção da classe, feita em JS, é o que dispara o fade de volta ao
-   normal — ver setTimeout em concluirProgresso()). */
+/* Ao concluir: NÃO encolhe de volta — a barra fica com a largura total
+   (100%, já setada em JS antes desta classe entrar) e some por
+   transparência (opacity 0.45 -> ~0.8 -> 0), nunca voltando a diminuir
+   de largura. É a diferença entre "esvaziar" e "desaparecer cheia". A
+   classe é removida em JS só depois que a animação termina (ver
+   'concluirProgresso' em scripts_js.py), que também reseta a largura —
+   nesse ponto a opacidade já está em 0, então o reset não é visível. */
+@keyframes rodape-progresso-concluir {
+  0%   { opacity: 0.45; }
+  15%  { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+
 .rodape-progresso-central.rodape-concluido {
-  opacity: 0.7;
-  transition: width 0.2s ease-out, opacity 0.35s ease 0.05s;
+  animation: rodape-progresso-concluir 0.7s ease forwards;
 }

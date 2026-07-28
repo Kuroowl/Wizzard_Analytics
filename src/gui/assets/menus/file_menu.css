@@ -1,6 +1,17 @@
 /* Menu da esquerda: onde os arquivos entram (abas) e suas colunas aparecem */
 
-/* --- sidebar (moldura) --- */
+/* --- sidebar (moldura) ---
+   Fundo com a mesma cor do menu central (var(--cor-fundo-grafico)) e um
+   watermark de 'file.svg' (mesmo padrão do '::before' de
+   .area-grafico-container em central_menu.css: uma camada translúcida da
+   cor de fundo por cima da imagem, criando o efeito de opacidade ~0.12
+   sem precisar de um pseudo-elemento à parte — importante aqui porque a
+   sidebar tem scroll (overflow-y: auto), e um '::before' absoluto teria
+   rolado junto com a lista de canais; 'background-image' direto no
+   elemento fica fixo em relação à caixa, não ao conteúdo.
+   IMPORTANTE: como a sidebar deixou de ser escura, todas as cores de
+   texto/hover abaixo foram invertidas (claro-sobre-escuro -> escuro-sobre-claro)
+   pra continuar legível. */
 .sidebar {
   flex: 0 0 auto;
   width: 280px;
@@ -9,7 +20,13 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: var(--cor-superficie-escura);
+  background-color: var(--cor-fundo-grafico);
+  background-image:
+    linear-gradient(rgba(253, 246, 227, 0.88), rgba(253, 246, 227, 0.88)),
+    url("../icones/file.svg");
+  background-repeat: no-repeat, no-repeat;
+  background-position: center center, center center;
+  background-size: cover, 40% auto;
   overflow-y: auto;
   overflow-x: hidden;
   z-index: 10;
@@ -19,8 +36,8 @@
 .abas-wrapper {
   display: flex;
   align-items: stretch;
-  background-color: var(--cor-superficie-escura-2);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  background-color: rgba(0, 0, 0, 0.035);
+  border-bottom: 1px solid var(--cor-borda);
 }
 
 .tabs-chrome-container {
@@ -59,17 +76,17 @@
 }
 
 .aba-chrome.ativa {
-  background-color: var(--cor-superficie-escura);
-  color: var(--cor-texto-claro);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  border-left: 1px solid rgba(0, 0, 0, 0.2);
-  border-right: 1px solid rgba(0, 0, 0, 0.2);
+  background-color: var(--cor-fundo-grafico);
+  color: var(--cor-texto-escuro);
+  border-top: 1px solid var(--cor-borda);
+  border-left: 1px solid rgba(0, 0, 0, 0.15);
+  border-right: 1px solid rgba(0, 0, 0, 0.15);
   z-index: 2;
 }
 
 .aba-chrome:hover:not(.ativa) {
-  background-color: rgba(255, 255, 255, 0.06);
-  color: var(--cor-texto-claro);
+  background-color: rgba(0, 0, 0, 0.045);
+  color: var(--cor-texto-escuro);
 }
 
 .aba-texto {
@@ -98,12 +115,12 @@
 }
 
 .aba-fechar-btn:hover {
-  background-color: rgba(255, 255, 255, 0.18);
-  color: #FFFFFF;
+  background-color: rgba(0, 0, 0, 0.1);
+  color: var(--cor-texto-escuro);
 }
 
 .aba-divisor {
-  color: rgba(255, 255, 255, 0.15);
+  color: rgba(0, 0, 0, 0.18);
   padding: 0 2px;
   align-self: center;
   font-size: 11px;
@@ -122,8 +139,8 @@
   flex: 0 0 20px;
   width: 20px;
   border: none;
-  background: var(--cor-superficie-escura-2);
-  color: var(--cor-texto-claro);
+  background: rgba(0, 0, 0, 0.035);
+  color: var(--cor-texto-escuro);
   font-family: var(--fonte-dado);
   font-size: 12px;
   cursor: pointer;
@@ -146,7 +163,30 @@
   margin: 16px 0 6px 0;
 }
 
-.menu-canais-container { padding: 0 6px; }
+/* 'flex: 1' faz esse container absorver toda a altura sobrando da
+   sidebar (abaixo das abas + título), o que é o que permite a mensagem
+   de placeholder (ver regra abaixo) se centralizar de verdade no espaço
+   disponível, e não só no topo. */
+.menu-canais-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 6px;
+}
+
+/* Quando não há aba ativa, '.abas-placeholder' ("Abra um arquivo.") é o
+   ÚNICO filho de '.menu-canais-container' — 'margin: auto' num item
+   flex sozinho o centraliza nos dois eixos automaticamente (truque
+   padrão de flexbox), imitando o mesmo padrão do menu central
+   (.area-grafico-vazia, centralizada via .centro). Quando a lista de
+   canais de verdade é renderizada (múltiplos '.coluna-item'), essa
+   regra não afeta nada — eles continuam empilhados no topo, como uma
+   lista normal. */
+.menu-canais-container > .abas-placeholder {
+  margin: auto;
+  text-align: center;
+}
 
 .coluna-item {
   display: flex;
@@ -154,14 +194,14 @@
   gap: 8px;
   font-family: var(--fonte-dado);
   font-size: 12px;
-  color: var(--cor-texto-claro);
+  color: var(--cor-texto-escuro);
   padding: 5px 8px;
   border-radius: 3px;
   cursor: pointer;
   user-select: none;
 }
 
-.coluna-item:hover { background: rgba(255, 255, 255, 0.06); }
+.coluna-item:hover { background: rgba(0, 0, 0, 0.045); }
 
 .coluna-item.selecionada { background: rgba(47, 165, 160, 0.2); }
 
@@ -200,6 +240,6 @@
 .coluna-item:hover .canal-lixeira-btn { opacity: 1; }
 
 .canal-lixeira-btn:hover {
-  background-color: rgba(217, 83, 79, 0.25);
-  color: #ff6b6b;
+  background-color: rgba(217, 83, 79, 0.18);
+  color: #C0392B;
 }

@@ -127,9 +127,18 @@ def montar_layout(estado):
             html.Div(id='rodape-secao-arquivo', className='rodape-secao rodape-secao-arquivo', children=[
                 html.Span(id='rodape-info-arquivo', className='rodape-info',
                           children=renderizar_info_rodape(estado, None)),
+
+                html.Span(' | ', className='rodape-separador'),
+
+                html.Div(id='rodape-alerta-wrapper', className='rodape-alerta-wrapper', children=[
+                    html.Div(id='rodape-alerta-popup', className='rodape-alerta-popup',
+                             children=renderizar_popup_alerta(estado, None)),
+                    html.Button(id='rodape-alerta-badge', className='rodape-alerta-badge',
+                                children=renderizar_badge_alerta(estado, None), n_clicks=0),
+                ]),
             ]),
 
-            # --- Seção vinculada ao menu central (avisos + mensagem do mago) ---
+            # --- Seção vinculada ao menu central (mensagem do mago) ---
             html.Div(id='rodape-secao-central', className='rodape-secao rodape-secao-central', children=[
                 # Camada de fundo do preenchimento de carregamento: ocupa a
                 # seção inteira (não só o texto da mensagem), assim mesmo uma
@@ -138,15 +147,6 @@ def montar_layout(estado):
                 html.Div(id='rodape-progresso-central', className='rodape-progresso-central'),
 
                 html.Div(className='rodape-central-conteudo', children=[
-                    html.Div(id='rodape-alerta-wrapper', className='rodape-alerta-wrapper', children=[
-                        html.Div(id='rodape-alerta-popup', className='rodape-alerta-popup',
-                                 children=renderizar_popup_alerta(estado, None)),
-                        html.Button(id='rodape-alerta-badge', className='rodape-alerta-badge',
-                                    children=renderizar_badge_alerta(estado, None), n_clicks=0),
-                    ]),
-
-                    html.Span(' | ', className='rodape-separador'),
-
                     html.Span(id='rodape-status', children='🧙‍♂️: " Carregue um arquivo para começar... "'),
                 ]),
 

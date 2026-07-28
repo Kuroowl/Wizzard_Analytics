@@ -1,12 +1,30 @@
 /* A direita, onde ficam as opções de edição */
 
+/* Fundo com a mesma cor do menu central + watermark de 'pintura.svg',
+   no mesmo esquema de camadas de .sidebar (ver comentário em
+   file_menu.css) — funciona bem aqui também porque este painel pode
+   rolar (overflow-y: auto) e um '::before' absoluto rolaria junto com o
+   conteúdo.
+   O painel já tinha texto escuro sobre fundo claro, então não precisou
+   de nenhuma inversão de cor como a sidebar precisou. */
 .painel-direito {
   flex: 0 0 auto;
   width: 260px;
   min-width: 200px;
   max-width: 500px;
   height: 100%;
-  background: #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;   /* título + placeholder centralizados verticalmente... */
+  align-items: center;       /* ...e horizontalmente, no padrão do menu central */
+  text-align: center;
+  background-color: var(--cor-fundo-grafico);
+  background-image:
+    linear-gradient(rgba(253, 246, 227, 0.88), rgba(253, 246, 227, 0.88)),
+    url("../icones/pintura.svg");
+  background-repeat: no-repeat, no-repeat;
+  background-position: center center, center center;
+  background-size: cover, 40% auto;
   border-left: 1px solid var(--cor-borda);
   padding: 16px;
   overflow-y: auto;
@@ -24,4 +42,5 @@
   font-size: 12px;
   color: var(--cor-texto-mudo);
   line-height: 1.5;
+  max-width: 200px;   /* evita que o texto vire uma linha só, esticada de borda a borda */
 }
