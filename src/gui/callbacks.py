@@ -205,10 +205,11 @@ def registrar_callbacks(app, estado):
         Output('rodape-alerta-popup', 'children', allow_duplicate=True),
         Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
         Input({'type': 'linha-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
+        Input({'type': 'botao-excluir-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
-    def gerenciar_selecao_canais(n_clicks_list, aba_ativa):
+    def gerenciar_selecao_canais(n_clicks_list, _n_clicks_excluir, aba_ativa):
         if not _clique_real(ctx.triggered) or not aba_ativa:
             raise PreventUpdate
 
@@ -216,7 +217,29 @@ def registrar_callbacks(app, estado):
         mensagem = no_update
         area_grafico = no_update
 
-        if gatilho_id and gatilho_id.get('type') == 'linha-canal':
+        if gatilho_id and gatilho_id.get('type') == 'botao-excluir-canal':
+            arquivo_alvo, coluna = gatilho_id.get('arquivo'), gatilho_id.get('coluna')
+            arquivo = estado.arquivos.get(arquivo_alvo)
+            if arquivo:
+                # Guarda se já havia gráfico ANTES de excluir, porque
+                # excluir_canal() já invalida o cache da figura (ver
+                # Arquivo.invalidar_grafico em src/core/arquivo.py) —
+                # depois disso 'grafico_gerado' já viria False.
+                tinha_grafico = arquivo.grafico_gerado
+                rotulo = arquivo.rotulo(coluna)
+
+                arquivo.excluir_canal(coluna)  # soft-delete: some da lista, dado continua no df_editado
+                estado.canais_selecionados.discard((arquivo_alvo, coluna))
+                mensagem = f'🧙‍♂️: " Canal \'{rotulo}\' excluído. "'
+
+                if tinha_grafico:
+                    # Redesenha sem o canal excluído (mesmo raciocínio do
+                    # toggle de seleção logo abaixo).
+                    fig = construir_figura_serie_temporal(estado, arquivo_alvo)
+                    arquivo.figura = fig
+                    area_grafico = renderizar_grafico_com_fechar(fig)
+
+        elif gatilho_id and gatilho_id.get('type') == 'linha-canal':
             arquivo, coluna = gatilho_id.get('arquivo'), gatilho_id.get('coluna')
             estado.alternar_selecao_canal(arquivo, coluna)
             ligado = (arquivo, coluna) in estado.canais_selecionados

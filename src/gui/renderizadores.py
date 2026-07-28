@@ -120,7 +120,14 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa):
             className=classe_canal,
             children=[
                 html.Span(marcador_check, className="canal-checkbox"),
-                html.Span(rotulo)
+                html.Span(rotulo, className="canal-rotulo"),
+                html.Button(
+                    '🗑',
+                    id={'type': 'botao-excluir-canal', 'arquivo': aba_ativa, 'coluna': coluna},
+                    className="canal-lixeira-btn",
+                    title=f"Excluir canal '{rotulo}'",
+                    n_clicks=0,
+                ),
             ]
         ))
 

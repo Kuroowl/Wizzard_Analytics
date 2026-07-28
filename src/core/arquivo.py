@@ -125,13 +125,22 @@ class Arquivo:
     canais: dict[str, Canal] = field(default_factory=dict)
     preferencias: PreferenciasGrafico = field(default_factory=PreferenciasGrafico)
     figura: object = None
+    # Nomes de coluna que devem nascer com status OCULTO em vez de
+    # VISIVEL — hoje alimentado pelo extractor com as colunas que não
+    # deram pra converter em numérico (texto/booleano/data como string):
+    # elas continuam no df_editado, só não entopem a lista de canais
+    # plotáveis por padrão (ver extractor.carregar_dados, chave
+    # 'colunas_nao_numericas' de 'info').
+    colunas_ocultas_iniciais: list = field(default_factory=list)
 
     def __post_init__(self):
         # Registra um Canal pra cada coluna que já veio no df, se ainda
         # não foi passado nenhum registro explícito de canais.
         if not self.canais:
+            ocultas = set(self.colunas_ocultas_iniciais)
             for coluna in self.df_editado.columns:
-                self.canais[coluna] = Canal(nome_interno=coluna, rotulo=str(coluna))
+                status = StatusCanal.OCULTO if coluna in ocultas else StatusCanal.VISIVEL
+                self.canais[coluna] = Canal(nome_interno=coluna, rotulo=str(coluna), status=status)
 
     # --- Gráfico ---------------------------------------------------
 

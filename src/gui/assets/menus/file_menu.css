@@ -171,3 +171,35 @@
   color: var(--cor-accent);
   width: 14px;
 }
+
+.canal-rotulo {
+  flex: 1 1 auto;    /* ocupa o espaço livre da linha, empurrando a lixeira pro final */
+  min-width: 0;      /* sem isso o flexbox não deixa o ellipsis truncar de verdade */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.canal-lixeira-btn {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--cor-texto-mudo);
+  border-radius: 3px;
+  font-size: 11px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;         /* só aparece no hover da linha, pra não poluir a lista */
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+
+.coluna-item:hover .canal-lixeira-btn { opacity: 1; }
+
+.canal-lixeira-btn:hover {
+  background-color: rgba(217, 83, 79, 0.25);
+  color: #ff6b6b;
+}

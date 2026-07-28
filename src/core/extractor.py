@@ -468,11 +468,31 @@ def carregar_dados(caminho_arquivo):
                 f"Aviso: {total_nan} valor(es) ausente(s) (NaN) encontrado(s) nos dados."
             )
 
+        # Colunas que _tentar_converter_numerico não conseguiu converter
+        # (texto, booleano, data/hora como string, etc.) não servem pra
+        # plotar — em vez de deixar o usuário se deparar com elas na lista
+        # de canais, reportamos aqui pra que a camada de objetos (Arquivo)
+        # já as registre ocultas por padrão, sem perder o dado (continua
+        # no df_editado, só não aparece pré-selecionada na lateral).
+        colunas_nao_numericas = [
+            col for col in df.columns if not pd.api.types.is_numeric_dtype(df[col])
+        ]
+        if colunas_nao_numericas:
+            mensagem = (
+                f"Aviso: {len(colunas_nao_numericas)} canal(is) não numérico(s) "
+                f"detectado(s) (texto/booleano/não conversível) e ocultado(s) "
+                f"automaticamente da lista de canais: "
+                f"{', '.join(colunas_nao_numericas)}."
+            )
+            print(mensagem)
+            avisos.append(mensagem)
+
         info = {
             'encoding': encoding_detectado,
             'delimitador': delimitador,
             'n_linhas': int(df.shape[0]),
             'n_colunas': int(df.shape[1]),
+            'colunas_nao_numericas': colunas_nao_numericas,
         }
 
         return df, avisos, info

@@ -33,12 +33,17 @@ class EstadoApp:
           - info: dict com 'encoding', 'delimitador', 'n_linhas',
             'n_colunas' — mostrado como texto fixo do rodapé.
         """
+        info = info or {}
         self.arquivos[nome_arquivo] = Arquivo(
             nome=nome_arquivo,
             df_original=df.copy(),
             df_editado=df.copy(),
             avisos=list(avisos) if avisos else [],
-            info=info or {},
+            info=info,
+            # Canais não numéricos (texto/booleano/não conversível) já
+            # detectados pelo extractor nascem ocultos por padrão — ver
+            # Arquivo.__post_init__ em src/core/arquivo.py.
+            colunas_ocultas_iniciais=info.get('colunas_nao_numericas', []),
         )
 
     def remover_arquivo(self, nome_arquivo):
