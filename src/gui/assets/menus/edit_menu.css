@@ -28,6 +28,17 @@
   border-left: 1px solid var(--cor-borda);
   padding: 16px;
   overflow-y: auto;
+  transition: background-color 0.15s ease;
+}
+
+/* --- estado "ativo" (aba ativa tem gráfico gerado) ---
+   Mesmo esquema do '.sidebar.ativa' em file_menu.css: some o watermark
+   de "sem edição ainda" e entra o tom suave do accent, assim que
+   callbacks.gerar_grafico_serie_temporal marca este painel como ativo
+   (e volta ao normal em callbacks.fechar_grafico). */
+.painel-direito.ativa {
+  background-color: var(--cor-accent-suave);
+  background-image: none;
 }
 
 .painel-direito-titulo {

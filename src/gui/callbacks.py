@@ -28,6 +28,44 @@ def _clique_real(ctx_triggered):
     return bool(ctx_triggered)
 
 
+def _estados_toolbar(estado, aba_ativa):
+    """
+    Calcula os 3 critérios independentes que decidem o 'disabled' dos
+    botões da toolbar. Existe pra esses 3 booleans nunca ficarem
+    dessincronizados entre callbacks diferentes (upload, trocar/fechar
+    aba, gerar gráfico, fechar gráfico) — antes, um único
+    'botoes_dependentes' era aplicado aos 5 botões de uma vez, o que
+    misturava dois critérios diferentes (ver comentário abaixo) e
+    deixava 'nova-amostra'/'exportar-dados' presos desabilitados depois
+    de fechar o gráfico, mesmo com o arquivo ainda carregado.
+
+    Retorna (sem_arquivo, sem_2_arquivos, sem_grafico_da_aba):
+      - sem_arquivo: nenhum arquivo carregado -> usado por
+        'nova-analise', 'nova-amostra' e 'exportar-dados' (dependem só
+        de existir arquivo, não de gráfico).
+      - sem_2_arquivos: menos de 2 arquivos carregados -> usado só por
+        'fundir-arquivos'.
+      - sem_grafico_da_aba: a aba ATIVA especificamente não tem gráfico
+        gerado (nunca "algum arquivo tem gráfico") -> usado por
+        'aparar-dados', 'excluir-dados' e 'exportar-grafico'.
+    """
+    sem_arquivo = len(estado.arquivos) == 0
+    sem_2_arquivos = len(estado.arquivos) < 2
+    arquivo = estado.arquivos.get(aba_ativa) if aba_ativa else None
+    sem_grafico_da_aba = not (arquivo and arquivo.grafico_gerado)
+    return sem_arquivo, sem_2_arquivos, sem_grafico_da_aba
+
+
+def _classe_sidebar(sem_arquivo):
+    """Classe da sidebar (menu de arquivo): 'ativa' assim que existe >=1 arquivo carregado."""
+    return 'sidebar' if sem_arquivo else 'sidebar ativa'
+
+
+def _classe_painel_direito(sem_grafico_da_aba):
+    """Classe do painel de edição: 'ativa' quando a ABA ATIVA tem gráfico gerado."""
+    return 'painel-direito' if sem_grafico_da_aba else 'painel-direito ativa'
+
+
 def _valores_rodape(estado, aba_ativa):
     """
     Agrupa os 4 valores que qualquer callback que mexe no rodapé precisa
@@ -56,6 +94,9 @@ def registrar_callbacks(app, estado):
         Output('rodape-status', 'children'),
         Output('nova-analise', 'disabled'),
         Output('fundir-arquivos', 'disabled'),
+        Output('nova-amostra', 'disabled'),
+        Output('exportar-dados', 'disabled'),
+        Output('sidebar-arquivo', 'className'),
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('rodape-info-arquivo', 'children'),
         Output('rodape-alerta-badge', 'children'),
@@ -76,10 +117,14 @@ def registrar_callbacks(app, estado):
         if nome_arquivo in estado.arquivos:
             # Arquivo já aberto: mensagem PERSISTENTE — cancela qualquer
             # timer pendente (senão uma expiração antiga poderia
-            # sobrescrever essa mensagem daqui a pouco).
+            # sobrescrever essa mensagem daqui a pouco). Nenhuma contagem
+            # de arquivo mudou, então os critérios de habilitação ficam
+            # como já estavam.
+            sem_arquivo, sem_2_arquivos, _ = _estados_toolbar(estado, nome_arquivo)
             mensagem = f'🧙‍♂️: " O arquivo \'{nome_arquivo}\' já foi aberto! "'
             return (nome_arquivo, mensagem,
-                    len(estado.arquivos) == 0, len(estado.arquivos) < 2, no_update,
+                    sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
+                    _classe_sidebar(sem_arquivo), no_update,
                     *_valores_rodape(estado, nome_arquivo),
                     no_update, True, no_update)
         try:
@@ -95,14 +140,25 @@ def registrar_callbacks(app, estado):
             mensagem = f'🧙‍♂️: " Arquivo \'{nome_arquivo}\' carregado com sucesso! "'
             mensagem_seguinte = '🧙‍♂️: " Escolha uma opção de gráfico... "'
 
+            # O arquivo recém-carregado ainda não tem gráfico gerado, então
+            # 'aparar-dados'/'excluir-dados'/'exportar-grafico' continuam
+            # desabilitados (não fazem parte deste callback — ver
+            # gerar_grafico_serie_temporal). Só o que depende de "existe
+            # arquivo" muda aqui: nova-analise, nova-amostra, exportar-dados
+            # e a cor da sidebar.
+            sem_arquivo, sem_2_arquivos, _ = _estados_toolbar(estado, nome_arquivo)
+
             return (nome_arquivo, mensagem,
-                    len(estado.arquivos) == 0, len(estado.arquivos) < 2, area_grafico,
+                    sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
+                    _classe_sidebar(sem_arquivo), area_grafico,
                     *_valores_rodape(estado, nome_arquivo),
                     mensagem_seguinte, False, 0)
         except Exception as e:
+            sem_arquivo, sem_2_arquivos, _ = _estados_toolbar(estado, aba_atual)
             mensagem = f'🧙‍♂️: " Erro ao abrir arquivo: {str(e)} "'
             return (aba_atual, mensagem,
-                    len(estado.arquivos) == 0, len(estado.arquivos) < 2, no_update,
+                    sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
+                    _classe_sidebar(sem_arquivo), no_update,
                     *_valores_rodape(estado, aba_atual),
                     no_update, True, no_update)
 
@@ -138,6 +194,8 @@ def registrar_callbacks(app, estado):
         Output('nova-amostra', 'disabled', allow_duplicate=True),
         Output('exportar-grafico', 'disabled', allow_duplicate=True),
         Output('exportar-dados', 'disabled', allow_duplicate=True),
+        Output('sidebar-arquivo', 'className', allow_duplicate=True),
+        Output('painel-direito', 'className', allow_duplicate=True),
         Output('rodape-info-arquivo', 'children', allow_duplicate=True),
         Output('rodape-alerta-badge', 'children', allow_duplicate=True),
         Output('rodape-alerta-badge', 'className', allow_duplicate=True),
@@ -174,22 +232,29 @@ def registrar_callbacks(app, estado):
         if aba_ativa is None:
             # Sem arquivos restantes -> Reseta para a área vazia/inicial
             area_grafico = renderizar_area_grafico(estado)
-            botoes_dependentes = True
         elif mudou_de_arquivo and aba_ativa in estado.arquivos:
             arquivo = estado.arquivos[aba_ativa]
             if arquivo.grafico_gerado:
                 area_grafico = renderizar_grafico_com_fechar(arquivo.figura)
-                botoes_dependentes = False
             else:
                 area_grafico = renderizar_area_grafico(estado)
-                botoes_dependentes = True
         else:
             area_grafico = no_update
-            botoes_dependentes = no_update
+
+        # Os 3 critérios de habilitação (ver _estados_toolbar): fechar uma
+        # aba pode mudar 'sem_arquivo'/'sem_2_arquivos' (perdeu um
+        # arquivo), e tanto fechar quanto trocar de aba muda qual gráfico
+        # é "o da aba ativa" (sem_grafico_da_aba). Antes, um único
+        # 'botoes_dependentes' aplicava o critério de gráfico também a
+        # 'nova-amostra'/'exportar-dados', que na verdade só dependem de
+        # haver arquivo — por isso eles ficavam desabilitados incorretamente
+        # ao fechar o gráfico de um arquivo que continuava carregado.
+        sem_arquivo, sem_2_arquivos, sem_grafico_da_aba = _estados_toolbar(estado, aba_ativa)
 
         return (aba_ativa, renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa),
-                mensagem, len(estado.arquivos) == 0, len(estado.arquivos) < 2, area_grafico,
-                botoes_dependentes, botoes_dependentes, botoes_dependentes, botoes_dependentes, botoes_dependentes,
+                mensagem, sem_arquivo, sem_2_arquivos, area_grafico,
+                sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
+                _classe_sidebar(sem_arquivo), _classe_painel_direito(sem_grafico_da_aba),
                 # Trocar/fechar aba muda qual arquivo é "o ativo": info, badge
                 # e popup do rodapé precisam refletir a NOVA aba, e qualquer
                 # mensagem temporária pendente da aba anterior é cancelada.
@@ -281,6 +346,7 @@ def registrar_callbacks(app, estado):
         Output('nova-amostra', 'disabled', allow_duplicate=True),
         Output('exportar-grafico', 'disabled', allow_duplicate=True),
         Output('exportar-dados', 'disabled', allow_duplicate=True),
+        Output('painel-direito', 'className', allow_duplicate=True),
         Output('rodape-alerta-badge', 'children', allow_duplicate=True),
         Output('rodape-alerta-badge', 'className', allow_duplicate=True),
         Output('rodape-alerta-popup', 'children', allow_duplicate=True),
@@ -325,6 +391,7 @@ def registrar_callbacks(app, estado):
         _, badge_texto, badge_classe, popup_children = _valores_rodape(estado, aba_ativa)
         return (grafico, renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem,
                 False, False, False, False, False,
+                _classe_painel_direito(sem_grafico_da_aba=False),
                 badge_texto, badge_classe, popup_children,
                 True)
 
@@ -337,6 +404,7 @@ def registrar_callbacks(app, estado):
         Output('nova-amostra', 'disabled', allow_duplicate=True),
         Output('exportar-grafico', 'disabled', allow_duplicate=True),
         Output('exportar-dados', 'disabled', allow_duplicate=True),
+        Output('painel-direito', 'className', allow_duplicate=True),
         Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
         Input('fechar-grafico', 'n_clicks'),
         State('aba-ativa-store', 'data'),
@@ -366,4 +434,12 @@ def registrar_callbacks(app, estado):
         area_grafico = renderizar_area_grafico(estado)
         mensagem = '🧙‍♂️: " Gráfico fechado. Escolha outra opção. "'
 
-        return area_grafico, lista_canais, mensagem, True, True, True, True, True, True
+        # O arquivo continua carregado (só o gráfico foi fechado), então
+        # 'nova-amostra' e 'exportar-dados' NÃO devem voltar a ficar
+        # desabilitados aqui — só 'aparar-dados'/'excluir-dados'/
+        # 'exportar-grafico' (que dependem do gráfico da aba ativa, agora
+        # invalidado) e o painel de edição (que volta ao estado morto).
+        sem_arquivo, _, sem_grafico_da_aba = _estados_toolbar(estado, aba_ativa)
+        return (area_grafico, lista_canais, mensagem,
+                sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
+                _classe_painel_direito(sem_grafico_da_aba), True)

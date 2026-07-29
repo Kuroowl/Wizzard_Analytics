@@ -30,6 +30,20 @@
   overflow-y: auto;
   overflow-x: hidden;
   z-index: 10;
+  transition: background-color 0.15s ease;
+}
+
+/* --- estado "ativo" (>=1 arquivo carregado) ---
+   '--cor-fundo-grafico' é a cor de "arquivo morto" (nenhum dado ainda).
+   Assim que existe pelo menos um arquivo carregado (ver
+   callbacks._classe_sidebar), o watermark de arquivo some e a sidebar
+   passa a usar o tom suave do accent do tema — o mesmo raciocínio que
+   o menu central já usa ao trocar '.area-grafico-container' (morto,
+   com watermark) por '.grafico-wrapper' (vivo, sem watermark) assim
+   que um gráfico é gerado. */
+.sidebar.ativa {
+  background-color: var(--cor-accent-suave);
+  background-image: none;
 }
 
 /* --- abas estilo Chrome --- */

@@ -80,10 +80,20 @@
   min-width: 90px;
 }
  
-/* --- gráfico gerado: wrapper com o X de fechar no canto superior direito --- */
+/* --- gráfico gerado: wrapper com o X de fechar no canto superior direito ---
+   O wrapper ocupa ~90% de .centro (inset de 5% em vez de 0), deixando uma
+   margem ao redor — isso encolhe o gráfico levemente (era quase 98%) e,
+   principalmente, abre espaço FORA da área de plotagem pro botão de
+   fechar. O botão continua filho de .grafico-wrapper, mas com
+   top/right NEGATIVOS ele sai da caixa encolhida e fica flutuando nessa
+   margem — assim nunca mais fica em cima da modebar do próprio Plotly
+   (que renderiza dentro da área do gráfico, no canto superior direito). */
 .grafico-wrapper {
   position: absolute;
-  inset: 0;
+  top: 5%;
+  left: 5%;
+  right: 5%;
+  bottom: 5%;
   display: flex;
   flex-direction: column;
 }
@@ -96,8 +106,8 @@
  
 .botao-fechar-grafico {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: -16px;
+  right: -16px;
   z-index: 5;
   width: 26px;
   height: 26px;

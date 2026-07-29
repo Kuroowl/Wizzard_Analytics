@@ -21,6 +21,10 @@ def montar_layout(estado):
     """
     sem_arquivo = len(estado.arquivos) == 0
     menos_de_2_arquivos = len(estado.arquivos) < 2
+    # 'sem_grafico' aqui é só pro estado INICIAL da toolbar (não há aba
+    # ativa ainda nesse ponto do carregamento da página) — os callbacks
+    # depois disso sempre olham o gráfico da ABA ATIVA especificamente
+    # (ver _estados_toolbar em callbacks.py), nunca "algum arquivo".
     sem_grafico = not estado.algum_arquivo_com_grafico()
 
     return html.Div(className='app-shell', children=[
@@ -60,7 +64,7 @@ def montar_layout(estado):
             dcc.Upload(
                 id='nova-amostra',
                 children=html.Div([icone_colorido('SampleData_icon.png'), html.Span('Nova Amostragem', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled=sem_grafico,
+                className='toolbar-upload', disabled=sem_arquivo,
                 multiple=False,
             ),
             dcc.Upload(
@@ -78,14 +82,14 @@ def montar_layout(estado):
             dcc.Upload(
                 id='exportar-dados',
                 children=html.Div([icone_colorido('ExportData_icon.png'), html.Span('Exportar dados', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled=sem_grafico,
+                className='toolbar-upload', disabled=sem_arquivo,
                 multiple=False,
             ),
         ]),
 
         html.Div(className='corpo', children=[
 
-            html.Div(className='sidebar', children=[
+            html.Div(id='sidebar-arquivo', className='sidebar' + ('' if sem_arquivo else ' ativa'), children=[
                 html.Div(className='abas-wrapper', children=[
                     html.Button('‹', id='aba-nav-esquerda', className='aba-nav-btn', n_clicks=0),
                     html.Div(id='container-abas-chrome', className='tabs-chrome-container'),
@@ -111,7 +115,11 @@ def montar_layout(estado):
 
             html.Div(id='divisor-resize-edit', className='divisor-resize'),
 
-            html.Div(className='painel-direito', children=[
+            # Nasce sem '.ativa' (nenhuma aba está ativa ainda neste ponto do
+            # carregamento da página) — os callbacks assumem daqui pra frente,
+            # olhando o gráfico da aba ativa (ver _estados_toolbar em
+            # callbacks.py).
+            html.Div(id='painel-direito', className='painel-direito', children=[
                 html.Div('Opções do gráfico', className='painel-direito-titulo'),
                 html.P('Propriedades e customizações da curva ativa.', className='painel-direito-placeholder'),
             ]),
