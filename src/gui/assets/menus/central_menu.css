@@ -79,6 +79,15 @@
   padding: 16px 20px;
   min-width: 90px;
 }
+
+/* Emoji do botão 'Série temporal' (central-btn-1, o único já funcional
+   das 6 opções) — mesmo tamanho visual que os ícones-imagem de 32px dos
+   outros 5 botões-placeholder, pra manter a grade visualmente alinhada. */
+.central-btn-emoji {
+  display: block;
+  font-size: 32px;
+  line-height: 1;
+}
  
 /* --- gráfico gerado: wrapper com o X de fechar no canto superior direito ---
    O wrapper ocupa ~90% de .centro (inset de 5% em vez de 0), deixando uma

@@ -17,6 +17,7 @@
   flex-direction: column;
   justify-content: center;   /* título + placeholder centralizados verticalmente... */
   align-items: center;       /* ...e horizontalmente, no padrão do menu central */
+  gap: 14px;
   text-align: center;
   background-color: var(--cor-fundo-grafico);
   background-image:
@@ -31,11 +32,13 @@
   transition: background-color 0.15s ease;
 }
 
-/* --- estado "ativo" (aba ativa tem gráfico gerado) ---
-   Mesmo esquema do '.sidebar.ativa' em file_menu.css: some o watermark
-   de "sem edição ainda" e entra o tom suave do accent, assim que
-   callbacks.gerar_grafico_serie_temporal marca este painel como ativo
-   (e volta ao normal em callbacks.fechar_grafico). */
+/* --- estado "ativo" (usuário clicou em 'Iniciar edição') ---
+   Diferente da sidebar: aqui a cor/watermark NÃO reage sozinha à
+   existência de um gráfico — continua mostrando o visual "sem edição
+   ainda" mesmo com o gráfico gerado, até o usuário efetivamente clicar
+   no botão (ver ativar_modo_edicao em callbacks.py). Fechar o gráfico ou
+   trocar de aba volta este painel pro estado normal (ver
+   gerenciar_abas/fechar_grafico). */
 .painel-direito.ativa {
   background-color: var(--cor-accent-suave);
   background-image: none;
@@ -46,7 +49,6 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--cor-texto-mudo);
-  margin-bottom: 10px;
 }
 
 .painel-direito-placeholder {
@@ -54,4 +56,28 @@
   color: var(--cor-texto-mudo);
   line-height: 1.5;
   max-width: 200px;   /* evita que o texto vire uma linha só, esticada de borda a borda */
+}
+
+.botao-iniciar-edicao {
+  font-family: var(--fonte-ui);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cor-texto-escuro);
+  background-color: var(--cor-fundo);
+  border: 1px solid var(--cor-borda);
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(27, 36, 48, 0.10);
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.botao-iniciar-edicao:hover:not(:disabled) {
+  background-color: var(--cor-accent-suave);
+  border-color: var(--cor-accent);
+}
+
+.botao-iniciar-edicao:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

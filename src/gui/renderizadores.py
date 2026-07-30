@@ -131,7 +131,16 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa):
             ]
         ))
 
-    return lista_canais
+    if not lista_canais:
+        return []
+
+    # Card separado do fundo da sidebar (que continua com o watermark de
+    # 'file.svg' por baixo) — em vez dos itens ficarem soltos e
+    # transparentes herdando a cor do menu, eles agora vivem 'sobre' ele,
+    # com tom próprio e sombra sutil. Se a lista for curta, o cartão
+    # também fica curto e o watermark aparece normalmente ao redor — não é
+    # um problema, é o efeito desejado.
+    return [html.Div(className='canais-cartao', children=lista_canais)]
 
 
 # Nomes dos ícones das 6 opções de tipo de gráfico — placeholders genéricos,
@@ -160,11 +169,22 @@ def renderizar_area_grafico(estado):
 
     opcoes = []
     for i, nome_icone in enumerate(ICONES_OPCOES_GRAFICO, start=1):
-        opcoes.append(html.Button(
-            [
+        if i == 1:
+            # Único botão realmente funcional por enquanto (dispara
+            # gerar_grafico_serie_temporal) — por isso ganha um rótulo e
+            # emoji de verdade em vez do ícone-placeholder genérico que os
+            # outros 5 ainda usam (ver ICONES_OPCOES_GRAFICO acima).
+            conteudo = [
+                html.Span('📈', className='central-btn-emoji'),
+                html.Span('Série temporal', className='toolbar-tooltip'),
+            ]
+        else:
+            conteudo = [
                 icone_colorido(nome_icone, tamanho=32),
                 html.Span(f'Opção {i}', className='toolbar-tooltip'),
-            ],
+            ]
+        opcoes.append(html.Button(
+            conteudo,
             id=f'central-btn-{i}',
             className='toolbar-botao central-btn-opcao',
             n_clicks=0,

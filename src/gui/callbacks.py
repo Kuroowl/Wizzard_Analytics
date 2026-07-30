@@ -56,14 +56,9 @@ def _estados_toolbar(estado, aba_ativa):
     return sem_arquivo, sem_2_arquivos, sem_grafico_da_aba
 
 
-def _classe_sidebar(sem_arquivo):
-    """Classe da sidebar (menu de arquivo): 'ativa' assim que existe >=1 arquivo carregado."""
-    return 'sidebar' if sem_arquivo else 'sidebar ativa'
-
-
-def _classe_painel_direito(sem_grafico_da_aba):
-    """Classe do painel de edição: 'ativa' quando a ABA ATIVA tem gráfico gerado."""
-    return 'painel-direito' if sem_grafico_da_aba else 'painel-direito ativa'
+def _classe_painel_direito(ativo):
+    """Classe do painel de edição: 'ativa' só quando o usuário clica em 'Iniciar edição'."""
+    return 'painel-direito ativa' if ativo else 'painel-direito'
 
 
 def _valores_rodape(estado, aba_ativa):
@@ -96,7 +91,6 @@ def registrar_callbacks(app, estado):
         Output('fundir-arquivos', 'disabled'),
         Output('nova-amostra', 'disabled'),
         Output('exportar-dados', 'disabled'),
-        Output('sidebar-arquivo', 'className'),
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('rodape-info-arquivo', 'children'),
         Output('rodape-alerta-badge', 'children'),
@@ -124,7 +118,7 @@ def registrar_callbacks(app, estado):
             mensagem = f'🧙‍♂️: " O arquivo \'{nome_arquivo}\' já foi aberto! "'
             return (nome_arquivo, mensagem,
                     sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
-                    _classe_sidebar(sem_arquivo), no_update,
+                    no_update,
                     *_valores_rodape(estado, nome_arquivo),
                     no_update, True, no_update)
         try:
@@ -144,13 +138,12 @@ def registrar_callbacks(app, estado):
             # 'aparar-dados'/'excluir-dados'/'exportar-grafico' continuam
             # desabilitados (não fazem parte deste callback — ver
             # gerar_grafico_serie_temporal). Só o que depende de "existe
-            # arquivo" muda aqui: nova-analise, nova-amostra, exportar-dados
-            # e a cor da sidebar.
+            # arquivo" muda aqui: nova-analise, nova-amostra e exportar-dados.
             sem_arquivo, sem_2_arquivos, _ = _estados_toolbar(estado, nome_arquivo)
 
             return (nome_arquivo, mensagem,
                     sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
-                    _classe_sidebar(sem_arquivo), area_grafico,
+                    area_grafico,
                     *_valores_rodape(estado, nome_arquivo),
                     mensagem_seguinte, False, 0)
         except Exception as e:
@@ -158,7 +151,7 @@ def registrar_callbacks(app, estado):
             mensagem = f'🧙‍♂️: " Erro ao abrir arquivo: {str(e)} "'
             return (aba_atual, mensagem,
                     sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
-                    _classe_sidebar(sem_arquivo), no_update,
+                    no_update,
                     *_valores_rodape(estado, aba_atual),
                     no_update, True, no_update)
 
@@ -194,7 +187,7 @@ def registrar_callbacks(app, estado):
         Output('nova-amostra', 'disabled', allow_duplicate=True),
         Output('exportar-grafico', 'disabled', allow_duplicate=True),
         Output('exportar-dados', 'disabled', allow_duplicate=True),
-        Output('sidebar-arquivo', 'className', allow_duplicate=True),
+        Output('iniciar-edicao', 'disabled', allow_duplicate=True),
         Output('painel-direito', 'className', allow_duplicate=True),
         Output('rodape-info-arquivo', 'children', allow_duplicate=True),
         Output('rodape-alerta-badge', 'children', allow_duplicate=True),
@@ -254,7 +247,12 @@ def registrar_callbacks(app, estado):
         return (aba_ativa, renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa),
                 mensagem, sem_arquivo, sem_2_arquivos, area_grafico,
                 sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
-                _classe_sidebar(sem_arquivo), _classe_painel_direito(sem_grafico_da_aba),
+                sem_grafico_da_aba,
+                # Trocar/fechar aba sempre volta o painel de edição pro estado
+                # normal — o modo "ativo" é por gráfico específico (ligado só
+                # via clique em 'Iniciar edição', ver ativar_modo_edicao), não
+                # faz sentido persistir olhando pra OUTRO arquivo/aba.
+                _classe_painel_direito(ativo=False),
                 # Trocar/fechar aba muda qual arquivo é "o ativo": info, badge
                 # e popup do rodapé precisam refletir a NOVA aba, e qualquer
                 # mensagem temporária pendente da aba anterior é cancelada.
@@ -346,7 +344,7 @@ def registrar_callbacks(app, estado):
         Output('nova-amostra', 'disabled', allow_duplicate=True),
         Output('exportar-grafico', 'disabled', allow_duplicate=True),
         Output('exportar-dados', 'disabled', allow_duplicate=True),
-        Output('painel-direito', 'className', allow_duplicate=True),
+        Output('iniciar-edicao', 'disabled', allow_duplicate=True),
         Output('rodape-alerta-badge', 'children', allow_duplicate=True),
         Output('rodape-alerta-badge', 'className', allow_duplicate=True),
         Output('rodape-alerta-popup', 'children', allow_duplicate=True),
@@ -390,8 +388,7 @@ def registrar_callbacks(app, estado):
 
         _, badge_texto, badge_classe, popup_children = _valores_rodape(estado, aba_ativa)
         return (grafico, renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem,
-                False, False, False, False, False,
-                _classe_painel_direito(sem_grafico_da_aba=False),
+                False, False, False, False, False, False,
                 badge_texto, badge_classe, popup_children,
                 True)
 
@@ -404,6 +401,7 @@ def registrar_callbacks(app, estado):
         Output('nova-amostra', 'disabled', allow_duplicate=True),
         Output('exportar-grafico', 'disabled', allow_duplicate=True),
         Output('exportar-dados', 'disabled', allow_duplicate=True),
+        Output('iniciar-edicao', 'disabled', allow_duplicate=True),
         Output('painel-direito', 'className', allow_duplicate=True),
         Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
         Input('fechar-grafico', 'n_clicks'),
@@ -437,9 +435,30 @@ def registrar_callbacks(app, estado):
         # O arquivo continua carregado (só o gráfico foi fechado), então
         # 'nova-amostra' e 'exportar-dados' NÃO devem voltar a ficar
         # desabilitados aqui — só 'aparar-dados'/'excluir-dados'/
-        # 'exportar-grafico' (que dependem do gráfico da aba ativa, agora
-        # invalidado) e o painel de edição (que volta ao estado morto).
+        # 'exportar-grafico'/'iniciar-edicao' (que dependem do gráfico da
+        # aba ativa, agora invalidado) e o painel de edição (que volta ao
+        # estado normal, já que não faz sentido continuar "em edição" de
+        # um gráfico que não existe mais).
         sem_arquivo, _, sem_grafico_da_aba = _estados_toolbar(estado, aba_ativa)
         return (area_grafico, lista_canais, mensagem,
                 sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
-                _classe_painel_direito(sem_grafico_da_aba), True)
+                sem_grafico_da_aba, _classe_painel_direito(ativo=False), True)
+
+    @app.callback(
+        Output('painel-direito', 'className', allow_duplicate=True),
+        Input('iniciar-edicao', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def ativar_modo_edicao(n_clicks):
+        """
+        Único gatilho que liga o visual 'ativo' do painel de edição — a
+        cor/watermark NÃO reage sozinha a upload de arquivo ou geração de
+        gráfico (ver comentário em edit_menu.css), só a este clique.
+        Fechar o gráfico ou trocar de aba desliga de novo (ver
+        fechar_grafico / gerenciar_abas), já que o botão nasce desabilitado
+        até existir gráfico na aba ativa e este callback só roda com ele
+        habilitado.
+        """
+        if not n_clicks:
+            raise PreventUpdate
+        return _classe_painel_direito(ativo=True)

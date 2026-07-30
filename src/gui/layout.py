@@ -89,7 +89,7 @@ def montar_layout(estado):
 
         html.Div(className='corpo', children=[
 
-            html.Div(id='sidebar-arquivo', className='sidebar' + ('' if sem_arquivo else ' ativa'), children=[
+            html.Div(className='sidebar', children=[
                 html.Div(className='abas-wrapper', children=[
                     html.Button('‹', id='aba-nav-esquerda', className='aba-nav-btn', n_clicks=0),
                     html.Div(id='container-abas-chrome', className='tabs-chrome-container'),
@@ -115,13 +115,23 @@ def montar_layout(estado):
 
             html.Div(id='divisor-resize-edit', className='divisor-resize'),
 
-            # Nasce sem '.ativa' (nenhuma aba está ativa ainda neste ponto do
-            # carregamento da página) — os callbacks assumem daqui pra frente,
-            # olhando o gráfico da aba ativa (ver _estados_toolbar em
-            # callbacks.py).
+            # A cor/watermark de 'painel-direito' NÃO muda mais sozinha
+            # quando um gráfico é gerado — só quando o usuário clica em
+            # 'Iniciar edição' (ver ativar_modo_edicao em callbacks.py).
+            # O botão em si nasce desabilitado (não há aba ativa ainda
+            # neste ponto do carregamento da página; os callbacks reavaliam
+            # isso a partir daqui olhando o gráfico da aba ativa — ver
+            # _estados_toolbar).
             html.Div(id='painel-direito', className='painel-direito', children=[
                 html.Div('Opções do gráfico', className='painel-direito-titulo'),
                 html.P('Propriedades e customizações da curva ativa.', className='painel-direito-placeholder'),
+                html.Button(
+                    '🎨 Iniciar edição',
+                    id='iniciar-edicao',
+                    className='botao-iniciar-edicao',
+                    disabled=True,
+                    n_clicks=0,
+                ),
             ]),
         ]),
 
