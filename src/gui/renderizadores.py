@@ -1,7 +1,7 @@
 from dash import dcc, html
 
 from src.gui.components import icone_colorido
-from src.core.plotting.plotter import cor_da_coluna, colunas_plotadas
+from src.core.plotting.plotter import cor_da_coluna, colunas_plotadas, PALETA_CORES
 
 
 def renderizar_info_rodape(estado, aba_ativa):
@@ -194,44 +194,90 @@ def renderizar_area_grafico(estado):
     return html.Div(className='grade-opcoes-grafico', children=opcoes)
 
 
-# Opções da caixa 'Style' do painel de edição da curva — cada valor bate
-# exatamente com PreferenciasCanal.estilo_linha (src/core/arquivo.py) e
-# com o que go.Scatter aceita em line.dash (plotter.py), então não existe
-# nenhuma tradução/mapa no meio: o valor escolhido aqui é gravado e usado
-# como está. O rótulo usa um traço desenhado em texto (não emoji — não
-# existem emojis de tipo de linha) até entrarem ícones de verdade.
+# Opções da caixa 'Style' do painel de edição da curva — TODOS os 6
+# valores que go.Scatter aceita em line.dash (plotter.py), não só um
+# subconjunto: 'solid', 'dot', 'dash', 'longdash', 'dashdot',
+# 'longdashdot'. Cada valor bate exatamente com PreferenciasCanal.
+# estilo_linha (src/core/arquivo.py), sem nenhuma tradução/mapa no meio
+# — o valor escolhido aqui é gravado e usado como está.
+#
+# O rótulo é só o traço desenhado em texto (sem nome por extenso — o
+# padrão visual já basta pra reconhecer, não precisa ler "Tracejada",
+# "Traço-ponto longo" etc. pra saber qual é qual).
 OPCOES_ESTILO_LINHA = [
-    {'label': '───── Contínua', 'value': 'solid'},
-    {'label': '‑ ‑ ‑ ‑ Tracejada', 'value': 'dash'},
-    {'label': '· · · · Pontilhada', 'value': 'dot'},
-    {'label': '‑ · ‑ · Traço-ponto', 'value': 'dashdot'},
+    {'label': '─────────', 'value': 'solid'},
+    {'label': '· · · · · · ·', 'value': 'dot'},
+    {'label': '‑ ‑ ‑ ‑ ‑ ‑', 'value': 'dash'},
+    {'label': '‑‑  ‑‑  ‑‑  ‑‑', 'value': 'longdash'},
+    {'label': '‑ · ‑ · ‑ ·', 'value': 'dashdot'},
+    {'label': '‑‑ · ‑‑ · ‑‑', 'value': 'longdashdot'},
 ]
+
+# Paleta de cores oferecida no painel 'Curva' — mesma paleta padrão do
+# gráfico (PALETA_CORES, plotter.py), pra a cor "de fábrica" de cada
+# canal já aparecer marcada como opção, mais um punhado de cores neutras
+# (preto/cinza/branco) que não fazem parte da paleta automática mas são
+# um pedido comum pra curvas de referência/eixo.
+PALETA_EDICAO_CORES = PALETA_CORES + ['#1B2430', '#7A8699', '#FFFFFF']
 
 
 def renderizar_painel_direito_padrao(disabled=True):
     """
-    Conteúdo 'de repouso' do painel-direito: título + placeholder +
-    botão 'Iniciar edição'. Usado tanto no primeiro carregamento da
-    página (layout.py) quanto sempre que a edição precisa ser resetada
-    (fechar o gráfico, trocar de aba, ou clicar em 'Fechar edição' no
-    próprio painel de curva) — ter essa função num lugar só evita que
-    esses 4 pontos divirjam no texto/markup com o tempo.
+    Conteúdo 'de repouso' de 'painel-direito-conteudo': só título +
+    placeholder. Usado tanto no primeiro carregamento da página
+    (layout.py) quanto sempre que a edição precisa ser resetada (fechar
+    o gráfico, trocar de aba, ou clicar em 'Fechar edição' no próprio
+    painel de curva) — ter essa função num lugar só evita que esses
+    pontos divirjam no texto/markup com o tempo.
 
-    'disabled' controla o botão 'Iniciar edição': só deve nascer
-    habilitado se a aba ativa JÁ tem um gráfico gerado (ver
-    _estados_toolbar em callbacks.py); quem chama decide isso.
+    O botão 'Iniciar edição' NÃO faz mais parte deste retorno — ele
+    agora é um elemento FIXO de 'painel-direito' (ver layout.py),
+    escondido via CSS (.painel-direito.ativa .botao-iniciar-edicao)
+    quando o card 'Curva' está aberto, em vez de ser destruído e
+    recriado a cada troca de estado.
+    Antes ele nascia/morria junto com este 'children', e qualquer
+    callback que tentasse setar 'iniciar-edicao'.disabled ENQUANTO o
+    card 'Curva' estava na tela (ex: ao_fazer_upload de outro arquivo)
+    quebrava com "A nonexistent object was used in an Output" — porque
+    o id literalmente não existia na árvore naquele instante. Manter o
+    botão sempre presente elimina essa classe de erro por completo.
+
+    'disabled' é aceito por compatibilidade com quem chama (mesma
+    assinatura de antes) mas não é mais usado aqui — quem controla o
+    'disabled' do botão fixo agora é o próprio callback que o gera (ver
+    _estados_toolbar em callbacks.py), direto no Output dele.
     """
     return [
         html.Div('Opções do gráfico', className='painel-direito-titulo'),
         html.P('Propriedades e customizações da curva ativa.', className='painel-direito-placeholder'),
-        html.Button(
-            '🎨 Iniciar edição',
-            id='iniciar-edicao',
-            className='botao-iniciar-edicao',
-            disabled=disabled,
-            n_clicks=0,
-        ),
     ]
+
+
+def _swatches_cor(cor_atual):
+    """
+    Paleta de cores clicável do campo 'cor' — substitui o antigo
+    dcc.Input(type='color'), que NÃO é mais um 'type' válido em
+    versões recentes do dash-core-components (só aceita text, number,
+    password, email, range, search, tel, url, hidden). Era isso que
+    disparava o erro de console 'Invalid argument `type`... Value
+    provided: "color"' e, em seguida, a quebra de JS que travava o
+    app ('undefined does not have a method named "join"').
+
+    Cada swatch é um botão com id de pattern-matching
+    {'type': 'edicao-curva-cor-swatch', 'cor': <hex>} — ver
+    selecionar_cor_curva em callbacks.py. A cor efetivamente escolhida
+    fica num dcc.Store('edicao-curva-cor'), não mais num dcc.Input.
+    """
+    return html.Div(className='painel-edicao-cor-paleta', children=[
+        html.Button(
+            id={'type': 'edicao-curva-cor-swatch', 'cor': cor},
+            className='cor-swatch' + (' selecionada' if cor == cor_atual else ''),
+            style={'backgroundColor': cor},
+            title=cor,
+            n_clicks=0,
+        )
+        for cor in PALETA_EDICAO_CORES
+    ])
 
 
 def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
@@ -243,36 +289,42 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
     para uma próxima etapa (o painel pode crescer com mais html.Div de
     'painel-edicao-secao' abaixo desta, sem mexer no que já existe).
 
+    O card 'Curva' agora é SEMPRE montado, mesmo sem nenhum canal
+    plotado — antes, sem canal, a função devolvia um texto solto no
+    lugar do card inteiro, então o próprio 'Dado' (a caixa de seleção
+    que devia só listar os canais plotados) nem chegava a existir. A
+    caixa "só tem que ler quais canais estão plotados; se nenhum foi
+    marcado, ela fica vazia" — é isso que o bloco abaixo faz: com
+    'colunas' vazia, 'opcoes_dado' vira [], o dropdown nasce sem valor
+    e os demais controles (espessura/cor/estilo) nascem desabilitados,
+    porque não existe curva nenhuma pra aplicar espessura/cor/estilo.
+
     'coluna_selecionada' é opcional: se None ou se a coluna passada não
     estiver mais no gráfico (ex: usuário desmarcou o canal), cai na
-    primeira coluna plotada.
+    primeira coluna plotada (ou fica None, se não houver nenhuma).
     """
     colunas = colunas_plotadas(estado, aba_ativa)
-    if not colunas:
-        return [
-            html.Div('Opções do gráfico', className='painel-direito-titulo'),
-            html.P(
-                'Marque ao menos um canal no gráfico para editar suas curvas.',
-                className='painel-direito-placeholder',
-            ),
-        ]
-
-    if coluna_selecionada not in colunas:
-        coluna_selecionada = colunas[0]
-
     arquivo = estado.arquivos[aba_ativa]
+
+    sem_canal = not colunas
+    if coluna_selecionada not in colunas:
+        coluna_selecionada = colunas[0] if colunas else None
+
     opcoes_dado = [{'label': arquivo.rotulo(coluna), 'value': coluna} for coluna in colunas]
 
-    # Se a curva ainda não foi editada, os controles nascem refletindo
-    # exatamente o que já está desenhado agora (mesma cor da paleta fixa,
-    # espessura/estilo padrão) — ver mesma lógica de fallback em
-    # construir_figura_serie_temporal (plotter.py), pra painel e gráfico
-    # nunca mostrarem valores diferentes pra mesma curva.
-    prefs = arquivo.preferencias.por_canal.get(coluna_selecionada)
-    indice_cor = colunas.index(coluna_selecionada)
-    cor_atual = prefs.cor if (prefs and prefs.cor) else cor_da_coluna(indice_cor)
-    espessura_atual = prefs.espessura if prefs else 1.0
-    estilo_atual = prefs.estilo_linha if prefs else 'solid'
+    if sem_canal:
+        cor_atual, espessura_atual, estilo_atual = PALETA_EDICAO_CORES[0], 1.0, 'solid'
+    else:
+        # Se a curva ainda não foi editada, os controles nascem refletindo
+        # exatamente o que já está desenhado agora (mesma cor da paleta
+        # fixa, espessura/estilo padrão) — ver mesma lógica de fallback em
+        # construir_figura_serie_temporal (plotter.py), pra painel e
+        # gráfico nunca mostrarem valores diferentes pra mesma curva.
+        prefs = arquivo.preferencias.por_canal.get(coluna_selecionada)
+        indice_cor = colunas.index(coluna_selecionada)
+        cor_atual = prefs.cor if (prefs and prefs.cor) else cor_da_coluna(indice_cor)
+        espessura_atual = prefs.espessura if prefs else 1.0
+        estilo_atual = prefs.estilo_linha if prefs else 'solid'
 
     return [
         html.Div(className='painel-edicao-secao', children=[
@@ -290,6 +342,8 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
                     id='edicao-curva-dado',
                     options=opcoes_dado,
                     value=coluna_selecionada,
+                    placeholder='Nenhum canal plotado',
+                    disabled=sem_canal,
                     clearable=False,
                     searchable=False,
                     className='painel-edicao-dropdown',
@@ -303,19 +357,16 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
                     min=1, max=6, step=0.5,
                     value=espessura_atual,
                     marks=None,
+                    disabled=sem_canal,
                     tooltip={'placement': 'bottom', 'always_visible': False},
                 ),
             ]),
 
             html.Div(className='painel-edicao-campo painel-edicao-linha', children=[
                 html.Div(className='painel-edicao-subcampo', children=[
-                    html.Label('cor:', htmlFor='edicao-curva-cor', className='painel-edicao-label'),
-                    dcc.Input(
-                        id='edicao-curva-cor',
-                        type='color',
-                        value=cor_atual,
-                        className='painel-edicao-cor',
-                    ),
+                    html.Label('cor:', className='painel-edicao-label'),
+                    dcc.Store(id='edicao-curva-cor', data=cor_atual),
+                    _swatches_cor(cor_atual),
                 ]),
                 html.Div(className='painel-edicao-subcampo painel-edicao-subcampo-estilo', children=[
                     html.Label('Style:', htmlFor='edicao-curva-estilo', className='painel-edicao-label'),
@@ -323,6 +374,7 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
                         id='edicao-curva-estilo',
                         options=OPCOES_ESTILO_LINHA,
                         value=estilo_atual,
+                        disabled=sem_canal,
                         clearable=False,
                         searchable=False,
                         className='painel-edicao-dropdown painel-edicao-dropdown-estilo',

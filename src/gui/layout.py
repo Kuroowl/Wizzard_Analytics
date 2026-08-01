@@ -123,11 +123,31 @@ def montar_layout(estado):
             # neste ponto do carregamento da página; os callbacks reavaliam
             # isso a partir daqui olhando o gráfico da aba ativa — ver
             # _estados_toolbar).
+            #
+            # 'iniciar-edicao' é FIXO aqui (fora de 'painel-direito-
+            # -conteudo', que é o pedaço que troca de children entre o
+            # estado 'padrão' e o card 'Curva'). Antes o botão nascia e
+            # morria junto com esse conteúdo trocável — e qualquer
+            # callback que tentasse setar seu 'disabled' enquanto o card
+            # 'Curva' estava na tela (ex: subir um arquivo novo com outra
+            # aba em edição) quebrava com "A nonexistent object was used
+            # in an Output", porque o id não existia naquele instante.
+            # Com o botão sempre presente, isso não acontece mais — a
+            # visibilidade dele quando o card 'Curva' está aberto é só
+            # CSS (.painel-direito.ativa .botao-iniciar-edicao, ver
+            # edit_menu.css), não remoção do DOM.
             html.Div(id='painel-direito', className='painel-direito', children=[
                 html.Div(
                     id='painel-direito-conteudo',
                     className='painel-direito-conteudo',
                     children=renderizar_painel_direito_padrao(disabled=True),
+                ),
+                html.Button(
+                    '🎨 Iniciar edição',
+                    id='iniciar-edicao',
+                    className='botao-iniciar-edicao',
+                    disabled=True,
+                    n_clicks=0,
                 ),
             ]),
         ]),

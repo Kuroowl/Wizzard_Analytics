@@ -8,7 +8,7 @@ from src.gui.renderizadores import (
     truncar_nome_arquivo, renderizar_abas_estilo_chrome, renderizar_colunas_da_aba_ativa,
     renderizar_area_grafico, renderizar_grafico_com_fechar,
     renderizar_info_rodape, renderizar_badge_alerta, classe_badge_alerta, renderizar_popup_alerta,
-    renderizar_painel_direito_padrao, renderizar_painel_edicao,
+    renderizar_painel_direito_padrao, renderizar_painel_edicao, PALETA_EDICAO_CORES,
 )
 from src.utils.helpers import carregar_dados_de_upload
 
@@ -62,6 +62,20 @@ def _estados_toolbar(estado, aba_ativa):
 def _classe_painel_direito(ativo):
     """Classe do painel de edição: 'ativa' só quando o usuário clica em 'Iniciar edição'."""
     return 'painel-direito ativa' if ativo else 'painel-direito'
+
+
+def _classes_swatches_cor(cor_selecionada):
+    """
+    Uma classe por swatch da paleta de cores (ver _swatches_cor em
+    renderizadores.py), na mesma ordem de PALETA_EDICAO_CORES — usado
+    pelo Output de pattern-matching que realça visualmente qual cor
+    está selecionada agora, tanto ao trocar de curva no 'Dado' quanto
+    ao clicar num swatch novo.
+    """
+    return [
+        'cor-swatch' + (' selecionada' if cor == cor_selecionada else '')
+        for cor in PALETA_EDICAO_CORES
+    ]
 
 
 def _valores_rodape(estado, aba_ativa):
@@ -275,18 +289,33 @@ def registrar_callbacks(app, estado):
         Output('rodape-alerta-badge', 'className', allow_duplicate=True),
         Output('rodape-alerta-popup', 'children', allow_duplicate=True),
         Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
+        Output('painel-direito-conteudo', 'children', allow_duplicate=True),
         Input({'type': 'linha-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         Input({'type': 'botao-excluir-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
+        State('painel-direito', 'className'),
+        State('edicao-curva-dado', 'value'),
         prevent_initial_call=True,
     )
-    def gerenciar_selecao_canais(n_clicks_list, _n_clicks_excluir, aba_ativa):
+    def gerenciar_selecao_canais(n_clicks_list, _n_clicks_excluir, aba_ativa, classe_painel_direito, coluna_em_edicao):
         if not _clique_real(ctx.triggered) or not aba_ativa:
             raise PreventUpdate
 
         gatilho_id = ctx.triggered_id
         mensagem = no_update
         area_grafico = no_update
+        # Se o painel de edição estiver aberto ('ativa'), (des)marcar ou
+        # excluir um canal pode fazer a curva que ele está mostrando na
+        # caixa 'Dado' sumir do gráfico. Sem isto, o 'Dado' ficava com um
+        # valor apontando pra uma coluna que não está mais em
+        # colunas_plotadas(), e mexer no slider/cor/estilo caía sempre no
+        # guard de aplicar_preferencias_curva — nada acontecia, dando a
+        # sensação de painel "travado". Recalculando aqui, o 'Dado'
+        # sempre reflete o que está de fato plotado (mantém a coluna
+        # escolhida se ela continuar lá, senão cai pra outra automaticamente
+        # — ver renderizar_painel_edicao).
+        painel_edicao = no_update
+        em_edicao = classe_painel_direito and 'ativa' in classe_painel_direito.split()
 
         if gatilho_id and gatilho_id.get('type') == 'botao-excluir-canal':
             arquivo_alvo, coluna = gatilho_id.get('arquivo'), gatilho_id.get('coluna')
@@ -329,10 +358,20 @@ def registrar_callbacks(app, estado):
                 arquivo.figura = fig
                 area_grafico = renderizar_grafico_com_fechar(fig)
 
+        if em_edicao and aba_ativa in estado.arquivos:
+            # Recarrega o card 'Curva' com a lista de colunas plotadas
+            # atualizada. Passa a coluna que estava sendo editada — se
+            # ela ainda estiver plotada, o 'Dado' continua nela; senão
+            # (foi ela que acabou de ser desmarcada/excluída),
+            # renderizar_painel_edicao já cai automaticamente pra outra
+            # coluna plotada, ou pro estado "sem canal" (Dado vazio) se
+            # não sobrar nenhuma.
+            painel_edicao = renderizar_painel_edicao(estado, aba_ativa, coluna_em_edicao)
+
         _, badge_texto, badge_classe, popup_children = _valores_rodape(estado, aba_ativa)
         return (renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem, area_grafico,
                 badge_texto, badge_classe, popup_children,
-                True)
+                True, painel_edicao)
 
     @app.callback(
         Output('container-abas-chrome', 'children', allow_duplicate=True),
@@ -481,8 +520,9 @@ def registrar_callbacks(app, estado):
 
     @app.callback(
         Output('edicao-curva-espessura', 'value'),
-        Output('edicao-curva-cor', 'value'),
+        Output('edicao-curva-cor', 'data'),
         Output('edicao-curva-estilo', 'value'),
+        Output({'type': 'edicao-curva-cor-swatch', 'cor': ALL}, 'className'),
         Input('edicao-curva-dado', 'value'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
@@ -499,6 +539,10 @@ def registrar_callbacks(app, estado):
         comentado em _clique_real, aqui é ele quem faz os controles
         nascerem com os valores certos sem precisar duplicar essa lógica
         em abrir_painel_edicao.
+
+        'Dado' pode nascer SEM valor agora (nenhum canal plotado, ver
+        renderizar_painel_edicao) — nesse caso não tem curva nenhuma
+        pra sincronizar, então só sai sem fazer nada.
         """
         if not coluna or not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
@@ -512,12 +556,33 @@ def registrar_callbacks(app, estado):
         cor_atual = prefs.cor if (prefs and prefs.cor) else cor_da_coluna(colunas.index(coluna))
         espessura_atual = prefs.espessura if prefs else 1.0
         estilo_atual = prefs.estilo_linha if prefs else 'solid'
-        return espessura_atual, cor_atual, estilo_atual
+        return espessura_atual, cor_atual, estilo_atual, _classes_swatches_cor(cor_atual)
+
+    @app.callback(
+        Output('edicao-curva-cor', 'data', allow_duplicate=True),
+        Output({'type': 'edicao-curva-cor-swatch', 'cor': ALL}, 'className', allow_duplicate=True),
+        Input({'type': 'edicao-curva-cor-swatch', 'cor': ALL}, 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def selecionar_cor_curva(_n_clicks_list):
+        """
+        Clique num swatch da paleta de cores (ver _swatches_cor em
+        renderizadores.py) — substitui o antigo dcc.Input(type='color'),
+        que não é mais um 'type' aceito pelo dash-core-components
+        instalado (ver comentário em cima de _swatches_cor). Só grava
+        qual cor foi clicada no Store; quem de fato aplica a cor na
+        curva/gráfico é aplicar_preferencias_curva, reagindo à mudança
+        de 'edicao-curva-cor'.data.
+        """
+        if not _clique_real(ctx.triggered):
+            raise PreventUpdate
+        cor_escolhida = ctx.triggered_id['cor']
+        return cor_escolhida, _classes_swatches_cor(cor_escolhida)
 
     @app.callback(
         Output('container-grafico', 'children', allow_duplicate=True),
         Input('edicao-curva-espessura', 'value'),
-        Input('edicao-curva-cor', 'value'),
+        Input('edicao-curva-cor', 'data'),
         Input('edicao-curva-estilo', 'value'),
         State('edicao-curva-dado', 'value'),
         State('aba-ativa-store', 'data'),
