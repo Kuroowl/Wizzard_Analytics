@@ -95,7 +95,7 @@ def montar_layout(estado):
                     html.Div(id='container-abas-chrome', className='tabs-chrome-container'),
                     html.Button('›', id='aba-nav-direita', className='aba-nav-btn', n_clicks=0),
                 ]),
-                html.Div('', className='sidebar-secao-titulo'),
+                html.Div('Colunas:', className='sidebar-secao-titulo'),
                 html.Div(id='lista-canais-aba', className='menu-canais-container')
             ]),
 
