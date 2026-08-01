@@ -81,9 +81,15 @@ class Canal:
 
 @dataclass
 class PreferenciasCanal:
-    """Como UM canal específico aparece no gráfico."""
+    """
+    Como UM canal específico aparece no gráfico.
+
+    'espessura' começa em 1.0 (não 2.0) para bater com o slider do painel
+    de edição da curva (ver 'Thickness' em edit_menu.css/renderizadores.py),
+    que também começa em 1 e sobe de 0.5 em 0.5.
+    """
     cor: str | None = None
-    espessura: float = 2.0
+    espessura: float = 1.0
     estilo_linha: str = "solid"  # "solid" | "dash" | "dot" | "dashdot"
 
 

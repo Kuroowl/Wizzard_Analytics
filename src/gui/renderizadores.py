@@ -1,6 +1,7 @@
 from dash import dcc, html
 
 from src.gui.components import icone_colorido
+from src.core.plotting.plotter import cor_da_coluna, colunas_plotadas
 
 
 def renderizar_info_rodape(estado, aba_ativa):
@@ -191,6 +192,145 @@ def renderizar_area_grafico(estado):
         ))
 
     return html.Div(className='grade-opcoes-grafico', children=opcoes)
+
+
+# Opções da caixa 'Style' do painel de edição da curva — cada valor bate
+# exatamente com PreferenciasCanal.estilo_linha (src/core/arquivo.py) e
+# com o que go.Scatter aceita em line.dash (plotter.py), então não existe
+# nenhuma tradução/mapa no meio: o valor escolhido aqui é gravado e usado
+# como está. O rótulo usa um traço desenhado em texto (não emoji — não
+# existem emojis de tipo de linha) até entrarem ícones de verdade.
+OPCOES_ESTILO_LINHA = [
+    {'label': '───── Contínua', 'value': 'solid'},
+    {'label': '‑ ‑ ‑ ‑ Tracejada', 'value': 'dash'},
+    {'label': '· · · · Pontilhada', 'value': 'dot'},
+    {'label': '‑ · ‑ · Traço-ponto', 'value': 'dashdot'},
+]
+
+
+def renderizar_painel_direito_padrao(disabled=True):
+    """
+    Conteúdo 'de repouso' do painel-direito: título + placeholder +
+    botão 'Iniciar edição'. Usado tanto no primeiro carregamento da
+    página (layout.py) quanto sempre que a edição precisa ser resetada
+    (fechar o gráfico, trocar de aba, ou clicar em 'Fechar edição' no
+    próprio painel de curva) — ter essa função num lugar só evita que
+    esses 4 pontos divirjam no texto/markup com o tempo.
+
+    'disabled' controla o botão 'Iniciar edição': só deve nascer
+    habilitado se a aba ativa JÁ tem um gráfico gerado (ver
+    _estados_toolbar em callbacks.py); quem chama decide isso.
+    """
+    return [
+        html.Div('Opções do gráfico', className='painel-direito-titulo'),
+        html.P('Propriedades e customizações da curva ativa.', className='painel-direito-placeholder'),
+        html.Button(
+            '🎨 Iniciar edição',
+            id='iniciar-edicao',
+            className='botao-iniciar-edicao',
+            disabled=disabled,
+            n_clicks=0,
+        ),
+    ]
+
+
+def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
+    """
+    Conteúdo do painel-direito depois que o usuário clica em 'Iniciar
+    edição': por enquanto só a seção 'Curva' do desenho original (cor /
+    espessura / estilo de linha da curva escolhida) — as seções de eixo
+    X, eixo Y e 'Ticks and Marks' ainda não foram implementadas, ficam
+    para uma próxima etapa (o painel pode crescer com mais html.Div de
+    'painel-edicao-secao' abaixo desta, sem mexer no que já existe).
+
+    'coluna_selecionada' é opcional: se None ou se a coluna passada não
+    estiver mais no gráfico (ex: usuário desmarcou o canal), cai na
+    primeira coluna plotada.
+    """
+    colunas = colunas_plotadas(estado, aba_ativa)
+    if not colunas:
+        return [
+            html.Div('Opções do gráfico', className='painel-direito-titulo'),
+            html.P(
+                'Marque ao menos um canal no gráfico para editar suas curvas.',
+                className='painel-direito-placeholder',
+            ),
+        ]
+
+    if coluna_selecionada not in colunas:
+        coluna_selecionada = colunas[0]
+
+    arquivo = estado.arquivos[aba_ativa]
+    opcoes_dado = [{'label': arquivo.rotulo(coluna), 'value': coluna} for coluna in colunas]
+
+    # Se a curva ainda não foi editada, os controles nascem refletindo
+    # exatamente o que já está desenhado agora (mesma cor da paleta fixa,
+    # espessura/estilo padrão) — ver mesma lógica de fallback em
+    # construir_figura_serie_temporal (plotter.py), pra painel e gráfico
+    # nunca mostrarem valores diferentes pra mesma curva.
+    prefs = arquivo.preferencias.por_canal.get(coluna_selecionada)
+    indice_cor = colunas.index(coluna_selecionada)
+    cor_atual = prefs.cor if (prefs and prefs.cor) else cor_da_coluna(indice_cor)
+    espessura_atual = prefs.espessura if prefs else 1.0
+    estilo_atual = prefs.estilo_linha if prefs else 'solid'
+
+    return [
+        html.Div(className='painel-edicao-secao', children=[
+            html.Div(className='painel-edicao-secao-cabecalho', children=[
+                html.Span('Curva:', className='painel-edicao-secao-titulo'),
+                html.Button(
+                    '✕', id='fechar-edicao-curva', className='painel-edicao-fechar-btn',
+                    title='Fechar edição', n_clicks=0,
+                ),
+            ]),
+
+            html.Div(className='painel-edicao-campo', children=[
+                html.Label('Dado:', htmlFor='edicao-curva-dado', className='painel-edicao-label'),
+                dcc.Dropdown(
+                    id='edicao-curva-dado',
+                    options=opcoes_dado,
+                    value=coluna_selecionada,
+                    clearable=False,
+                    searchable=False,
+                    className='painel-edicao-dropdown',
+                ),
+            ]),
+
+            html.Div(className='painel-edicao-campo', children=[
+                html.Label('Thickness:', className='painel-edicao-label'),
+                dcc.Slider(
+                    id='edicao-curva-espessura',
+                    min=1, max=6, step=0.5,
+                    value=espessura_atual,
+                    marks=None,
+                    tooltip={'placement': 'bottom', 'always_visible': False},
+                ),
+            ]),
+
+            html.Div(className='painel-edicao-campo painel-edicao-linha', children=[
+                html.Div(className='painel-edicao-subcampo', children=[
+                    html.Label('cor:', htmlFor='edicao-curva-cor', className='painel-edicao-label'),
+                    dcc.Input(
+                        id='edicao-curva-cor',
+                        type='color',
+                        value=cor_atual,
+                        className='painel-edicao-cor',
+                    ),
+                ]),
+                html.Div(className='painel-edicao-subcampo painel-edicao-subcampo-estilo', children=[
+                    html.Label('Style:', htmlFor='edicao-curva-estilo', className='painel-edicao-label'),
+                    dcc.Dropdown(
+                        id='edicao-curva-estilo',
+                        options=OPCOES_ESTILO_LINHA,
+                        value=estilo_atual,
+                        clearable=False,
+                        searchable=False,
+                        className='painel-edicao-dropdown painel-edicao-dropdown-estilo',
+                    ),
+                ]),
+            ]),
+        ]),
+    ]
 
 
 def renderizar_grafico_com_fechar(fig):

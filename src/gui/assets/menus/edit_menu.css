@@ -1,12 +1,10 @@
 /* A direita, onde ficam as opções de edição */
 
-/* Fundo com a mesma cor do menu central + watermark de 'pintura.svg',
-   no mesmo esquema de camadas de .sidebar (ver comentário em
-   file_menu.css) — funciona bem aqui também porque este painel pode
-   rolar (overflow-y: auto) e um '::before' absoluto rolaria junto com o
-   conteúdo.
-   O painel já tinha texto escuro sobre fundo claro, então não precisou
-   de nenhuma inversão de cor como a sidebar precisou. */
+/* Casco do painel: só estrutura (tamanho, borda, fundo/watermark de
+   repouso, rolagem). O ALINHAMENTO do conteúdo (centralizado no estado
+   de repouso, ou esticado à esquerda quando o formulário 'Curva' está
+   aberto) vive em .painel-direito-conteudo logo abaixo — assim o casco
+   não precisa saber se está mostrando o placeholder ou o formulário. */
 .painel-direito {
   flex: 0 0 auto;
   width: 260px;
@@ -15,10 +13,6 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;   /* título + placeholder centralizados verticalmente... */
-  align-items: center;       /* ...e horizontalmente, no padrão do menu central */
-  gap: 14px;
-  text-align: center;
   background-color: var(--cor-fundo-grafico);
   background-image:
     linear-gradient(rgba(253, 246, 227, 0.88), rgba(253, 246, 227, 0.88)),
@@ -29,19 +23,43 @@
   border-left: 1px solid var(--cor-borda);
   padding: 16px;
   overflow-y: auto;
-  transition: background-color 0.15s ease;
+}
+
+/* Conteúdo em si — nasce centralizado (título + placeholder + botão
+   'Iniciar edição', no padrão do menu central). Quando o painel 'Curva'
+   é carregado (ver renderizar_painel_edicao em renderizadores.py), o
+   card ocupa a largura toda e fica alinhado ao topo/à esquerda — ver
+   regra '.ativa' abaixo. */
+.painel-direito-conteudo {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+  min-height: 100%;
 }
 
 /* --- estado "ativo" (usuário clicou em 'Iniciar edição') ---
-   Diferente da sidebar: aqui a cor/watermark NÃO reage sozinha à
-   existência de um gráfico — continua mostrando o visual "sem edição
-   ainda" mesmo com o gráfico gerado, até o usuário efetivamente clicar
-   no botão (ver ativar_modo_edicao em callbacks.py). Fechar o gráfico ou
-   trocar de aba volta este painel pro estado normal (ver
-   gerenciar_abas/fechar_grafico). */
+   IMPORTANTE: isto NÃO troca a cor de fundo do painel (a cor continua
+   sendo var(--cor-fundo-grafico) o tempo todo) — só remove o watermark
+   de pintura.svg, porque ele fica poluído por baixo de dropdown/slider/
+   color-picker. O que muda de verdade ao clicar em 'Iniciar edição' é o
+   CONTEÚDO: painel-direito-conteudo passa a mostrar o card 'Curva' de
+   verdade (ver abrir_painel_edicao em callbacks.py), não um efeito
+   visual solto. Fechar o gráfico, trocar de aba ou clicar no '✕' do
+   próprio card volta tudo ao estado normal (ver fechar_grafico /
+   gerenciar_abas / fechar_edicao_curva). */
 .painel-direito.ativa {
-  background-color: var(--cor-accent-suave);
   background-image: none;
+}
+
+.painel-direito.ativa .painel-direito-conteudo {
+  justify-content: flex-start;
+  align-items: stretch;
+  text-align: left;
+  gap: 16px;
 }
 
 .painel-direito-titulo {
@@ -56,6 +74,7 @@
   color: var(--cor-texto-mudo);
   line-height: 1.5;
   max-width: 200px;   /* evita que o texto vire uma linha só, esticada de borda a borda */
+  align-self: center; /* no estado 'ativo' o pai vira 'stretch', mas este texto só aparece no repouso (centralizado) */
 }
 
 .botao-iniciar-edicao {
@@ -70,6 +89,7 @@
   cursor: pointer;
   box-shadow: 0 1px 4px rgba(27, 36, 48, 0.10);
   transition: background 0.12s ease, border-color 0.12s ease;
+  align-self: center; /* idem: só aparece no repouso, mantém centralizado mesmo se o pai virar 'stretch' */
 }
 
 .botao-iniciar-edicao:hover:not(:disabled) {
@@ -80,4 +100,157 @@
 .botao-iniciar-edicao:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Painel 'Curva' — cor / espessura / estilo de linha da curva selecionada
+   (renderizar_painel_edicao em renderizadores.py). Cartão 'apoiado' sobre
+   o fundo do painel, no mesmo espírito visual de .canais-cartao
+   (file_menu.css): fundo mais claro que o painel + sombra sutil, em vez
+   de os controles ficarem soltos direto sobre o watermark.
+   ========================================================================== */
+.painel-edicao-secao {
+  width: 100%;
+  background-color: var(--cor-fundo);
+  border: 1px solid var(--cor-borda);
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(27, 36, 48, 0.10);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.painel-edicao-secao-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.painel-edicao-secao-titulo {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cor-texto-escuro);
+}
+
+/* Botão '✕' de fechar a edição, dentro do próprio card — ver
+   fechar_edicao_curva em callbacks.py. */
+.painel-edicao-fechar-btn {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--cor-texto-mudo);
+  font-size: 11px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s;
+}
+
+.painel-edicao-fechar-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--cor-texto-escuro);
+}
+
+.painel-edicao-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 'Dado:' + Thickness lado a lado com 'cor:' + 'Style:' viram uma linha
+   só (ver painel-edicao-linha na 3ª fileira do card, igual ao desenho
+   original) — cada metade é um painel-edicao-subcampo. */
+.painel-edicao-linha {
+  flex-direction: row;
+  gap: 14px;
+}
+
+.painel-edicao-subcampo {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.painel-edicao-subcampo-estilo {
+  flex: 1.4 1 0;   /* o texto das opções de estilo é mais longo que a caixinha de cor, então ganha mais espaço */
+}
+
+.painel-edicao-label {
+  font-size: 11px;
+  font-family: var(--fonte-dado);
+  color: var(--cor-texto-mudo);
+}
+
+/* Swatch de cor: input[type=color] nativo — clicar nele já abre o
+   seletor de cor do próprio navegador/SO (o 'mapa de cores' pedido),
+   sem precisar reimplementar um color-picker do zero. */
+.painel-edicao-cor {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--cor-borda);
+  border-radius: 6px;
+  background-color: var(--cor-fundo);
+  cursor: pointer;
+}
+
+.painel-edicao-cor::-webkit-color-swatch-wrapper { padding: 2px; }
+.painel-edicao-cor::-webkit-color-swatch { border: none; border-radius: 4px; }
+.painel-edicao-cor::-moz-color-swatch { border: none; border-radius: 4px; }
+
+/* dcc.Dropdown ('Dado' e 'Style') — sobrescreve só o essencial do
+   wrapper .Select do rc-select embutido no Dash pra não destoar do
+   resto do app (fonte/borda/tamanho); o menu suspenso em si já vem
+   legível o suficiente por padrão. */
+.painel-edicao-dropdown .Select-control {
+  border: 1px solid var(--cor-borda);
+  border-radius: 6px;
+  min-height: 32px;
+  font-family: var(--fonte-ui);
+}
+
+.painel-edicao-dropdown .Select-value-label,
+.painel-edicao-dropdown .Select-placeholder,
+.painel-edicao-dropdown .Select-option {
+  font-size: 12px;
+  font-family: var(--fonte-ui);
+  color: var(--cor-texto-escuro);
+}
+
+.painel-edicao-dropdown.is-focused > .Select-control {
+  border-color: var(--cor-accent);
+  box-shadow: none;
+}
+
+/* Slider de espessura (rc-slider, embutido no Dash) — só uma margem
+   lateral pra a bolinha do controle não ficar cortada nas bordas do
+   card quando o valor está no mínimo/máximo. */
+.painel-edicao-campo .rc-slider {
+  margin: 10px 6px 4px 6px;
+}
+
+.painel-edicao-campo .rc-slider-track {
+  background-color: var(--cor-accent);
+}
+
+.painel-edicao-campo .rc-slider-handle {
+  border-color: var(--cor-accent);
+}
+
+.painel-edicao-campo .rc-slider-handle:hover,
+.painel-edicao-campo .rc-slider-handle:focus,
+.painel-edicao-campo .rc-slider-handle-dragging {
+  border-color: var(--cor-accent) !important;
+  box-shadow: 0 0 0 4px rgba(47, 165, 160, 0.2) !important;
 }

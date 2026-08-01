@@ -1,11 +1,14 @@
 from dash import Input, Output, State, ctx, ALL, no_update
 from dash.exceptions import PreventUpdate
 
-from src.core.plotting.plotter import construir_figura_serie_temporal, resolver_eixo_x
+from src.core.plotting.plotter import (
+    construir_figura_serie_temporal, resolver_eixo_x, colunas_plotadas, cor_da_coluna,
+)
 from src.gui.renderizadores import (
     truncar_nome_arquivo, renderizar_abas_estilo_chrome, renderizar_colunas_da_aba_ativa,
     renderizar_area_grafico, renderizar_grafico_com_fechar,
     renderizar_info_rodape, renderizar_badge_alerta, classe_badge_alerta, renderizar_popup_alerta,
+    renderizar_painel_direito_padrao, renderizar_painel_edicao,
 )
 from src.utils.helpers import carregar_dados_de_upload
 
@@ -189,6 +192,7 @@ def registrar_callbacks(app, estado):
         Output('exportar-dados', 'disabled', allow_duplicate=True),
         Output('iniciar-edicao', 'disabled', allow_duplicate=True),
         Output('painel-direito', 'className', allow_duplicate=True),
+        Output('painel-direito-conteudo', 'children', allow_duplicate=True),
         Output('rodape-info-arquivo', 'children', allow_duplicate=True),
         Output('rodape-alerta-badge', 'children', allow_duplicate=True),
         Output('rodape-alerta-badge', 'className', allow_duplicate=True),
@@ -250,9 +254,13 @@ def registrar_callbacks(app, estado):
                 sem_grafico_da_aba,
                 # Trocar/fechar aba sempre volta o painel de edição pro estado
                 # normal — o modo "ativo" é por gráfico específico (ligado só
-                # via clique em 'Iniciar edição', ver ativar_modo_edicao), não
-                # faz sentido persistir olhando pra OUTRO arquivo/aba.
+                # via clique em 'Iniciar edição', ver abrir_painel_edicao), não
+                # faz sentido persistir editando a curva de OUTRO arquivo/aba.
+                # O conteúdo (painel-direito-conteudo) também volta ao
+                # placeholder+botão, já nascendo com o 'disabled' certo pra
+                # aba nova (sem_grafico_da_aba).
                 _classe_painel_direito(ativo=False),
+                renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba),
                 # Trocar/fechar aba muda qual arquivo é "o ativo": info, badge
                 # e popup do rodapé precisam refletir a NOVA aba, e qualquer
                 # mensagem temporária pendente da aba anterior é cancelada.
@@ -403,6 +411,7 @@ def registrar_callbacks(app, estado):
         Output('exportar-dados', 'disabled', allow_duplicate=True),
         Output('iniciar-edicao', 'disabled', allow_duplicate=True),
         Output('painel-direito', 'className', allow_duplicate=True),
+        Output('painel-direito-conteudo', 'children', allow_duplicate=True),
         Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
         Input('fechar-grafico', 'n_clicks'),
         State('aba-ativa-store', 'data'),
@@ -442,23 +451,128 @@ def registrar_callbacks(app, estado):
         sem_arquivo, _, sem_grafico_da_aba = _estados_toolbar(estado, aba_ativa)
         return (area_grafico, lista_canais, mensagem,
                 sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
-                sem_grafico_da_aba, _classe_painel_direito(ativo=False), True)
+                sem_grafico_da_aba, _classe_painel_direito(ativo=False),
+                renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba), True)
 
     @app.callback(
+        Output('painel-direito-conteudo', 'children', allow_duplicate=True),
         Output('painel-direito', 'className', allow_duplicate=True),
         Input('iniciar-edicao', 'n_clicks'),
+        State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
-    def ativar_modo_edicao(n_clicks):
+    def abrir_painel_edicao(n_clicks, aba_ativa):
         """
-        Único gatilho que liga o visual 'ativo' do painel de edição — a
-        cor/watermark NÃO reage sozinha a upload de arquivo ou geração de
-        gráfico (ver comentário em edit_menu.css), só a este clique.
-        Fechar o gráfico ou trocar de aba desliga de novo (ver
-        fechar_grafico / gerenciar_abas), já que o botão nasce desabilitado
-        até existir gráfico na aba ativa e este callback só roda com ele
-        habilitado.
+        Único gatilho que liga o modo 'edição' do painel de edição — não
+        reage sozinho a upload de arquivo ou geração de gráfico, só a
+        este clique. Fechar o gráfico, trocar de aba ou clicar em
+        'Fechar edição' desliga de novo (ver fechar_grafico,
+        gerenciar_abas e fechar_edicao_curva).
+
+        Diferente da versão antiga: não é mais só uma troca de classe
+        CSS (cor de fundo) — agora carrega de verdade o painel 'Curva'
+        (renderizar_painel_edicao) dentro de 'painel-direito-conteudo',
+        com a caixa 'Dado' já preenchida com as curvas que estão no
+        gráfico agora.
+        """
+        if not n_clicks or not aba_ativa or aba_ativa not in estado.arquivos:
+            raise PreventUpdate
+        return renderizar_painel_edicao(estado, aba_ativa), _classe_painel_direito(ativo=True)
+
+    @app.callback(
+        Output('edicao-curva-espessura', 'value'),
+        Output('edicao-curva-cor', 'value'),
+        Output('edicao-curva-estilo', 'value'),
+        Input('edicao-curva-dado', 'value'),
+        State('aba-ativa-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def sincronizar_campos_curva_selecionada(coluna, aba_ativa):
+        """
+        Toda vez que o usuário troca a curva escolhida na caixa 'Dado',
+        os 3 controles abaixo (Thickness, cor, Style) precisam refletir
+        o que JÁ está salvo pra essa curva especificamente — senão eles
+        ficariam mostrando o valor da curva anterior. Também dispara
+        (efeito colateral esperado, não um bug) na primeira vez que o
+        painel abre, já que a caixa 'Dado' acabou de nascer com um
+        valor — é o mesmo 'gatilho fantasma' de componente recém-criado
+        comentado em _clique_real, aqui é ele quem faz os controles
+        nascerem com os valores certos sem precisar duplicar essa lógica
+        em abrir_painel_edicao.
+        """
+        if not coluna or not aba_ativa or aba_ativa not in estado.arquivos:
+            raise PreventUpdate
+
+        arquivo = estado.arquivos[aba_ativa]
+        colunas = colunas_plotadas(estado, aba_ativa)
+        if coluna not in colunas:
+            raise PreventUpdate
+
+        prefs = arquivo.preferencias.por_canal.get(coluna)
+        cor_atual = prefs.cor if (prefs and prefs.cor) else cor_da_coluna(colunas.index(coluna))
+        espessura_atual = prefs.espessura if prefs else 1.0
+        estilo_atual = prefs.estilo_linha if prefs else 'solid'
+        return espessura_atual, cor_atual, estilo_atual
+
+    @app.callback(
+        Output('container-grafico', 'children', allow_duplicate=True),
+        Input('edicao-curva-espessura', 'value'),
+        Input('edicao-curva-cor', 'value'),
+        Input('edicao-curva-estilo', 'value'),
+        State('edicao-curva-dado', 'value'),
+        State('aba-ativa-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def aplicar_preferencias_curva(espessura, cor, estilo, coluna, aba_ativa):
+        """
+        Grava os 3 controles do painel 'Curva' como preferência
+        PERMANENTE do canal (arquivo.preferencias, ver src/core/arquivo.py)
+        e redesenha o gráfico na hora — é o que faz o slider/color-
+        picker/dropdown terem efeito visual imediato, em vez de só
+        ficarem guardados sem uso (que era o estado anterior: o modelo
+        já existia, só não era lido por construir_figura_serie_temporal).
+
+        Os 3 Inputs disparam juntos neste único callback (em vez de 3
+        callbacks separados) porque os 3 preenchem o MESMO
+        PreferenciasCanal e precisam terminar sempre com os 3 valores
+        atuais gravados juntos — gravar só o campo que mudou arriscaria
+        um 'value' desatualizado vencer a corrida se dois campos forem
+        mexidos em sequência rápida.
+        """
+        if not coluna or not aba_ativa or aba_ativa not in estado.arquivos:
+            raise PreventUpdate
+
+        arquivo = estado.arquivos[aba_ativa]
+        if not arquivo.grafico_gerado or coluna not in colunas_plotadas(estado, aba_ativa):
+            raise PreventUpdate
+
+        prefs = arquivo.preferencias.preferencias_do_canal(coluna)
+        prefs.espessura = espessura or 1.0
+        prefs.cor = cor
+        prefs.estilo_linha = estilo or 'solid'
+
+        fig = construir_figura_serie_temporal(estado, aba_ativa)
+        arquivo.figura = fig
+        return renderizar_grafico_com_fechar(fig)
+
+    @app.callback(
+        Output('painel-direito-conteudo', 'children', allow_duplicate=True),
+        Output('painel-direito', 'className', allow_duplicate=True),
+        Input('fechar-edicao-curva', 'n_clicks'),
+        State('aba-ativa-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def fechar_edicao_curva(n_clicks, aba_ativa):
+        """
+        Botão '✕' dentro do próprio card 'Curva' — volta o painel pro
+        estado de repouso sem depender de trocar de aba ou fechar o
+        gráfico (que já fazem o mesmo reset por outros gatilhos, ver
+        gerenciar_abas / fechar_grafico). O 'disabled' do botão
+        'Iniciar edição' que volta a aparecer é recalculado aqui (não
+        fixo em True), pra continuar habilitado se a aba ativa ainda
+        tiver gráfico gerado.
         """
         if not n_clicks:
             raise PreventUpdate
-        return _classe_painel_direito(ativo=True)
+        _, _, sem_grafico_da_aba = _estados_toolbar(estado, aba_ativa)
+        return renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba), _classe_painel_direito(ativo=False)

@@ -38,6 +38,28 @@ def _indices_amostra_uniforme(n_pontos, max_pontos=MAX_PONTOS_EXIBICAO):
     return np.linspace(0, n_pontos - 1, max_pontos).round().astype(int)
 
 
+def colunas_plotadas(estado, aba_ativa):
+    """
+    Devolve, na mesma ordem usada para desenhar as curvas, as colunas do
+    arquivo da aba ativa que estão de fato NO GRÁFICO agora (visíveis +
+    marcadas em 'estado.canais_selecionados').
+
+    Compartilhada entre `construir_figura_serie_temporal` (que desenha) e
+    o painel de edição da curva (`renderizar_painel_edicao` em
+    renderizadores.py, que precisa oferecer exatamente essas colunas na
+    caixa 'Dado') — as duas precisam concordar sobre "o que está no
+    gráfico", senão o painel deixaria escolher pra editar uma curva que
+    não está sendo exibida (ou esconderia uma que está).
+    """
+    arquivo = estado.arquivos.get(aba_ativa)
+    if arquivo is None:
+        return []
+    return [
+        col for col in arquivo.colunas_visiveis()
+        if (aba_ativa, col) in estado.canais_selecionados
+    ]
+
+
 def resolver_eixo_x(estado, df):
     """
     Decide qual coluna de UM arquivo serve de eixo X: a preferência
@@ -101,10 +123,7 @@ def construir_figura_serie_temporal(estado, aba_ativa):
     #    excluídas/ocultas — o próprio eixo X já nasce OCULTO, ver
     #    Arquivo.__post_init__ em src/core/arquivo.py) e que o usuário
     #    marcou explicitamente na barra lateral.
-    colunas_y = [
-        col for col in arquivo.colunas_visiveis()
-        if (aba_ativa, col) in estado.canais_selecionados
-    ]
+    colunas_y = colunas_plotadas(estado, aba_ativa)
 
     if colunas_y:
         # 3. Calcula os índices de amostragem para exibição — reaproveitados
@@ -116,9 +135,15 @@ def construir_figura_serie_temporal(estado, aba_ativa):
         else:
             x_valores = df[eixo_x]
 
-        # 4. Plota cada canal marcado
+        # 4. Plota cada canal marcado, respeitando as preferências que o
+        #    usuário já tenha ajustado no painel de edição da curva (cor,
+        #    espessura, estilo de linha — ver PreferenciasCanal em
+        #    src/core/arquivo.py). Um canal ainda não editado não tem
+        #    entrada em 'por_canal', então cai nos padrões de sempre: cor
+        #    da paleta fixa (mesmo esquema da sidebar) e traço fino sólido.
         for indice_cor, coluna in enumerate(colunas_y):
             rotulo = arquivo.rotulo(coluna)
+            prefs = arquivo.preferencias.por_canal.get(coluna)
 
             y_valores = (
                 df[coluna].to_numpy()[indices_exibicao]
@@ -131,7 +156,11 @@ def construir_figura_serie_temporal(estado, aba_ativa):
                 y=y_valores,
                 mode='lines',
                 name=rotulo,
-                line=dict(color=cor_da_coluna(indice_cor)),
+                line=dict(
+                    color=(prefs.cor if prefs and prefs.cor else cor_da_coluna(indice_cor)),
+                    width=(prefs.espessura if prefs else 1.0),
+                    dash=(prefs.estilo_linha if prefs else 'solid'),
+                ),
             ))
 
     fig.update_layout(

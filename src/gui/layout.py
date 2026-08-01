@@ -4,6 +4,7 @@ from src.gui.components import icone_colorido
 from src.gui.renderizadores import (
     renderizar_area_grafico, renderizar_info_rodape,
     renderizar_badge_alerta, renderizar_popup_alerta,
+    renderizar_painel_direito_padrao,
 )
 
 # Tempo (ms) que uma mensagem "temporária" do mago fica visível antes de
@@ -95,7 +96,7 @@ def montar_layout(estado):
                     html.Div(id='container-abas-chrome', className='tabs-chrome-container'),
                     html.Button('›', id='aba-nav-direita', className='aba-nav-btn', n_clicks=0),
                 ]),
-                html.Div('Colunas:', className='sidebar-secao-titulo'),
+                html.Div('Dados do arquivo:', className='sidebar-secao-titulo'),
                 html.Div(id='lista-canais-aba', className='menu-canais-container')
             ]),
 
@@ -123,14 +124,10 @@ def montar_layout(estado):
             # isso a partir daqui olhando o gráfico da aba ativa — ver
             # _estados_toolbar).
             html.Div(id='painel-direito', className='painel-direito', children=[
-                html.Div('Opções do gráfico', className='painel-direito-titulo'),
-                html.P('Propriedades e customizações da curva ativa.', className='painel-direito-placeholder'),
-                html.Button(
-                    '🎨 Iniciar edição',
-                    id='iniciar-edicao',
-                    className='botao-iniciar-edicao',
-                    disabled=True,
-                    n_clicks=0,
+                html.Div(
+                    id='painel-direito-conteudo',
+                    className='painel-direito-conteudo',
+                    children=renderizar_painel_direito_padrao(disabled=True),
                 ),
             ]),
         ]),
