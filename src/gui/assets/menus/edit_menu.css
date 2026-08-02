@@ -13,6 +13,15 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  /* Repouso: título+placeholder (.painel-direito-conteudo) e o botão
+     'Iniciar edição' são dois itens de tamanho natural (nenhum dos
+     dois tem flex:1 agora) — centralizar o EIXO PRINCIPAL aqui é o que
+     agrupa os dois no meio do painel, com o botão logo abaixo do
+     texto, em vez de cada um ficar isolado numa ponta. Não afeta o
+     estado '.ativa' (o card 'Curva' abaixo já vira o único item visível
+     ali, com flex:1 1 auto — ver regra '.ativa .painel-direito-conteudo'
+     mais abaixo). */
+  justify-content: center;
   background-color: var(--cor-fundo-grafico);
   background-image:
     linear-gradient(rgba(253, 246, 227, 0.88), rgba(253, 246, 227, 0.88)),
@@ -31,14 +40,12 @@
    card ocupa a largura toda e fica alinhado ao topo/à esquerda — ver
    regra '.ativa' abaixo. */
 .painel-direito-conteudo {
-  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   gap: 14px;
   text-align: center;
-  min-height: 100%;
 }
 
 /* --- estado "ativo" (usuário clicou em 'Iniciar edição') ---
@@ -64,6 +71,8 @@
 }
 
 .painel-direito.ativa .painel-direito-conteudo {
+  flex: 1 1 auto;
+  min-height: 100%;
   justify-content: flex-start;
   align-items: stretch;
   text-align: left;
@@ -194,40 +203,152 @@
 
 .painel-edicao-label {
   font-size: 11px;
-  font-family: var(--fonte-dado);
+  font-family: var(--fonte-ui);
   color: var(--cor-texto-mudo);
 }
 
-/* Paleta de cores do campo 'cor' — dcc.Input(type='color') não é mais
-   um 'type' válido em versões recentes do dash-core-components (só
-   text/number/password/email/range/search/tel/url/hidden), então o
-   seletor nativo do navegador virou uma grade de swatches clicáveis
-   (ver _swatches_cor em renderizadores.py). Cada bolinha é pequena de
-   propósito — são até 13 cores numa coluna de ~1/3 da largura do
-   painel, não precisa do tamanho de um botão normal. */
-.painel-edicao-cor-paleta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
+/* ==========================================================================
+   Seletor de cor do campo 'cor' (ver _seletor_cor em renderizadores.py)
+   — dcc.Input(type='color') não é um 'type' válido no
+   dash-core-components instalado (só text/number/password/email/range/
+   search/tel/url/hidden), então o seletor nativo do navegador nunca foi
+   opção. Em vez disso: uma caixinha que mostra a cor atual e abre, ao
+   clicar, um painel flutuante com área de saturação/brilho + barra de
+   matiz + campos R/G/B (a interação de arraste é toda JS, ver
+   iniciarSeletorCor em scripts_js.py).
+   ========================================================================== */
+.cor-picker-wrapper {
+  position: relative;
+  display: inline-block;
 }
 
-.cor-swatch {
-  width: 18px;
-  height: 18px;
+.cor-picker-caixa {
+  width: 26px;
+  height: 26px;
   padding: 0;
-  border: 1px solid rgba(27, 36, 48, 0.18);
-  border-radius: 50%;
+  border: 1px solid var(--cor-borda);
+  border-radius: 6px;
   cursor: pointer;
-  transition: transform 0.08s ease, border-color 0.08s ease;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
 }
 
-.cor-swatch:hover {
-  transform: scale(1.15);
+.cor-picker-caixa:hover {
+  border-color: var(--cor-accent);
 }
 
-.cor-swatch.selecionada {
-  border: 2px solid var(--cor-texto-escuro);
-  box-shadow: 0 0 0 2px var(--cor-fundo), 0 0 0 3px var(--cor-accent);
+.cor-picker-painel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  width: 200px;
+  background: var(--cor-fundo);
+  border: 1px solid var(--cor-borda);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(27, 36, 48, 0.22);
+  padding: 10px;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cor-picker-painel.aberto {
+  display: flex;
+}
+
+/* Área de saturação (eixo X) / brilho (eixo Y): a cor pura da matiz
+   fica num fundo próprio (.cor-picker-area-fundo, cor de fundo
+   definida via 'style' inline — Python no primeiro render, JS durante
+   o arraste), com branco->transparente da esquerda pra direita e
+   transparente->preto de cima pra baixo sobrepostos por cima. */
+.cor-picker-area {
+  position: relative;
+  width: 100%;
+  height: 120px;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: crosshair;
+  background-image:
+    linear-gradient(to bottom, transparent, #000),
+    linear-gradient(to right, #fff, transparent);
+}
+
+.cor-picker-area-fundo {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.cor-picker-area-cursor {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* Barra de matiz (arco-íris completo, 0-360°). */
+.cor-picker-hue {
+  position: relative;
+  width: 100%;
+  height: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: linear-gradient(
+    to right,
+    #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000
+  );
+}
+
+.cor-picker-hue-cursor {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.cor-picker-campos {
+  display: flex;
+  gap: 6px;
+}
+
+.cor-picker-campo {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.cor-picker-input {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+  font-family: var(--fonte-ui);
+  font-size: 11px;
+  color: var(--cor-texto-escuro);
+  border: 1px solid var(--cor-borda);
+  border-radius: 4px;
+  padding: 3px 2px;
+}
+
+.cor-picker-input:focus {
+  outline: none;
+  border-color: var(--cor-accent);
+}
+
+.cor-picker-label {
+  font-size: 10px;
+  font-family: var(--fonte-ui);
+  color: var(--cor-texto-mudo);
 }
 
 /* dcc.Dropdown ('Dado' e 'Style') — sobrescreve só o essencial do

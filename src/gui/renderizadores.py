@@ -213,12 +213,42 @@ OPCOES_ESTILO_LINHA = [
     {'label': '‑‑ · ‑‑ · ‑‑', 'value': 'longdashdot'},
 ]
 
-# Paleta de cores oferecida no painel 'Curva' — mesma paleta padrão do
-# gráfico (PALETA_CORES, plotter.py), pra a cor "de fábrica" de cada
-# canal já aparecer marcada como opção, mais um punhado de cores neutras
-# (preto/cinza/branco) que não fazem parte da paleta automática mas são
-# um pedido comum pra curvas de referência/eixo.
+# Usado só como cor "de fábrica" quando o card 'Curva' abre sem nenhum
+# canal plotado (ver renderizar_painel_edicao) — não existe mais uma
+# paleta fixa de opções, o seletor de cor agora é livre (ver
+# _seletor_cor logo abaixo).
 PALETA_EDICAO_CORES = PALETA_CORES + ['#1B2430', '#7A8699', '#FFFFFF']
+
+
+def _hex_para_rgb(cor_hex):
+    """'#RRGGBB' -> (r, g, b), 0-255 cada. Hex inválido/ausente vira preto."""
+    cor_hex = (cor_hex or '#000000').lstrip('#')
+    if len(cor_hex) != 6:
+        cor_hex = '000000'
+    try:
+        return tuple(int(cor_hex[i:i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return (0, 0, 0)
+
+
+def _rgb_para_hsv(r, g, b):
+    """(r, g, b) 0-255 -> (h, s, v) com h em graus (0-360) e s/v em 0-1."""
+    r, g, b = r / 255, g / 255, b / 255
+    maximo, minimo = max(r, g, b), min(r, g, b)
+    delta = maximo - minimo
+
+    if delta == 0:
+        h = 0.0
+    elif maximo == r:
+        h = 60 * (((g - b) / delta) % 6)
+    elif maximo == g:
+        h = 60 * (((b - r) / delta) + 2)
+    else:
+        h = 60 * (((r - g) / delta) + 4)
+
+    s = 0.0 if maximo == 0 else delta / maximo
+    v = maximo
+    return h, s, v
 
 
 def renderizar_painel_direito_padrao(disabled=True):
@@ -249,34 +279,77 @@ def renderizar_painel_direito_padrao(disabled=True):
     """
     return [
         html.Div('Opções do gráfico', className='painel-direito-titulo'),
-        html.P('Propriedades e customizações da curva ativa.', className='painel-direito-placeholder'),
+        html.P('Customizações do gráfico', className='painel-direito-placeholder'),
     ]
 
 
-def _swatches_cor(cor_atual):
+def _seletor_cor(cor_atual):
     """
-    Paleta de cores clicável do campo 'cor' — substitui o antigo
-    dcc.Input(type='color'), que NÃO é mais um 'type' válido em
-    versões recentes do dash-core-components (só aceita text, number,
-    password, email, range, search, tel, url, hidden). Era isso que
-    disparava o erro de console 'Invalid argument `type`... Value
-    provided: "color"' e, em seguida, a quebra de JS que travava o
-    app ('undefined does not have a method named "join"').
+    Seletor de cor customizado: uma caixinha mostrando a cor atual que,
+    ao ser clicada, abre um painel com uma área de saturação/brilho +
+    barra de matiz (arraste com o mouse — ver iniciarSeletorCor em
+    scripts_js.py) e 3 campos numéricos R/G/B (edição direta, sem
+    precisar do mouse). Substitui a antiga grade de swatches fixos:
+    dcc.Input(type='color') não é um 'type' válido no
+    dash-core-components instalado (só aceita text/number/password/
+    email/range/search/tel/url/hidden), então o seletor nativo do
+    navegador nunca foi opção aqui.
 
-    Cada swatch é um botão com id de pattern-matching
-    {'type': 'edicao-curva-cor-swatch', 'cor': <hex>} — ver
-    selecionar_cor_curva em callbacks.py. A cor efetivamente escolhida
-    fica num dcc.Store('edicao-curva-cor'), não mais num dcc.Input.
+    'edicao-curva-cor' (dcc.Store, mesmo de antes) continua sendo a
+    fonte de verdade em hexadecimal pra aplicar_preferencias_curva; os
+    campos R/G/B são o que o usuário mexe de fato — um callback
+    (sincronizar_cor_rgb, em callbacks.py) traduz pra hex e grava lá.
+
+    'data-hue'/'data-sat'/'data-val' no wrapper guardam o HSV atual: é
+    o que o arraste do mouse lê/escreve, porque RGB sozinho não
+    distingue "matiz perdida" (cinza puro) da matiz que o usuário
+    tinha escolhido antes de arrastar só o brilho, por exemplo.
     """
-    return html.Div(className='painel-edicao-cor-paleta', children=[
-        html.Button(
-            id={'type': 'edicao-curva-cor-swatch', 'cor': cor},
-            className='cor-swatch' + (' selecionada' if cor == cor_atual else ''),
-            style={'backgroundColor': cor},
-            title=cor,
-            n_clicks=0,
-        )
-        for cor in PALETA_EDICAO_CORES
+    r, g, b = _hex_para_rgb(cor_atual)
+    h, s, v = _rgb_para_hsv(r, g, b)
+
+    return html.Div(
+        className='cor-picker-wrapper',
+        **{'data-hue': round(h, 2), 'data-sat': round(s, 4), 'data-val': round(v, 4)},
+        children=[
+            html.Button(
+                id='cor-picker-caixa', className='cor-picker-caixa', n_clicks=0,
+                title='Escolher cor', style={'backgroundColor': cor_atual},
+            ),
+            html.Div(id='cor-picker-painel', className='cor-picker-painel', children=[
+                html.Div(id='cor-picker-area', className='cor-picker-area', children=[
+                    html.Div(
+                        id='cor-picker-area-fundo', className='cor-picker-area-fundo',
+                        style={'backgroundColor': f'hsl({h:.1f}, 100%, 50%)'},
+                    ),
+                    html.Div(
+                        id='cor-picker-area-cursor', className='cor-picker-area-cursor',
+                        style={'left': f'{s * 100:.2f}%', 'top': f'{(1 - v) * 100:.2f}%'},
+                    ),
+                ]),
+                html.Div(id='cor-picker-hue', className='cor-picker-hue', children=[
+                    html.Div(
+                        id='cor-picker-hue-cursor', className='cor-picker-hue-cursor',
+                        style={'left': f'{(h / 360) * 100:.2f}%'},
+                    ),
+                ]),
+                html.Div(className='cor-picker-campos', children=[
+                    _campo_rgb('edicao-curva-rgb-r', 'R', r),
+                    _campo_rgb('edicao-curva-rgb-g', 'G', g),
+                    _campo_rgb('edicao-curva-rgb-b', 'B', b),
+                ]),
+            ]),
+        ],
+    )
+
+
+def _campo_rgb(id_input, rotulo, valor):
+    return html.Div(className='cor-picker-campo', children=[
+        dcc.Input(
+            id=id_input, type='number', min=0, max=255, step=1, value=valor,
+            className='cor-picker-input',
+        ),
+        html.Label(rotulo, className='cor-picker-label'),
     ])
 
 
@@ -366,7 +439,7 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
                 html.Div(className='painel-edicao-subcampo', children=[
                     html.Label('cor:', className='painel-edicao-label'),
                     dcc.Store(id='edicao-curva-cor', data=cor_atual),
-                    _swatches_cor(cor_atual),
+                    _seletor_cor(cor_atual),
                 ]),
                 html.Div(className='painel-edicao-subcampo painel-edicao-subcampo-estilo', children=[
                     html.Label('Style:', htmlFor='edicao-curva-estilo', className='painel-edicao-label'),

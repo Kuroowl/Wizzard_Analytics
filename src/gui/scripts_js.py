@@ -1,5 +1,47 @@
 SCRIPT_DIVISORIA = """
 <script>
+// Conversores HSV<->RGB do seletor de cor (ver _seletor_cor em
+// renderizadores.py). Ficam FORA do DOMContentLoaded, presos em
+// 'window', porque duas partes independentes precisam deles: o
+// arraste do mouse aqui embaixo (iniciarSeletorCor) E o
+// app.clientside_callback registrado em callbacks.py (que roda em
+// outro momento, disparado pelo Dash, não por este listener).
+window.wizzardCor = {
+    hsvParaRgb: function (h, s, v) {
+        h = ((h % 360) + 360) % 360;
+        var c = v * s;
+        var x = c * (1 - Math.abs((h / 60) % 2 - 1));
+        var m = v - c;
+        var rp, gp, bp;
+        if (h < 60) { rp = c; gp = x; bp = 0; }
+        else if (h < 120) { rp = x; gp = c; bp = 0; }
+        else if (h < 180) { rp = 0; gp = c; bp = x; }
+        else if (h < 240) { rp = 0; gp = x; bp = c; }
+        else if (h < 300) { rp = x; gp = 0; bp = c; }
+        else { rp = c; gp = 0; bp = x; }
+        return {
+            r: Math.round((rp + m) * 255),
+            g: Math.round((gp + m) * 255),
+            b: Math.round((bp + m) * 255),
+        };
+    },
+    rgbParaHsv: function (r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        var max = Math.max(r, g, b), min = Math.min(r, g, b);
+        var delta = max - min;
+        var h = 0;
+        if (delta !== 0) {
+            if (max === r) h = 60 * (((g - b) / delta) % 6);
+            else if (max === g) h = 60 * (((b - r) / delta) + 2);
+            else h = 60 * (((r - g) / delta) + 4);
+        }
+        if (h < 0) h += 360;
+        var s = max === 0 ? 0 : delta / max;
+        var v = max;
+        return { h: h, s: s, v: v };
+    },
+};
+
 document.addEventListener('DOMContentLoaded', function () {
     // Liga um divisor arrastável (elemento com a classe '.divisor-resize') a
     // um painel-alvo, cujo 'width' é atualizado ao vivo durante o arraste.
@@ -139,6 +181,122 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
     iniciarAlertaRodape();
+
+    function iniciarSeletorCor() {
+        // Abre/fecha o painel flutuante ao clicar na caixinha — mesma
+        // técnica de delegação de 'iniciarAlertaRodape' logo acima: o
+        // card 'Curva' inteiro (com o seletor dentro) é recriado toda
+        // vez que o usuário troca de aba ou reabre a edição, então um
+        // listener preso direto no nó se perderia.
+        document.addEventListener('click', function (e) {
+            var caixa = e.target.closest && e.target.closest('.cor-picker-caixa');
+            var painelAberto = document.querySelector('.cor-picker-painel.aberto');
+
+            if (caixa) {
+                var painel = caixa.parentElement.querySelector('.cor-picker-painel');
+                var jaAberto = painel.classList.contains('aberto');
+                if (painelAberto && painelAberto !== painel) painelAberto.classList.remove('aberto');
+                painel.classList.toggle('aberto', !jaAberto);
+                e.stopPropagation();
+                return;
+            }
+
+            if (painelAberto && !e.target.closest('.cor-picker-painel')) {
+                painelAberto.classList.remove('aberto');
+            }
+        });
+
+        // Escreve um novo valor num dos 3 campos R/G/B disparando um
+        // evento 'input' nativo — é assim que o Dash (que escuta o DOM,
+        // não só cliques do React) percebe a mudança e roda
+        // 'sincronizar_cor_rgb' em callbacks.py, sem precisar de nenhum
+        // componente Dash "escondido" só pra fazer essa ponte.
+        function definirCampoRgb(elemento, valor) {
+            var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+            setter.call(elemento, valor);
+            elemento.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        function aplicarRgb(wrapper, h, s, v) {
+            var rgb = window.wizzardCor.hsvParaRgb(h, s, v);
+            wrapper.dataset.hue = h;
+            wrapper.dataset.sat = s;
+            wrapper.dataset.val = v;
+
+            var campoR = wrapper.querySelector('#edicao-curva-rgb-r');
+            var campoG = wrapper.querySelector('#edicao-curva-rgb-g');
+            var campoB = wrapper.querySelector('#edicao-curva-rgb-b');
+            if (campoR) definirCampoRgb(campoR, rgb.r);
+            if (campoG) definirCampoRgb(campoG, rgb.g);
+            if (campoB) definirCampoRgb(campoB, rgb.b);
+        }
+
+        var arrastandoArea = null;
+        var arrastandoHue = null;
+
+        document.addEventListener('mousedown', function (e) {
+            var area = e.target.closest && e.target.closest('.cor-picker-area');
+            var hue = e.target.closest && e.target.closest('.cor-picker-hue');
+
+            if (area) {
+                arrastandoArea = area;
+                moverNaArea(area, e);
+                e.preventDefault();
+            } else if (hue) {
+                arrastandoHue = hue;
+                moverNoHue(hue, e);
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('mousemove', function (e) {
+            if (arrastandoArea) moverNaArea(arrastandoArea, e);
+            if (arrastandoHue) moverNoHue(arrastandoHue, e);
+        });
+
+        document.addEventListener('mouseup', function () {
+            arrastandoArea = null;
+            arrastandoHue = null;
+        });
+
+        // Área de saturação (eixo X) / brilho (eixo Y, invertido: topo =
+        // brilho máximo). A matiz não muda aqui, só lê o 'data-hue' que
+        // já está salvo no wrapper (escrito no primeiro render em Python
+        // ou pelo último arraste na barra de matiz).
+        function moverNaArea(area, e) {
+            var wrapper = area.closest('.cor-picker-wrapper');
+            if (!wrapper) return;
+            var rect = area.getBoundingClientRect();
+            var x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            var y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+            var h = parseFloat(wrapper.dataset.hue || '0');
+            aplicarRgb(wrapper, h, x, 1 - y);
+
+            var cursor = area.querySelector('.cor-picker-area-cursor');
+            if (cursor) {
+                cursor.style.left = (x * 100) + '%';
+                cursor.style.top = (y * 100) + '%';
+            }
+        }
+
+        function moverNoHue(hue, e) {
+            var wrapper = hue.closest('.cor-picker-wrapper');
+            if (!wrapper) return;
+            var rect = hue.getBoundingClientRect();
+            var x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            var h = x * 360;
+            var s = parseFloat(wrapper.dataset.sat || '0');
+            var v = parseFloat(wrapper.dataset.val || '0');
+            aplicarRgb(wrapper, h, s, v);
+
+            var fundo = wrapper.querySelector('.cor-picker-area-fundo');
+            if (fundo) fundo.style.backgroundColor = 'hsl(' + h.toFixed(1) + ', 100%, 50%)';
+
+            var cursor = hue.querySelector('.cor-picker-hue-cursor');
+            if (cursor) cursor.style.left = (x * 100) + '%';
+        }
+    }
+    iniciarSeletorCor();
 
     function iniciarBarraCarregamentoRodape() {
         // Liga o preenchimento verde do '#rodape-status' ao estado REAL de

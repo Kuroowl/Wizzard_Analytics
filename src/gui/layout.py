@@ -30,6 +30,13 @@ def montar_layout(estado):
 
     return html.Div(className='app-shell', children=[
         dcc.Store(id='aba-ativa-store', data=None),
+        # Espelha 'edicao-curva-dado'.value. Existe sempre (diferente do
+        # dropdown, que só nasce quando o painel de edição está aberto) —
+        # é isso que permite ler a curva em edição como State em callbacks
+        # que disparam independente do painel estar aberto (ver
+        # gerenciar_selecao_canais em callbacks.py), sem cair no erro
+        # "A nonexistent object was used in an State of a Dash callback".
+        dcc.Store(id='edicao-curva-dado-atual', data=None),
 
         html.Div(className='menubar', children=[
             html.Span('Arquivo', className='menubar-item'),

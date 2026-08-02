@@ -8,7 +8,7 @@ from src.gui.renderizadores import (
     truncar_nome_arquivo, renderizar_abas_estilo_chrome, renderizar_colunas_da_aba_ativa,
     renderizar_area_grafico, renderizar_grafico_com_fechar,
     renderizar_info_rodape, renderizar_badge_alerta, classe_badge_alerta, renderizar_popup_alerta,
-    renderizar_painel_direito_padrao, renderizar_painel_edicao, PALETA_EDICAO_CORES,
+    renderizar_painel_direito_padrao, renderizar_painel_edicao, _hex_para_rgb,
 )
 from src.utils.helpers import carregar_dados_de_upload
 
@@ -62,20 +62,6 @@ def _estados_toolbar(estado, aba_ativa):
 def _classe_painel_direito(ativo):
     """Classe do painel de edição: 'ativa' só quando o usuário clica em 'Iniciar edição'."""
     return 'painel-direito ativa' if ativo else 'painel-direito'
-
-
-def _classes_swatches_cor(cor_selecionada):
-    """
-    Uma classe por swatch da paleta de cores (ver _swatches_cor em
-    renderizadores.py), na mesma ordem de PALETA_EDICAO_CORES — usado
-    pelo Output de pattern-matching que realça visualmente qual cor
-    está selecionada agora, tanto ao trocar de curva no 'Dado' quanto
-    ao clicar num swatch novo.
-    """
-    return [
-        'cor-swatch' + (' selecionada' if cor == cor_selecionada else '')
-        for cor in PALETA_EDICAO_CORES
-    ]
 
 
 def _valores_rodape(estado, aba_ativa):
@@ -294,7 +280,7 @@ def registrar_callbacks(app, estado):
         Input({'type': 'botao-excluir-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('painel-direito', 'className'),
-        State('edicao-curva-dado', 'value'),
+        State('edicao-curva-dado-atual', 'data'),
         prevent_initial_call=True,
     )
     def gerenciar_selecao_canais(n_clicks_list, _n_clicks_excluir, aba_ativa, classe_painel_direito, coluna_em_edicao):
@@ -494,6 +480,22 @@ def registrar_callbacks(app, estado):
                 renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba), True)
 
     @app.callback(
+        Output('edicao-curva-dado-atual', 'data'),
+        Input('edicao-curva-dado', 'value'),
+        prevent_initial_call=True,
+    )
+    def sincronizar_curva_em_edicao(coluna):
+        """
+        Espelha 'edicao-curva-dado'.value em 'edicao-curva-dado-atual'
+        (Store fixo, ver layout.py) toda vez que o dropdown muda. Como
+        'edicao-curva-dado' é o próprio Input aqui, esse callback só
+        chega a rodar quando ele já existe na árvore — nada a temer
+        (diferente de usá-lo como State em outro callback, ver
+        gerenciar_selecao_canais).
+        """
+        return coluna
+
+    @app.callback(
         Output('painel-direito-conteudo', 'children', allow_duplicate=True),
         Output('painel-direito', 'className', allow_duplicate=True),
         Input('iniciar-edicao', 'n_clicks'),
@@ -522,7 +524,9 @@ def registrar_callbacks(app, estado):
         Output('edicao-curva-espessura', 'value'),
         Output('edicao-curva-cor', 'data'),
         Output('edicao-curva-estilo', 'value'),
-        Output({'type': 'edicao-curva-cor-swatch', 'cor': ALL}, 'className'),
+        Output('edicao-curva-rgb-r', 'value'),
+        Output('edicao-curva-rgb-g', 'value'),
+        Output('edicao-curva-rgb-b', 'value'),
         Input('edicao-curva-dado', 'value'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
@@ -556,28 +560,79 @@ def registrar_callbacks(app, estado):
         cor_atual = prefs.cor if (prefs and prefs.cor) else cor_da_coluna(colunas.index(coluna))
         espessura_atual = prefs.espessura if prefs else 1.0
         estilo_atual = prefs.estilo_linha if prefs else 'solid'
-        return espessura_atual, cor_atual, estilo_atual, _classes_swatches_cor(cor_atual)
+        r, g, b = _hex_para_rgb(cor_atual)
+        return espessura_atual, cor_atual, estilo_atual, r, g, b
 
     @app.callback(
         Output('edicao-curva-cor', 'data', allow_duplicate=True),
-        Output({'type': 'edicao-curva-cor-swatch', 'cor': ALL}, 'className', allow_duplicate=True),
-        Input({'type': 'edicao-curva-cor-swatch', 'cor': ALL}, 'n_clicks'),
+        Output('cor-picker-caixa', 'style', allow_duplicate=True),
+        Input('edicao-curva-rgb-r', 'value'),
+        Input('edicao-curva-rgb-g', 'value'),
+        Input('edicao-curva-rgb-b', 'value'),
         prevent_initial_call=True,
     )
-    def selecionar_cor_curva(_n_clicks_list):
+    def sincronizar_cor_rgb(r, g, b):
         """
-        Clique num swatch da paleta de cores (ver _swatches_cor em
-        renderizadores.py) — substitui o antigo dcc.Input(type='color'),
-        que não é mais um 'type' aceito pelo dash-core-components
-        instalado (ver comentário em cima de _swatches_cor). Só grava
-        qual cor foi clicada no Store; quem de fato aplica a cor na
-        curva/gráfico é aplicar_preferencias_curva, reagindo à mudança
-        de 'edicao-curva-cor'.data.
+        Fonte de verdade dos 3 campos R/G/B do novo seletor de cor (ver
+        _seletor_cor em renderizadores.py) — preenchidos tanto por
+        digitação direta quanto pelo arraste do mouse na área de
+        saturação/matiz (que escreve nesses mesmos campos disparando um
+        evento 'input' nativo, ver iniciarSeletorCor em scripts_js.py).
+
+        Traduz pra hex e grava em 'edicao-curva-cor' (o Store que
+        aplicar_preferencias_curva realmente lê pra desenhar a curva) e
+        atualiza a cor de fundo da caixinha visível fora do painel.
         """
-        if not _clique_real(ctx.triggered):
+        if r is None or g is None or b is None:
             raise PreventUpdate
-        cor_escolhida = ctx.triggered_id['cor']
-        return cor_escolhida, _classes_swatches_cor(cor_escolhida)
+        r = max(0, min(255, int(r)))
+        g = max(0, min(255, int(g)))
+        b = max(0, min(255, int(b)))
+        cor_hex = f'#{r:02x}{g:02x}{b:02x}'
+        return cor_hex, {'backgroundColor': cor_hex}
+
+    # Callback client-side (roda no navegador, sem round-trip com o
+    # servidor): reposiciona o cursor da área de saturação/brilho, o
+    # cursor da barra de matiz e a cor de fundo da área, toda vez que
+    # os campos R/G/B mudam — seja por digitação direta, seja porque
+    # 'sincronizar_campos_curva_selecionada' trocou de curva. Sem isto,
+    # o seletor visual ficaria "desalinhado" do valor real sempre que a
+    # cor mudasse por um caminho que não fosse o próprio arraste do
+    # mouse (que já se auto-posiciona, ver moverNaArea/moverNoHue em
+    # scripts_js.py).
+    app.clientside_callback(
+        """
+        function(r, g, b) {
+            if (r === null || r === undefined || g === null || g === undefined || b === null || b === undefined) {
+                return [window.dash_clientside.no_update, window.dash_clientside.no_update, window.dash_clientside.no_update];
+            }
+            var hsv = window.wizzardCor.rgbParaHsv(
+                Math.max(0, Math.min(255, r)),
+                Math.max(0, Math.min(255, g)),
+                Math.max(0, Math.min(255, b))
+            );
+            var caixa = document.getElementById('cor-picker-caixa');
+            var wrapper = caixa ? caixa.closest('.cor-picker-wrapper') : null;
+            if (wrapper) {
+                wrapper.dataset.hue = hsv.h;
+                wrapper.dataset.sat = hsv.s;
+                wrapper.dataset.val = hsv.v;
+            }
+            return [
+                {backgroundColor: 'hsl(' + hsv.h.toFixed(1) + ', 100%, 50%)'},
+                {left: (hsv.s * 100).toFixed(2) + '%', top: ((1 - hsv.v) * 100).toFixed(2) + '%'},
+                {left: (hsv.h / 360 * 100).toFixed(2) + '%'},
+            ];
+        }
+        """,
+        Output('cor-picker-area-fundo', 'style'),
+        Output('cor-picker-area-cursor', 'style'),
+        Output('cor-picker-hue-cursor', 'style'),
+        Input('edicao-curva-rgb-r', 'value'),
+        Input('edicao-curva-rgb-g', 'value'),
+        Input('edicao-curva-rgb-b', 'value'),
+        prevent_initial_call=True,
+    )
 
     @app.callback(
         Output('container-grafico', 'children', allow_duplicate=True),
