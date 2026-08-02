@@ -170,8 +170,11 @@ def montar_layout(estado):
                 html.Span(id='rodape-info-arquivo', className='rodape-info',
                           children=renderizar_info_rodape(estado, None)),
 
-                html.Span(' | ', className='rodape-separador'),
-
+                # Sem separador de texto ' | ' aqui: o alerta agora é
+                # empurrado pra ponta direita da seção via
+                # 'justify-content: space-between' (ver .rodape-secao-
+                # -arquivo em status_menu.css) e a própria borda direita
+                # da seção já faz o papel visual do '|' no fim da linha.
                 html.Div(id='rodape-alerta-wrapper', className='rodape-alerta-wrapper', children=[
                     html.Div(id='rodape-alerta-popup', className='rodape-alerta-popup',
                              children=renderizar_popup_alerta(estado, None)),

@@ -31,6 +31,13 @@
   padding: 0 14px;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   overflow: visible;         /* o popup do alerta (rodape-alerta-popup) precisa poder "vazar" pra cima */
+
+  /* 'lin/col/encoding' fixo na ponta esquerda, alerta fixo na ponta
+     direita (encostado na borda da seção, que é o divisor visual "|" do
+     fim da linha) — o espaço ENTRE os dois que cresce/encolhe conforme o
+     divisor da sidebar é arrastado, nunca o texto nem o botão em si (ver
+     flex-shrink: 0 nos dois abaixo). */
+  justify-content: space-between;
 }
 
 .rodape-secao-central {
@@ -59,6 +66,7 @@
 
 .rodape-info {
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .rodape-separador {
@@ -72,6 +80,7 @@
   position: relative;
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;   /* sempre no mesmo tamanho, nunca espremido junto com a barra */
 }
 
 .rodape-alerta-badge {
