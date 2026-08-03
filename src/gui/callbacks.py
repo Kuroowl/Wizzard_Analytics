@@ -561,7 +561,7 @@ def registrar_callbacks(app, estado):
         cor_atual = prefs.cor if (prefs and prefs.cor) else cor_da_coluna(colunas.index(coluna))
         espessura_atual = prefs.espessura if prefs else 1.0
         estilo_atual = prefs.estilo_linha if prefs else 'solid'
-        marcador_atual = prefs.marcador if prefs else 'continuo'
+        marcador_atual = prefs.marcador if prefs else 'none'
         r, g, b = _hex_para_rgb(cor_atual)
         return espessura_atual, cor_atual, estilo_atual, marcador_atual, r, g, b
 
@@ -655,12 +655,14 @@ def registrar_callbacks(app, estado):
         ficarem guardados sem uso (que era o estado anterior: o modelo
         já existia, só não era lido por construir_figura_serie_temporal).
 
-        'marcador' é quem decide se a curva desenha como linha contínua,
-        linha+marcador ou só marcador (scatter puro) — ver
-        resolver_modo_e_marcador em plotter.py, que traduz o 'value' da
-        caixa 'Marker' no (mode, symbol) que go.Scatter entende. Voltar
-        pra 'continuo' basta pra desfazer: a curva volta a desenhar como
-        linha contínua de novo, sem precisar de outro controle.
+        'marcador' é INDEPENDENTE de 'estilo' — escolher um marcador
+        soma um símbolo em cada ponto da MESMA curva, sem trocar o
+        estilo da linha nem "virar" outro tipo de gráfico (ver
+        resolver_modo em plotter.py, que combina os dois no 'mode' que
+        go.Scatter entende). Voltar pra opção em branco (value 'none')
+        em qualquer uma das duas caixas basta pra desfazer aquele lado
+        específico (linha ou marcador) — não existe botão "desfazer"
+        separado.
 
         Os 4 Inputs disparam juntos neste único callback (em vez de 4
         callbacks separados) porque os 4 preenchem o MESMO
@@ -680,7 +682,7 @@ def registrar_callbacks(app, estado):
         prefs.espessura = espessura or 1.0
         prefs.cor = cor
         prefs.estilo_linha = estilo or 'solid'
-        prefs.marcador = marcador or 'continuo'
+        prefs.marcador = marcador or 'none'
 
         fig = construir_figura_serie_temporal(estado, aba_ativa)
         arquivo.figura = fig

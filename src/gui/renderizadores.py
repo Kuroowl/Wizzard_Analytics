@@ -202,44 +202,35 @@ def renderizar_area_grafico(estado):
 # — o valor escolhido aqui é gravado e usado como está.
 #
 # O rótulo é só o traço desenhado em texto (sem nome por extenso — o
-# padrão visual já basta pra reconhecer, não precisa ler "Tracejada",
-# "Traço-ponto longo" etc. pra saber qual é qual). Curto de propósito
-# (2-6 caracteres): o texto antigo (ex: 9 traços pra 'solid', 11
-# caracteres pra 'dash') estourava a largura da caixa — aqui cada
-# rótulo já cabe sozinho, sem precisar de mais espaço que as outras
-# duas caixas da mesma linha (cor / marcador).
+# padrão visual já basta pra reconhecer). Primeira opção ('' / 'none')
+# é a ausência de linha — a curva não desenha traço nenhum (só o
+# marcador, se algum estiver escolhido na caixa 'Marker' ao lado). O
+# padrão de uma curva nova continua sendo 'solid' (linha contínua),
+# não esta opção em branco — ver PreferenciasCanal.estilo_linha em
+# src/core/arquivo.py.
 OPCOES_ESTILO_LINHA = [
-    {'label': '──────', 'value': 'solid'},
-    {'label': '· · · ·', 'value': 'dot'},
-    {'label': '– – –', 'value': 'dash'},
-    {'label': '—  —', 'value': 'longdash'},
-    {'label': '– · –', 'value': 'dashdot'},
-    {'label': '—  ·  —', 'value': 'longdashdot'},
+    {'label': '', 'value': 'none'},
+    {'label': '──', 'value': 'solid'},
+    {'label': '··', 'value': 'dot'},
+    {'label': '––', 'value': 'dash'},
+    {'label': '–·', 'value': 'dashdot'},
 ]
 
-# Opções da caixa 'Marker' do painel de edição da curva — escolher
-# qualquer opção diferente de 'continuo' liga marcador(es) na curva
-# (ver resolver_modo_e_marcador em plotter.py, que traduz cada 'value'
-# aqui no (mode, symbol) que go.Scatter entende):
-#
-#   - 'continuo'         : linha contínua, sem marcador (padrão de sempre).
-#   - 'scatter_continuo' : linha contínua + um marcador em cada ponto
-#                          (mode='lines+markers').
-#   - 'marker_<simbolo>' : só o marcador, sem traço nenhum ligando os
-#                          pontos (mode='markers', scatter puro) — 5
-#                          formas diferentes pra escolher.
-#
-# Voltar pra 'continuo' desliga o(s) marcador(es) e devolve a curva pra
-# linha contínua de sempre — não existe um botão "desfazer" separado,
-# é só escolher esta opção de novo.
+# Opções da caixa 'Marker' do painel de edição da curva — INDEPENDENTE
+# da caixa 'Style': escolher um marcador aqui não troca o estilo da
+# linha nem o "tipo" do gráfico, só soma um marcador em cada ponto da
+# MESMA curva (ver resolver_modo em plotter.py). Primeira opção ('' /
+# 'none') é a ausência de marcador — é o padrão de uma curva nova
+# (PreferenciasCanal.marcador). Todas as combinações são possíveis:
+# linha sozinha, marcador sozinho (escolhendo 'none' na caixa Style),
+# ou linha + marcador juntos.
 OPCOES_MARCADOR = [
-    {'label': 'Contínuo', 'value': 'continuo'},
-    {'label': '– ● Scatter', 'value': 'scatter_continuo'},
-    {'label': '● Círculo', 'value': 'marker_circle'},
-    {'label': '■ Quadrado', 'value': 'marker_square'},
-    {'label': '◆ Losango', 'value': 'marker_diamond'},
-    {'label': '▲ Triângulo', 'value': 'marker_triangle-up'},
-    {'label': '✕ X', 'value': 'marker_x'},
+    {'label': '', 'value': 'none'},
+    {'label': '●', 'value': 'circle'},
+    {'label': '■', 'value': 'square'},
+    {'label': '◆', 'value': 'diamond'},
+    {'label': '▲', 'value': 'triangle-up'},
+    {'label': 'X', 'value': 'x'},
 ]
 
 # Usado só como cor "de fábrica" quando o card 'Curva' abre sem nenhum
@@ -416,7 +407,7 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
 
     if sem_canal:
         cor_atual, espessura_atual, estilo_atual = PALETA_EDICAO_CORES[0], 1.0, 'solid'
-        marcador_atual = 'continuo'
+        marcador_atual = 'none'
     else:
         # Se a curva ainda não foi editada, os controles nascem refletindo
         # exatamente o que já está desenhado agora (mesma cor da paleta
@@ -428,7 +419,7 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
         cor_atual = prefs.cor if (prefs and prefs.cor) else cor_da_coluna(indice_cor)
         espessura_atual = prefs.espessura if prefs else 1.0
         estilo_atual = prefs.estilo_linha if prefs else 'solid'
-        marcador_atual = prefs.marcador if prefs else 'continuo'
+        marcador_atual = prefs.marcador if prefs else 'none'
 
     return [
         html.Div(className='painel-edicao-secao', children=[

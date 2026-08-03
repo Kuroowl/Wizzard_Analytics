@@ -351,78 +351,46 @@
   color: var(--cor-texto-mudo);
 }
 
-/* dcc.Dropdown ('Style' e 'Marker') — sobrescreve o wrapper .Select do
-   rc-select embutido no Dash pra bater com a altura das linhas de
-   canal do menu File (.coluna-item, ~24px de altura — ver
-   file_menu.css) em vez da altura "de fábrica" do componente (36px,
-   com fonte de formulário grande demais pra caber ao lado da
-   caixinha de cor de 26px). 'height' é sobrescrito explicitamente
-   (não só 'min-height'): a regra padrão do rc-select já define
-   'height: 36px' direto no elemento, e min-height sozinho não
-   reduz uma altura que já está fixada em outro lugar. O mesmo vale
-   pra .Select-input/.Select-value/.Select-placeholder — cada uma tem
-   seu próprio line-height/padding "de fábrica" que precisa ser
-   encolhido junto, senão o texto continua vertical-centralizado para
-   uma caixa de 36px dentro de uma caixa que agora só tem 26px. */
-.painel-edicao-dropdown .Select-control {
-  height: 26px;
+/* dcc.Dropdown ('Dado', 'Style' e 'Marker') — a versão do dcc.Dropdown
+   usada neste projeto NÃO é mais baseada no react-select clássico
+   (classes '.Select-control' etc, versão antiga) — é o componente
+   reescrito do Dash mais recente, com suas próprias classes
+   '.dash-dropdown-*' (confirmado inspecionando o bundle JS instalado,
+   dash/dcc/async-dropdown.js). A regra antiga daqui mirava
+   '.Select-control', que não existe mais no DOM: por isso nunca teve
+   efeito nenhum (a caixa continuava do tamanho "de fábrica", 32px,
+   enquanto a caixinha de cor ao lado ficava nos 26px certos — daí o
+   descompasso visual reportado). Estrutura real (de fora pra dentro):
+     .dash-dropdown (raiz — é aqui que o nosso className cai)
+       .dash-dropdown-wrapper
+         .dash-dropdown-content   <- borda + raio da caixa
+           .dash-dropdown-trigger <- min-height/padding = altura "de fábrica"
+             .dash-dropdown-value (ou '...-value dash-dropdown-placeholder')
+           .dash-dropdown-options  <- lista suspensa
+             .dash-dropdown-option <- cada item da lista
+*/
+.painel-edicao-dropdown .dash-dropdown-content {
   border: 1px solid var(--cor-borda);
   border-radius: 6px;
   font-family: var(--fonte-ui);
+  font-size: 11px;
+  color: var(--cor-texto-escuro);
 }
 
-.painel-edicao-dropdown .Select-input {
-  height: 24px;
-  padding-left: 8px;
-  padding-right: 8px;
+.painel-edicao-dropdown .dash-dropdown-trigger {
+  min-height: 26px;
+  height: 26px;
+  padding: 0 8px;
 }
 
-.painel-edicao-dropdown .Select-input > input {
-  line-height: 16px;
-  padding: 4px 0;
-}
-
-.painel-edicao-dropdown .Select-placeholder,
-.painel-edicao-dropdown.Select--single > .Select-control .Select-value {
-  line-height: 24px;
-  padding-left: 8px;
-  padding-right: 8px;
-}
-
-.painel-edicao-dropdown .Select-arrow-zone {
-  width: 18px;
-  padding-right: 4px;
-}
-
-.painel-edicao-dropdown .Select-value-label,
-.painel-edicao-dropdown .Select-placeholder,
-.painel-edicao-dropdown .Select-option {
+.painel-edicao-dropdown .dash-dropdown-option {
   font-size: 11px;
   font-family: var(--fonte-ui);
   color: var(--cor-texto-escuro);
 }
 
-.painel-edicao-dropdown .Select-option {
-  padding: 6px 10px;    /* opções da lista suspensa continuam confortáveis de clicar, só a caixa fechada encolheu */
-}
-
-.painel-edicao-dropdown.is-focused > .Select-control {
+.painel-edicao-dropdown:focus-within .dash-dropdown-content {
   border-color: var(--cor-accent);
-  box-shadow: none;
-}
-
-/* 'Marker' é a 3ª coluna da linha (a mais à direita) e seus rótulos
-   ('Triângulo', 'Quadrado', 'Losango'...) são mais longos que os das
-   outras duas caixas — a caixa FECHADA fica com a mesma largura das
-   outras (o texto trunca com "…", já coberto pela regra de
-   Select-placeholder/Select-value acima), mas o menu suspenso ABERTO
-   ganha um pouco mais de largura pra não espremer o texto, alinhado
-   pela direita (em vez de crescer pra fora do painel-direito, que tem
-   só 260px no total). */
-.painel-edicao-dropdown-marcador .Select-menu-outer {
-  min-width: 150px;
-  left: auto;
-  right: 0;
 }
 
 /* Slider de espessura (rc-slider, embutido no Dash) — só uma margem
