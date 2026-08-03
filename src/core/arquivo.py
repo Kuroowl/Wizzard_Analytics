@@ -91,6 +91,12 @@ class PreferenciasCanal:
     cor: str | None = None
     espessura: float = 1.0
     estilo_linha: str = "solid"  # "solid" | "dash" | "dot" | "dashdot"
+    # "continuo" (linha, sem marcador — padrão) | "scatter_continuo"
+    # (linha + marcador) | "marker_<simbolo>" (só marcador, ex:
+    # "marker_circle") — ver OPCOES_MARCADOR em renderizadores.py e
+    # resolver_modo_e_marcador em plotter.py, que traduz este valor pro
+    # (mode, symbol) que go.Scatter entende.
+    marcador: str = "continuo"
 
 
 @dataclass

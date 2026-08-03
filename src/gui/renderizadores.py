@@ -203,14 +203,43 @@ def renderizar_area_grafico(estado):
 #
 # O rótulo é só o traço desenhado em texto (sem nome por extenso — o
 # padrão visual já basta pra reconhecer, não precisa ler "Tracejada",
-# "Traço-ponto longo" etc. pra saber qual é qual).
+# "Traço-ponto longo" etc. pra saber qual é qual). Curto de propósito
+# (2-6 caracteres): o texto antigo (ex: 9 traços pra 'solid', 11
+# caracteres pra 'dash') estourava a largura da caixa — aqui cada
+# rótulo já cabe sozinho, sem precisar de mais espaço que as outras
+# duas caixas da mesma linha (cor / marcador).
 OPCOES_ESTILO_LINHA = [
-    {'label': '─────────', 'value': 'solid'},
-    {'label': '· · · · · · ·', 'value': 'dot'},
-    {'label': '‑ ‑ ‑ ‑ ‑ ‑', 'value': 'dash'},
-    {'label': '‑‑  ‑‑  ‑‑  ‑‑', 'value': 'longdash'},
-    {'label': '‑ · ‑ · ‑ ·', 'value': 'dashdot'},
-    {'label': '‑‑ · ‑‑ · ‑‑', 'value': 'longdashdot'},
+    {'label': '──────', 'value': 'solid'},
+    {'label': '· · · ·', 'value': 'dot'},
+    {'label': '– – –', 'value': 'dash'},
+    {'label': '—  —', 'value': 'longdash'},
+    {'label': '– · –', 'value': 'dashdot'},
+    {'label': '—  ·  —', 'value': 'longdashdot'},
+]
+
+# Opções da caixa 'Marker' do painel de edição da curva — escolher
+# qualquer opção diferente de 'continuo' liga marcador(es) na curva
+# (ver resolver_modo_e_marcador em plotter.py, que traduz cada 'value'
+# aqui no (mode, symbol) que go.Scatter entende):
+#
+#   - 'continuo'         : linha contínua, sem marcador (padrão de sempre).
+#   - 'scatter_continuo' : linha contínua + um marcador em cada ponto
+#                          (mode='lines+markers').
+#   - 'marker_<simbolo>' : só o marcador, sem traço nenhum ligando os
+#                          pontos (mode='markers', scatter puro) — 5
+#                          formas diferentes pra escolher.
+#
+# Voltar pra 'continuo' desliga o(s) marcador(es) e devolve a curva pra
+# linha contínua de sempre — não existe um botão "desfazer" separado,
+# é só escolher esta opção de novo.
+OPCOES_MARCADOR = [
+    {'label': 'Contínuo', 'value': 'continuo'},
+    {'label': '– ● Scatter', 'value': 'scatter_continuo'},
+    {'label': '● Círculo', 'value': 'marker_circle'},
+    {'label': '■ Quadrado', 'value': 'marker_square'},
+    {'label': '◆ Losango', 'value': 'marker_diamond'},
+    {'label': '▲ Triângulo', 'value': 'marker_triangle-up'},
+    {'label': '✕ X', 'value': 'marker_x'},
 ]
 
 # Usado só como cor "de fábrica" quando o card 'Curva' abre sem nenhum
@@ -387,6 +416,7 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
 
     if sem_canal:
         cor_atual, espessura_atual, estilo_atual = PALETA_EDICAO_CORES[0], 1.0, 'solid'
+        marcador_atual = 'continuo'
     else:
         # Se a curva ainda não foi editada, os controles nascem refletindo
         # exatamente o que já está desenhado agora (mesma cor da paleta
@@ -398,6 +428,7 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
         cor_atual = prefs.cor if (prefs and prefs.cor) else cor_da_coluna(indice_cor)
         espessura_atual = prefs.espessura if prefs else 1.0
         estilo_atual = prefs.estilo_linha if prefs else 'solid'
+        marcador_atual = prefs.marcador if prefs else 'continuo'
 
     return [
         html.Div(className='painel-edicao-secao', children=[
@@ -441,7 +472,7 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
                     dcc.Store(id='edicao-curva-cor', data=cor_atual),
                     _seletor_cor(cor_atual),
                 ]),
-                html.Div(className='painel-edicao-subcampo painel-edicao-subcampo-estilo', children=[
+                html.Div(className='painel-edicao-subcampo', children=[
                     html.Label('Style:', htmlFor='edicao-curva-estilo', className='painel-edicao-label'),
                     dcc.Dropdown(
                         id='edicao-curva-estilo',
@@ -451,6 +482,18 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
                         clearable=False,
                         searchable=False,
                         className='painel-edicao-dropdown painel-edicao-dropdown-estilo',
+                    ),
+                ]),
+                html.Div(className='painel-edicao-subcampo', children=[
+                    html.Label('Marker:', htmlFor='edicao-curva-marcador', className='painel-edicao-label'),
+                    dcc.Dropdown(
+                        id='edicao-curva-marcador',
+                        options=OPCOES_MARCADOR,
+                        value=marcador_atual,
+                        disabled=sem_canal,
+                        clearable=False,
+                        searchable=False,
+                        className='painel-edicao-dropdown painel-edicao-dropdown-marcador',
                     ),
                 ]),
             ]),

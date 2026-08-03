@@ -181,12 +181,16 @@
   gap: 4px;
 }
 
-/* 'Dado:' + Thickness lado a lado com 'cor:' + 'Style:' viram uma linha
-   só (ver painel-edicao-linha na 3ª fileira do card, igual ao desenho
-   original) — cada metade é um painel-edicao-subcampo. */
+/* 'cor:' + 'Style:' + 'Marker:' viram uma linha só, as 3 caixas com a
+   MESMA largura lado a lado (ver painel-edicao-linha na 3ª fileira do
+   card) — cada terço é um painel-edicao-subcampo. Gap menor que antes
+   (8px, era 14px) porque agora são 3 colunas dividindo o mesmo espaço
+   que antes era de 2 — com os rótulos de estilo encurtados
+   (OPCOES_ESTILO_LINHA em renderizadores.py), nenhuma das 3 precisa de
+   mais espaço que as outras. */
 .painel-edicao-linha {
   flex-direction: row;
-  gap: 14px;
+  gap: 8px;
 }
 
 .painel-edicao-subcampo {
@@ -195,10 +199,6 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.painel-edicao-subcampo-estilo {
-  flex: 1.4 1 0;   /* o texto das opções de estilo é mais longo que a caixinha de cor, então ganha mais espaço */
 }
 
 .painel-edicao-label {
@@ -351,15 +351,47 @@
   color: var(--cor-texto-mudo);
 }
 
-/* dcc.Dropdown ('Dado' e 'Style') — sobrescreve só o essencial do
-   wrapper .Select do rc-select embutido no Dash pra não destoar do
-   resto do app (fonte/borda/tamanho); o menu suspenso em si já vem
-   legível o suficiente por padrão. */
+/* dcc.Dropdown ('Style' e 'Marker') — sobrescreve o wrapper .Select do
+   rc-select embutido no Dash pra bater com a altura das linhas de
+   canal do menu File (.coluna-item, ~24px de altura — ver
+   file_menu.css) em vez da altura "de fábrica" do componente (36px,
+   com fonte de formulário grande demais pra caber ao lado da
+   caixinha de cor de 26px). 'height' é sobrescrito explicitamente
+   (não só 'min-height'): a regra padrão do rc-select já define
+   'height: 36px' direto no elemento, e min-height sozinho não
+   reduz uma altura que já está fixada em outro lugar. O mesmo vale
+   pra .Select-input/.Select-value/.Select-placeholder — cada uma tem
+   seu próprio line-height/padding "de fábrica" que precisa ser
+   encolhido junto, senão o texto continua vertical-centralizado para
+   uma caixa de 36px dentro de uma caixa que agora só tem 26px. */
 .painel-edicao-dropdown .Select-control {
+  height: 26px;
   border: 1px solid var(--cor-borda);
   border-radius: 6px;
-  min-height: 26px;
   font-family: var(--fonte-ui);
+}
+
+.painel-edicao-dropdown .Select-input {
+  height: 24px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.painel-edicao-dropdown .Select-input > input {
+  line-height: 16px;
+  padding: 4px 0;
+}
+
+.painel-edicao-dropdown .Select-placeholder,
+.painel-edicao-dropdown.Select--single > .Select-control .Select-value {
+  line-height: 24px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.painel-edicao-dropdown .Select-arrow-zone {
+  width: 18px;
+  padding-right: 4px;
 }
 
 .painel-edicao-dropdown .Select-value-label,
@@ -370,9 +402,27 @@
   color: var(--cor-texto-escuro);
 }
 
+.painel-edicao-dropdown .Select-option {
+  padding: 6px 10px;    /* opções da lista suspensa continuam confortáveis de clicar, só a caixa fechada encolheu */
+}
+
 .painel-edicao-dropdown.is-focused > .Select-control {
   border-color: var(--cor-accent);
   box-shadow: none;
+}
+
+/* 'Marker' é a 3ª coluna da linha (a mais à direita) e seus rótulos
+   ('Triângulo', 'Quadrado', 'Losango'...) são mais longos que os das
+   outras duas caixas — a caixa FECHADA fica com a mesma largura das
+   outras (o texto trunca com "…", já coberto pela regra de
+   Select-placeholder/Select-value acima), mas o menu suspenso ABERTO
+   ganha um pouco mais de largura pra não espremer o texto, alinhado
+   pela direita (em vez de crescer pra fora do painel-direito, que tem
+   só 260px no total). */
+.painel-edicao-dropdown-marcador .Select-menu-outer {
+  min-width: 150px;
+  left: auto;
+  right: 0;
 }
 
 /* Slider de espessura (rc-slider, embutido no Dash) — só uma margem

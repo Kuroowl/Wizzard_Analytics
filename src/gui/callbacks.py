@@ -524,6 +524,7 @@ def registrar_callbacks(app, estado):
         Output('edicao-curva-espessura', 'value'),
         Output('edicao-curva-cor', 'data'),
         Output('edicao-curva-estilo', 'value'),
+        Output('edicao-curva-marcador', 'value'),
         Output('edicao-curva-rgb-r', 'value'),
         Output('edicao-curva-rgb-g', 'value'),
         Output('edicao-curva-rgb-b', 'value'),
@@ -534,11 +535,11 @@ def registrar_callbacks(app, estado):
     def sincronizar_campos_curva_selecionada(coluna, aba_ativa):
         """
         Toda vez que o usuário troca a curva escolhida na caixa 'Dado',
-        os 3 controles abaixo (Thickness, cor, Style) precisam refletir
-        o que JÁ está salvo pra essa curva especificamente — senão eles
-        ficariam mostrando o valor da curva anterior. Também dispara
-        (efeito colateral esperado, não um bug) na primeira vez que o
-        painel abre, já que a caixa 'Dado' acabou de nascer com um
+        os 4 controles abaixo (Thickness, cor, Style, Marker) precisam
+        refletir o que JÁ está salvo pra essa curva especificamente —
+        senão eles ficariam mostrando o valor da curva anterior. Também
+        dispara (efeito colateral esperado, não um bug) na primeira vez
+        que o painel abre, já que a caixa 'Dado' acabou de nascer com um
         valor — é o mesmo 'gatilho fantasma' de componente recém-criado
         comentado em _clique_real, aqui é ele quem faz os controles
         nascerem com os valores certos sem precisar duplicar essa lógica
@@ -560,8 +561,9 @@ def registrar_callbacks(app, estado):
         cor_atual = prefs.cor if (prefs and prefs.cor) else cor_da_coluna(colunas.index(coluna))
         espessura_atual = prefs.espessura if prefs else 1.0
         estilo_atual = prefs.estilo_linha if prefs else 'solid'
+        marcador_atual = prefs.marcador if prefs else 'continuo'
         r, g, b = _hex_para_rgb(cor_atual)
-        return espessura_atual, cor_atual, estilo_atual, r, g, b
+        return espessura_atual, cor_atual, estilo_atual, marcador_atual, r, g, b
 
     @app.callback(
         Output('edicao-curva-cor', 'data', allow_duplicate=True),
@@ -639,22 +641,30 @@ def registrar_callbacks(app, estado):
         Input('edicao-curva-espessura', 'value'),
         Input('edicao-curva-cor', 'data'),
         Input('edicao-curva-estilo', 'value'),
+        Input('edicao-curva-marcador', 'value'),
         State('edicao-curva-dado', 'value'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
-    def aplicar_preferencias_curva(espessura, cor, estilo, coluna, aba_ativa):
+    def aplicar_preferencias_curva(espessura, cor, estilo, marcador, coluna, aba_ativa):
         """
-        Grava os 3 controles do painel 'Curva' como preferência
+        Grava os 4 controles do painel 'Curva' como preferência
         PERMANENTE do canal (arquivo.preferencias, ver src/core/arquivo.py)
         e redesenha o gráfico na hora — é o que faz o slider/color-
-        picker/dropdown terem efeito visual imediato, em vez de só
+        picker/dropdown(s) terem efeito visual imediato, em vez de só
         ficarem guardados sem uso (que era o estado anterior: o modelo
         já existia, só não era lido por construir_figura_serie_temporal).
 
-        Os 3 Inputs disparam juntos neste único callback (em vez de 3
-        callbacks separados) porque os 3 preenchem o MESMO
-        PreferenciasCanal e precisam terminar sempre com os 3 valores
+        'marcador' é quem decide se a curva desenha como linha contínua,
+        linha+marcador ou só marcador (scatter puro) — ver
+        resolver_modo_e_marcador em plotter.py, que traduz o 'value' da
+        caixa 'Marker' no (mode, symbol) que go.Scatter entende. Voltar
+        pra 'continuo' basta pra desfazer: a curva volta a desenhar como
+        linha contínua de novo, sem precisar de outro controle.
+
+        Os 4 Inputs disparam juntos neste único callback (em vez de 4
+        callbacks separados) porque os 4 preenchem o MESMO
+        PreferenciasCanal e precisam terminar sempre com os 4 valores
         atuais gravados juntos — gravar só o campo que mudou arriscaria
         um 'value' desatualizado vencer a corrida se dois campos forem
         mexidos em sequência rápida.
@@ -670,6 +680,7 @@ def registrar_callbacks(app, estado):
         prefs.espessura = espessura or 1.0
         prefs.cor = cor
         prefs.estilo_linha = estilo or 'solid'
+        prefs.marcador = marcador or 'continuo'
 
         fig = construir_figura_serie_temporal(estado, aba_ativa)
         arquivo.figura = fig

@@ -22,6 +22,39 @@ def cor_da_coluna(indice):
     return PALETA_CORES[indice % len(PALETA_CORES)]
 
 
+# Tamanho do marcador quando a curva usa 'scatter_continuo' ou algum
+# 'marker_<simbolo>' — não fica exposto como opção pro usuário (só a
+# FORMA do marcador é escolhida no painel), é um valor fixo que deixa o
+# marcador visível sem dominar o traço.
+TAMANHO_MARCADOR = 7
+
+
+def resolver_modo_e_marcador(valor_marcador):
+    """
+    Traduz o valor salvo em PreferenciasCanal.marcador (a opção
+    escolhida na caixa 'Marker' do painel de edição — ver
+    OPCOES_MARCADOR em renderizadores.py) no (mode, symbol) que
+    go.Scatter espera:
+
+      - None / "continuo"      -> ('lines', None)          — linha
+        contínua, sem marcador algum (comportamento de sempre).
+      - "scatter_continuo"     -> ('lines+markers', 'circle') — linha
+        contínua com um marcador em cada ponto.
+      - "marker_<simbolo>"     -> ('markers', '<simbolo>')  — só os
+        marcadores, sem traço nenhum ligando os pontos (scatter puro).
+
+    Qualquer valor não reconhecido cai no padrão ('lines', None), pra
+    nunca quebrar o gráfico por causa de um dado antigo/inesperado.
+    """
+    if not valor_marcador or valor_marcador == 'continuo':
+        return 'lines', None
+    if valor_marcador == 'scatter_continuo':
+        return 'lines+markers', 'circle'
+    if valor_marcador.startswith('marker_'):
+        return 'markers', valor_marcador[len('marker_'):]
+    return 'lines', None
+
+
 def _indices_amostra_uniforme(n_pontos, max_pontos=MAX_PONTOS_EXIBICAO):
     """
     Devolve os ÍNDICES (não os dados) de uma amostra igualmente espaçada de
@@ -151,15 +184,23 @@ def construir_figura_serie_temporal(estado, aba_ativa):
                 else df[coluna]
             )
 
+            cor_curva = prefs.cor if prefs and prefs.cor else cor_da_coluna(indice_cor)
+            modo, simbolo_marcador = resolver_modo_e_marcador(prefs.marcador if prefs else None)
+
             fig.add_trace(go.Scatter(
                 x=x_valores,
                 y=y_valores,
-                mode='lines',
+                mode=modo,
                 name=rotulo,
                 line=dict(
-                    color=(prefs.cor if prefs and prefs.cor else cor_da_coluna(indice_cor)),
+                    color=cor_curva,
                     width=(prefs.espessura if prefs else 1.0),
                     dash=(prefs.estilo_linha if prefs else 'solid'),
+                ),
+                marker=dict(
+                    color=cor_curva,
+                    symbol=(simbolo_marcador or 'circle'),
+                    size=TAMANHO_MARCADOR,
                 ),
             ))
 
