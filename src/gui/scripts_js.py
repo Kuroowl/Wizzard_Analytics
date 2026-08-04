@@ -103,7 +103,14 @@ document.addEventListener('DOMContentLoaded', function () {
         // O painel fica encostado na borda direita da janela, que não se
         // move — então a largura cresce conforme o cursor se afasta DELA
         // pra esquerda (direção oposta ao divisor da sidebar).
-        habilitarDivisor('divisor-resize-edit', painelDireito, rodapeEdit, 200, 500, function (e) {
+        // larguraMin = 260 (era 200) — precisa bater com o 'min-width'
+        // de '.painel-direito' em edit_menu.css: abaixo disso as 3
+        // caixas da linha 'cor/Style/Marker' (62px cada, ver
+        // .painel-edicao-subcampo) já não cabem mais lado a lado sem
+        // comprimir. Os dois valores (aqui e no CSS) precisam ficar
+        // sincronizados manualmente — não há uma fonte única
+        // compartilhada entre JS e CSS neste projeto.
+        habilitarDivisor('divisor-resize-edit', painelDireito, rodapeEdit, 260, 500, function (e) {
             return painelDireito.getBoundingClientRect().right - e.clientX;
         });
 

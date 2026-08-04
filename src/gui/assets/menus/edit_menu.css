@@ -8,7 +8,20 @@
 .painel-direito {
   flex: 0 0 auto;
   width: 260px;
-  min-width: 200px;
+  /* 260px = a mesma largura padrão do painel: é o piso necessário pra
+     caber as 3 caixas (cor/Style/Marker) sem comprimir nenhuma abaixo
+     de 62px cada — ver .painel-edicao-subcampo mais abaixo. Contas:
+     3 × 62px (caixas) + 2 × 8px (gaps entre elas) = 202px de linha;
+     + 20px (padding do card .painel-edicao-secao) = 222px;
+     + 32px (padding do próprio .painel-direito) + 1px (borda
+     esquerda) = 255px — arredondado pra 260px por segurança/limpeza,
+     já que é também a largura inicial. Baixar isso de novo (era
+     200px) deixaria o divisor arrastável encolher o painel pra um
+     tamanho onde as caixas já não cabem mais — ver também o '260'
+     espelhado em habilitarDivisor('divisor-resize-edit', ...) em
+     scripts_js.py, que precisa bater com este valor pra travar o
+     arraste no mesmo ponto. */
+  min-width: 260px;
   max-width: 500px;
   height: 100%;
   display: flex;
@@ -187,7 +200,17 @@
    (8px, era 14px) porque agora são 3 colunas dividindo o mesmo espaço
    que antes era de 2 — com os rótulos de estilo encurtados
    (OPCOES_ESTILO_LINHA em renderizadores.py), nenhuma das 3 precisa de
-   mais espaço que as outras. */
+   mais espaço que as outras.
+
+   'min-width: 62px' garante que nenhuma das 3 encolha abaixo desse
+   piso mesmo quando o painel-direito é arrastado pra sua largura
+   mínima (200px, ver .painel-direito em min-width) — sem isso, o
+   'flex: 1 1 0' + 'min-width: 0' de antes deixava cada caixa encolher
+   livremente, e o texto do dropdown (ou até a caixinha de cor)
+   acabava espremido demais pra ser legível/clicável. Com esse piso, a
+   linha inteira (3×62px + 2 gaps de 8px = 202px) pode passar a ficar
+   mais larga que o painel nesse extremo — nesse caso ela estoura pra
+   fora em vez de comprimir mais, o que é a troca aceita aqui. */
 .painel-edicao-linha {
   flex-direction: row;
   gap: 8px;
@@ -195,7 +218,7 @@
 
 .painel-edicao-subcampo {
   flex: 1 1 0;
-  min-width: 0;
+  min-width: 58px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -220,10 +243,12 @@
 .cor-picker-wrapper {
   position: relative;
   display: inline-block;
+  width: 100%;   /* estica pra preencher a coluna de 62px (.painel-edicao-subcampo), em vez de encolher pro tamanho do botão */
 }
 
 .cor-picker-caixa {
-  width: 26px;
+  width: 100%;
+  min-width: 62px;  /* mesmo piso das outras 2 caixas da linha (Style/Marker) — ver .painel-edicao-subcampo */
   height: 26px;
   padding: 0;
   border: 1px solid var(--cor-borda);
