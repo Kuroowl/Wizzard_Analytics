@@ -373,6 +373,38 @@ def _campo_rgb(id_input, rotulo, valor):
     ])
 
 
+def _secao_colapsavel(id_secao, titulo, conteudo, aberta=False):
+    """
+    Casca reaproveitável de uma seção recolhível do painel de edição
+    ('Curva', 'Eixos', 'Ticks', 'Outros'...). O cabeçalho é um botão
+    com pattern-id (ver alternar_secao_edicao em callbacks.py) que
+    liga/desliga a classe 'aberta' no wrapper — é essa classe que
+    mostra/esconde '.painel-edicao-secao-corpo' via CSS (ver
+    edit_menu.css), sem precisar de um callback Python por seção.
+
+    'id_secao' precisa ser único dentro do painel (ex: 'curva',
+    'eixos', 'ticks') — é ele que liga cabeçalho e wrapper no mesmo
+    par {'type': ..., 'index': id_secao} usado pelo MATCH.
+    """
+    classes = 'painel-edicao-secao' + (' aberta' if aberta else '')
+    return html.Div(
+        id={'type': 'secao-wrapper', 'index': id_secao},
+        className=classes,
+        children=[
+            html.Button(
+                id={'type': 'secao-header', 'index': id_secao},
+                className='painel-edicao-secao-cabecalho',
+                n_clicks=0,
+                children=[
+                    html.Span(titulo, className='painel-edicao-secao-titulo'),
+                    html.Span('▾', className='painel-edicao-secao-seta'),
+                ],
+            ),
+            html.Div(className='painel-edicao-secao-corpo', children=conteudo),
+        ],
+    )
+
+
 def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
     """
     Conteúdo do painel-direito depois que o usuário clica em 'Iniciar
@@ -421,73 +453,94 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
         estilo_atual = prefs.estilo_linha if prefs else 'solid'
         marcador_atual = prefs.marcador if prefs else 'none'
 
-    return [
-        html.Div(className='painel-edicao-secao', children=[
-            html.Div(className='painel-edicao-secao-cabecalho', children=[
-                html.Span('Curva:', className='painel-edicao-secao-titulo'),
-                html.Button(
-                    '✕', id='fechar-edicao-curva', className='painel-edicao-fechar-btn',
-                    title='Fechar edição', n_clicks=0,
-                ),
-            ]),
+    conteudo_curva = [
+        html.Div(className='painel-edicao-campo', children=[
+            html.Label('Dado:', htmlFor='edicao-curva-dado', className='painel-edicao-label'),
+            dcc.Dropdown(
+                id='edicao-curva-dado',
+                options=opcoes_dado,
+                value=coluna_selecionada,
+                placeholder='Nenhum canal plotado',
+                disabled=sem_canal,
+                clearable=False,
+                searchable=False,
+                className='painel-edicao-dropdown',
+            ),
+        ]),
 
-            html.Div(className='painel-edicao-campo', children=[
-                html.Label('Dado:', htmlFor='edicao-curva-dado', className='painel-edicao-label'),
+        html.Div(className='painel-edicao-campo', children=[
+            html.Label('Thickness:', className='painel-edicao-label'),
+            dcc.Slider(
+                id='edicao-curva-espessura',
+                min=1, max=6, step=0.5,
+                value=espessura_atual,
+                marks=None,
+                disabled=sem_canal,
+                tooltip={'placement': 'bottom', 'always_visible': False},
+            ),
+        ]),
+
+        html.Div(className='painel-edicao-campo painel-edicao-linha', children=[
+            html.Div(className='painel-edicao-subcampo', children=[
+                html.Label('cor:', className='painel-edicao-label'),
+                dcc.Store(id='edicao-curva-cor', data=cor_atual),
+                _seletor_cor(cor_atual),
+            ]),
+            html.Div(className='painel-edicao-subcampo', children=[
+                html.Label('Style:', htmlFor='edicao-curva-estilo', className='painel-edicao-label'),
                 dcc.Dropdown(
-                    id='edicao-curva-dado',
-                    options=opcoes_dado,
-                    value=coluna_selecionada,
-                    placeholder='Nenhum canal plotado',
+                    id='edicao-curva-estilo',
+                    options=OPCOES_ESTILO_LINHA,
+                    value=estilo_atual,
                     disabled=sem_canal,
                     clearable=False,
                     searchable=False,
-                    className='painel-edicao-dropdown',
+                    className='painel-edicao-dropdown painel-edicao-dropdown-estilo',
                 ),
             ]),
-
-            html.Div(className='painel-edicao-campo', children=[
-                html.Label('Thickness:', className='painel-edicao-label'),
-                dcc.Slider(
-                    id='edicao-curva-espessura',
-                    min=1, max=6, step=0.5,
-                    value=espessura_atual,
-                    marks=None,
+            html.Div(className='painel-edicao-subcampo', children=[
+                html.Label('Marker:', htmlFor='edicao-curva-marcador', className='painel-edicao-label'),
+                dcc.Dropdown(
+                    id='edicao-curva-marcador',
+                    options=OPCOES_MARCADOR,
+                    value=marcador_atual,
                     disabled=sem_canal,
-                    tooltip={'placement': 'bottom', 'always_visible': False},
+                    clearable=False,
+                    searchable=False,
+                    className='painel-edicao-dropdown painel-edicao-dropdown-marcador',
                 ),
             ]),
+        ]),
+    ]
 
-            html.Div(className='painel-edicao-campo painel-edicao-linha', children=[
-                html.Div(className='painel-edicao-subcampo', children=[
-                    html.Label('cor:', className='painel-edicao-label'),
-                    dcc.Store(id='edicao-curva-cor', data=cor_atual),
-                    _seletor_cor(cor_atual),
-                ]),
-                html.Div(className='painel-edicao-subcampo', children=[
-                    html.Label('Style:', htmlFor='edicao-curva-estilo', className='painel-edicao-label'),
-                    dcc.Dropdown(
-                        id='edicao-curva-estilo',
-                        options=OPCOES_ESTILO_LINHA,
-                        value=estilo_atual,
-                        disabled=sem_canal,
-                        clearable=False,
-                        searchable=False,
-                        className='painel-edicao-dropdown painel-edicao-dropdown-estilo',
-                    ),
-                ]),
-                html.Div(className='painel-edicao-subcampo', children=[
-                    html.Label('Marker:', htmlFor='edicao-curva-marcador', className='painel-edicao-label'),
-                    dcc.Dropdown(
-                        id='edicao-curva-marcador',
-                        options=OPCOES_MARCADOR,
-                        value=marcador_atual,
-                        disabled=sem_canal,
-                        clearable=False,
-                        searchable=False,
-                        className='painel-edicao-dropdown painel-edicao-dropdown-marcador',
-                    ),
-                ]),
-            ]),
+    # 'fechar-edicao-curva' (mesmo id de antes) agora fecha o painel
+    # inteiro, não só a seção 'Curva' — por isso saiu do cabeçalho da
+    # seção e virou um cabeçalho geral, acima do acordeão. Nenhum
+    # callback que já usava esse id precisou mudar (ver
+    # fechar_edicao_curva em callbacks.py).
+    #
+    # 'Eixos', 'Ticks' e 'Outros' ainda são placeholders — trocar o
+    # 'html.P' de cada uma pelos controles reais quando forem
+    # implementadas é o único passo necessário; o toggle (abrir/
+    # fechar) já funciona sozinho pra qualquer seção nova, via
+    # alternar_secao_edicao (callbacks.py), que usa MATCH.
+    return [
+        html.Div(className='painel-edicao-cabecalho-geral', children=[
+            html.Span('Opções do gráfico', className='painel-edicao-titulo-geral'),
+            html.Button(
+                '✕', id='fechar-edicao-curva', className='painel-edicao-fechar-btn',
+                title='Fechar edição', n_clicks=0,
+            ),
+        ]),
+        _secao_colapsavel('curva', 'Curva', conteudo_curva, aberta=True),
+        _secao_colapsavel('eixos', 'Eixos', [
+            html.P('Em breve.', className='painel-edicao-placeholder-secao'),
+        ]),
+        _secao_colapsavel('ticks', 'Ticks', [
+            html.P('Em breve.', className='painel-edicao-placeholder-secao'),
+        ]),
+        _secao_colapsavel('outros', 'Outros', [
+            html.P('Em breve.', className='painel-edicao-placeholder-secao'),
         ]),
     ]
 

@@ -1,4 +1,4 @@
-from dash import Input, Output, State, ctx, ALL, no_update
+from dash import Input, Output, State, ctx, ALL, MATCH, no_update
 from dash.exceptions import PreventUpdate
 
 from src.core.plotting.plotter import (
@@ -709,3 +709,24 @@ def registrar_callbacks(app, estado):
             raise PreventUpdate
         _, _, sem_grafico_da_aba = _estados_toolbar(estado, aba_ativa)
         return renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba), _classe_painel_direito(ativo=False)
+
+    @app.callback(
+        Output({'type': 'secao-wrapper', 'index': MATCH}, 'className'),
+        Input({'type': 'secao-header', 'index': MATCH}, 'n_clicks'),
+        State({'type': 'secao-wrapper', 'index': MATCH}, 'className'),
+        prevent_initial_call=True,
+    )
+    def alternar_secao_edicao(n_clicks, classe_atual):
+        """
+        Abre/fecha UMA seção recolhível do painel de edição ('Curva',
+        'Eixos', 'Ticks', 'Outros'...), independente das outras.
+        MATCH garante uma instância deste callback por seção — cada
+        clique só afeta o 'secao-wrapper' com o mesmo 'index' do
+        'secao-header' clicado, sem precisar de um Store extra pra
+        guardar qual seção está aberta (ver _secao_colapsavel em
+        renderizadores.py).
+        """
+        if not n_clicks:
+            raise PreventUpdate
+        aberta = 'aberta' in (classe_atual or '').split()
+        return 'painel-edicao-secao' if aberta else 'painel-edicao-secao aberta'

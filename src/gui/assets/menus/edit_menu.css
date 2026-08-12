@@ -151,10 +151,21 @@
   gap: 10px;
 }
 
+/* Cabeçalho de CADA seção recolhível (_secao_colapsavel, em
+   renderizadores.py) — agora é um <button> clicável (era um <div>
+   estático), que liga/desliga a classe 'aberta' do wrapper via
+   alternar_secao_edicao (callbacks.py, MATCH). */
 .painel-edicao-secao-cabecalho {
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  font-family: var(--fonte-ui);
 }
 
 .painel-edicao-secao-titulo {
@@ -165,8 +176,57 @@
   color: var(--cor-texto-escuro);
 }
 
-/* Botão '✕' de fechar a edição, dentro do próprio card — ver
-   fechar_edicao_curva em callbacks.py. */
+/* Seta '▾' do cabeçalho: gira 180° quando a seção está aberta. */
+.painel-edicao-secao-seta {
+  font-size: 10px;
+  color: var(--cor-texto-mudo);
+  transition: transform 0.15s ease;
+}
+
+.painel-edicao-secao.aberta .painel-edicao-secao-seta {
+  transform: rotate(180deg);
+}
+
+/* Corpo da seção: escondido por padrão, só some/aparece via CSS —
+   nenhum callback recria os controles internos ao abrir/fechar (eles
+   continuam montados no DOM, só ficam ocultos), então não há perda de
+   valor nos campos ao recolher e reabrir uma seção. */
+.painel-edicao-secao-corpo {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.painel-edicao-secao.aberta .painel-edicao-secao-corpo {
+  display: flex;
+}
+
+/* Cabeçalho GERAL do painel (título 'Opções do gráfico' + '✕' que
+   fecha a edição inteira, voltando pro botão 'Iniciar edição') — fica
+   acima do acordeão de seções, não dentro de nenhuma delas. */
+.painel-edicao-cabecalho-geral {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+.painel-edicao-titulo-geral {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cor-texto-escuro);
+}
+
+.painel-edicao-placeholder-secao {
+  font-size: 11px;
+  color: var(--cor-texto-mudo);
+}
+
+/* Botão '✕' de fechar a edição — agora vive no cabeçalho geral do
+   painel (ver fechar_edicao_curva em callbacks.py), não mais dentro
+   de cada seção individual. */
 .painel-edicao-fechar-btn {
   flex: 0 0 auto;
   border: none;
