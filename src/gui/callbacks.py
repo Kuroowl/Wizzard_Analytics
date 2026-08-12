@@ -778,3 +778,25 @@ def registrar_callbacks(app, estado):
         if maximo is not None:
             novo_valor = min(maximo, novo_valor)
         return novo_valor
+
+    @app.callback(
+        Output({'type': 'limite-cadeado', 'index': MATCH}, 'children'),
+        Output({'type': 'limite-cadeado', 'index': MATCH}, 'className'),
+        Input({'type': 'limite-cadeado', 'index': MATCH}, 'n_clicks'),
+        State({'type': 'limite-cadeado', 'index': MATCH}, 'className'),
+        prevent_initial_call=True,
+    )
+    def alternar_cadeado_limite(n_clicks, classe_atual):
+        """
+        Alterna o ícone/estado visual do cadeado de 'Limits' (Eixos) —
+        🔓 (destravado, padrão) <-> 🔒 (travado). Só o visual muda por
+        enquanto; travar de verdade o range do eixo no gráfico (impedir
+        que autoscale/zoom mexa nesse min/max) é a próxima etapa,
+        quando 'estado' ganhar um campo pra isso.
+        """
+        if not n_clicks:
+            raise PreventUpdate
+        travado = 'travado' in (classe_atual or '').split()
+        if travado:
+            return '🔓', 'painel-edicao-limite-btn'
+        return '🔒', 'painel-edicao-limite-btn travado'

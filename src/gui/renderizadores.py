@@ -397,7 +397,7 @@ def _secao_colapsavel(id_secao, titulo, conteudo, aberta=False):
                 n_clicks=0,
                 children=[
                     html.Span(titulo, className='painel-edicao-secao-titulo'),
-                    html.Span('▾', className='painel-edicao-secao-seta'),
+                    html.Span('▼', className='painel-edicao-secao-seta'),
                 ],
             ),
             html.Div(className='painel-edicao-secao-corpo', children=conteudo),
@@ -451,6 +451,45 @@ def _linha_eixo(rotulo, id_texto, valor_texto, id_fonte, valor_fonte, id_espacam
         ),
         _stepper(id_fonte, valor_fonte, minimo=6, maximo=48, step=1),
         _stepper(id_espacamento, valor_espacamento, minimo=-5, maximo=20, step=1),
+    ])
+
+
+def _linha_limite_eixo(letra_eixo, id_min, id_max, index_cadeado):
+    """
+    Uma linha da sub-seção 'Limits' dentro de 'Eixos': [min] < x <
+    [max] + botão de autoscale (recalcula os limites automaticamente
+    a partir dos dados — ainda só visual, ver comentário no fim de
+    renderizar_painel_edicao) + botão de cadeado (trava/destrava o
+    eixo nesse min/max fixo; TEM callback já funcionando, ver
+    alternar_cadeado_limite em callbacks.py, MATCH — só a troca do
+    ícone/estado, a aplicação de verdade no gráfico vem na etapa de
+    conexão com 'estado').
+
+    'index_cadeado' é o 'index' do par {'type': 'limite-cadeado',
+    'index': ...} — precisa ser único (aqui: 'x' / 'y').
+    """
+    return html.Div(className='painel-edicao-linha-limite', children=[
+        dcc.Input(
+            id=id_min, type='number', placeholder='min',
+            className='painel-edicao-limite-input',
+        ),
+        html.Span('<', className='painel-edicao-limite-simbolo'),
+        html.Span(letra_eixo, className='painel-edicao-limite-eixo-letra'),
+        html.Span('<', className='painel-edicao-limite-simbolo'),
+        dcc.Input(
+            id=id_max, type='number', placeholder='max',
+            className='painel-edicao-limite-input',
+        ),
+        html.Button(
+            '🔄', id={'type': 'limite-autoscale', 'index': index_cadeado},
+            className='painel-edicao-limite-btn', title='Autoscale (recalcula os limites)',
+            n_clicks=0,
+        ),
+        html.Button(
+            '🔓', id={'type': 'limite-cadeado', 'index': index_cadeado},
+            className='painel-edicao-limite-btn', title='Travar eixo neste intervalo',
+            n_clicks=0,
+        ),
     ])
 
 
@@ -589,6 +628,12 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
             'edicao-eixo-y-fonte', 12,
             'edicao-eixo-y-espacamento', 1,
         ),
+
+        html.Hr(className='painel-edicao-separador'),
+
+        html.Div('Limits:', className='painel-edicao-limite-titulo'),
+        _linha_limite_eixo('x', 'edicao-eixo-x-limite-min', 'edicao-eixo-x-limite-max', 'x'),
+        _linha_limite_eixo('y', 'edicao-eixo-y-limite-min', 'edicao-eixo-y-limite-max', 'y'),
     ]
 
     # 'fechar-edicao-curva' (mesmo id de antes) agora fecha o painel

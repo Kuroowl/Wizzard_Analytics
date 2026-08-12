@@ -7,22 +7,19 @@
    não precisa saber se está mostrando o placeholder ou o formulário. */
 .painel-direito {
   flex: 0 0 auto;
-  width: 260px;
-  /* 260px = a mesma largura padrão do painel: é o piso necessário pra
-     caber as 3 caixas (cor/Style/Marker) sem comprimir nenhuma abaixo
-     de 62px cada — ver .painel-edicao-subcampo mais abaixo. Contas:
-     3 × 62px (caixas) + 2 × 8px (gaps entre elas) = 202px de linha;
-     + 20px (padding do card .painel-edicao-secao) = 222px;
-     + 32px (padding do próprio .painel-direito) + 1px (borda
-     esquerda) = 255px — arredondado pra 260px por segurança/limpeza,
-     já que é também a largura inicial. Baixar isso de novo (era
-     200px) deixaria o divisor arrastável encolher o painel pra um
-     tamanho onde as caixas já não cabem mais — ver também o '260'
-     espelhado em habilitarDivisor('divisor-resize-edit', ...) em
-     scripts_js.py, que precisa bater com este valor pra travar o
-     arraste no mesmo ponto. */
-  min-width: 260px;
-  max-width: 500px;
+  width: 320px;
+  /* 320px / min-width 300px (eram 260px/260px) — a linha 'Limits'
+     ([min] < x < [max] + botão autoscale + botão cadeado, ver
+     _linha_limite_eixo em renderizadores.py) tem mais elementos lado a
+     lado que a linha 'cor/Style/Marker' da seção 'Curva' e não cabia
+     confortavelmente nos 260px antigos. O '300' espelhado em
+     habilitarDivisor('divisor-resize-edit', ...) em scripts_js.py
+     precisa bater com este min-width pra travar o arraste no mesmo
+     ponto — os dois valores não têm uma fonte única compartilhada
+     entre CSS e JS neste projeto, então qualquer mudança aqui precisa
+     ser replicada lá também. */
+  min-width: 300px;
+  max-width: 560px;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -572,7 +569,7 @@
   font-family: var(--fonte-ui);
   font-size: 11px;
   color: var(--cor-texto-escuro);
-  background-color: var(--cor-fundo);
+  background-color: #FFFFFF;
 }
 
 .painel-edicao-latex-input::placeholder {
@@ -629,7 +626,7 @@
   font-family: var(--fonte-ui);
   font-size: 11px;
   color: var(--cor-texto-escuro);
-  background-color: var(--cor-fundo);
+  background-color: #FFFFFF;
 }
 
 .painel-edicao-stepper-input:focus {
@@ -649,4 +646,101 @@
 
 .painel-edicao-stepper-input[type='number'] {
   -moz-appearance: textfield;
+}
+
+/* ==========================================================================
+   Subseção 'Limits' (dentro de 'Eixos') — min < x < max / min < y < max,
+   com botão de autoscale (recalcula os limites a partir dos dados) e
+   cadeado (trava o eixo nesse intervalo — ver _linha_limite_eixo em
+   renderizadores.py e alternar_cadeado_limite em callbacks.py).
+   ========================================================================== */
+.painel-edicao-separador {
+  border: none;
+  border-top: 1px solid var(--cor-borda);
+  margin: 2px 0;
+}
+
+.painel-edicao-limite-titulo {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cor-texto-mudo);
+}
+
+.painel-edicao-linha-limite {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.painel-edicao-limite-input {
+  flex: 1 1 0;
+  width: 0; /* mesmo truque do stepper-input: o flex decide a largura real */
+  min-width: 0;
+  height: 26px;
+  padding: 0 4px;
+  border: 1px solid var(--cor-borda);
+  border-radius: 6px;
+  text-align: center;
+  font-family: var(--fonte-ui);
+  font-size: 11px;
+  color: var(--cor-texto-escuro);
+  background-color: #FFFFFF;
+}
+
+.painel-edicao-limite-input::placeholder {
+  color: #c7c7c7;
+}
+
+.painel-edicao-limite-input:focus {
+  outline: none;
+  border-color: var(--cor-accent);
+}
+
+.painel-edicao-limite-input::-webkit-outer-spin-button,
+.painel-edicao-limite-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.painel-edicao-limite-input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+.painel-edicao-limite-simbolo,
+.painel-edicao-limite-eixo-letra {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--cor-texto-mudo);
+}
+
+/* Botões de autoscale (🔄) e cadeado (🔓/🔒) — mesmo tamanho/formato
+   dos botões '-'/'+' do stepper, pra manter a linha visualmente
+   consistente. '.travado' (aplicada só no cadeado, via
+   alternar_cadeado_limite) destaca com a cor de accent quando o eixo
+   está travado nesse intervalo. */
+.painel-edicao-limite-btn {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--cor-borda);
+  border-radius: 6px;
+  background-color: #FFFFFF;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.painel-edicao-limite-btn:hover {
+  background-color: var(--cor-accent-suave);
+  border-color: var(--cor-accent);
+}
+
+.painel-edicao-limite-btn.travado {
+  background-color: var(--cor-accent-suave);
+  border-color: var(--cor-accent);
 }
