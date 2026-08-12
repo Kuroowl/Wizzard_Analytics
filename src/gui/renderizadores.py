@@ -405,6 +405,55 @@ def _secao_colapsavel(id_secao, titulo, conteudo, aberta=False):
     )
 
 
+def _stepper(index, valor, minimo, maximo, step=1):
+    """
+    Par de botões '-'/'+' ao lado de um campo numérico — reaproveitável
+    por qualquer seção do painel (hoje: tamanho de fonte e espaçamento
+    de 'Eixos'; no futuro: os mesmos controles em 'Ticks'). 'index'
+    precisa ser único dentro do painel — é ele que liga os 3 elementos
+    (menos/valor/mais) no callback genérico alternar_stepper
+    (callbacks.py, MATCH), que decide o sinal (+/-) olhando qual dos
+    dois botões foi clicado, e lê min/max/step direto dos atributos do
+    próprio dcc.Input (sem precisar duplicar esses limites no Python).
+    """
+    return html.Div(className='painel-edicao-stepper', children=[
+        html.Button(
+            '−', id={'type': 'stepper-menos', 'index': index},
+            className='painel-edicao-stepper-btn', n_clicks=0,
+        ),
+        dcc.Input(
+            id={'type': 'stepper-valor', 'index': index},
+            type='number', value=valor, min=minimo, max=maximo, step=step,
+            className='painel-edicao-stepper-input',
+        ),
+        html.Button(
+            '+', id={'type': 'stepper-mais', 'index': index},
+            className='painel-edicao-stepper-btn', n_clicks=0,
+        ),
+    ])
+
+
+def _linha_eixo(rotulo, id_texto, valor_texto, id_fonte, valor_fonte, id_espacamento, valor_espacamento):
+    """
+    Uma linha da seção 'Eixos': rótulo + caixa de texto (LaTeX simples,
+    ver 'painel-edicao-latex-input' em edit_menu.css e
+    traduzirLatexSimples em scripts_js.py) + stepper de tamanho de
+    fonte + stepper de espaçamento entre caracteres. Usada 3x
+    (Título / Axis x / Axis y) por renderizar_painel_edicao.
+    """
+    return html.Div(className='painel-edicao-linha-eixo', children=[
+        html.Label(rotulo, className='painel-edicao-label'),
+        dcc.Input(
+            id=id_texto, type='text', value=valor_texto,
+            placeholder='enter text...',
+            className='painel-edicao-latex-input',
+            autoComplete='off',
+        ),
+        _stepper(id_fonte, valor_fonte, minimo=6, maximo=48, step=1),
+        _stepper(id_espacamento, valor_espacamento, minimo=-5, maximo=20, step=1),
+    ])
+
+
 def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
     """
     Conteúdo do painel-direito depois que o usuário clica em 'Iniciar
@@ -513,17 +562,46 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
         ]),
     ]
 
+    # Valores 'de fábrica' das linhas de Eixos — ainda não vêm de
+    # 'estado' (não existe campo de preferências de eixo no dataclass
+    # hoje, só por-curva: cor/espessura/estilo/marcador). Os campos já
+    # funcionam de ponta a ponta (digitar, +/-, tradução de LaTeX
+    # simples) — falta só a parte de LER/GRAVAR esses valores em
+    # 'estado' e aplicar no plotter quando isso for definido.
+    conteudo_eixos = [
+        html.Div(className='painel-edicao-eixos-cabecalho', children=[
+            html.Div(className='painel-edicao-eixos-cabecalho-rotulo'),
+            html.Span('Aa', className='painel-edicao-eixos-cabecalho-coluna'),
+            html.Span('↔', className='painel-edicao-eixos-cabecalho-coluna'),
+        ]),
+        _linha_eixo(
+            'Title:', 'edicao-eixo-titulo-texto', '',
+            'edicao-eixo-titulo-fonte', 14,
+            'edicao-eixo-titulo-espacamento', 1,
+        ),
+        _linha_eixo(
+            'Axis x:', 'edicao-eixo-x-texto', '',
+            'edicao-eixo-x-fonte', 10,
+            'edicao-eixo-x-espacamento', 1,
+        ),
+        _linha_eixo(
+            'Axis y:', 'edicao-eixo-y-texto', '',
+            'edicao-eixo-y-fonte', 12,
+            'edicao-eixo-y-espacamento', 1,
+        ),
+    ]
+
     # 'fechar-edicao-curva' (mesmo id de antes) agora fecha o painel
     # inteiro, não só a seção 'Curva' — por isso saiu do cabeçalho da
     # seção e virou um cabeçalho geral, acima do acordeão. Nenhum
     # callback que já usava esse id precisou mudar (ver
     # fechar_edicao_curva em callbacks.py).
     #
-    # 'Eixos', 'Ticks' e 'Outros' ainda são placeholders — trocar o
-    # 'html.P' de cada uma pelos controles reais quando forem
-    # implementadas é o único passo necessário; o toggle (abrir/
-    # fechar) já funciona sozinho pra qualquer seção nova, via
-    # alternar_secao_edicao (callbacks.py), que usa MATCH.
+    # 'Ticks' e 'Outros' ainda são placeholders — trocar o 'html.P' de
+    # cada uma pelos controles reais quando forem implementadas é o
+    # único passo necessário; o toggle (abrir/fechar) já funciona
+    # sozinho pra qualquer seção nova, via alternar_secao_edicao
+    # (callbacks.py), que usa MATCH.
     return [
         html.Div(className='painel-edicao-cabecalho-geral', children=[
             html.Span('Opções do gráfico', className='painel-edicao-titulo-geral'),
@@ -533,9 +611,7 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
             ),
         ]),
         _secao_colapsavel('curva', 'Curva', conteudo_curva, aberta=True),
-        _secao_colapsavel('eixos', 'Eixos', [
-            html.P('Em breve.', className='painel-edicao-placeholder-secao'),
-        ]),
+        _secao_colapsavel('eixos', 'Eixos', conteudo_eixos),
         _secao_colapsavel('ticks', 'Ticks', [
             html.P('Em breve.', className='painel-edicao-placeholder-secao'),
         ]),

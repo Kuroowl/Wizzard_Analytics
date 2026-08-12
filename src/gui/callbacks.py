@@ -730,3 +730,51 @@ def registrar_callbacks(app, estado):
             raise PreventUpdate
         aberta = 'aberta' in (classe_atual or '').split()
         return 'painel-edicao-secao' if aberta else 'painel-edicao-secao aberta'
+
+    @app.callback(
+        Output({'type': 'stepper-valor', 'index': MATCH}, 'value'),
+        Input({'type': 'stepper-menos', 'index': MATCH}, 'n_clicks'),
+        Input({'type': 'stepper-mais', 'index': MATCH}, 'n_clicks'),
+        State({'type': 'stepper-valor', 'index': MATCH}, 'value'),
+        State({'type': 'stepper-valor', 'index': MATCH}, 'step'),
+        State({'type': 'stepper-valor', 'index': MATCH}, 'min'),
+        State({'type': 'stepper-valor', 'index': MATCH}, 'max'),
+        prevent_initial_call=True,
+    )
+    def alternar_stepper(n_menos, n_mais, valor_atual, passo, minimo, maximo):
+        """
+        Callback ÚNICO e genérico pra qualquer par de botões '-'/'+'
+        do painel de edição (hoje: tamanho de fonte e espaçamento das
+        3 linhas de 'Eixos'; serve também pra qualquer stepper futuro
+        em 'Ticks', sem precisar escrever um callback novo — basta
+        usar _stepper com um 'index' próprio, ver renderizadores.py).
+
+        MATCH liga cada instância deste callback a UM stepper
+        específico (mesmo 'index' nos 3 ids: menos/valor/mais). Qual
+        dos dois botões foi clicado é lido em 'ctx.triggered_id'
+        (o dict completo do id do componente que disparou), não pelos
+        valores de n_clicks em si — comparar n_clicks entre os dois
+        botões não diria qual foi o ÚLTIMO clicado de forma confiável.
+
+        min/max/step vêm como State do próprio dcc.Input (não são
+        fixos aqui): cada linha de 'Eixos' já nasce com limites
+        diferentes (fonte: 6-48, espaçamento: -5-20 — ver _linha_eixo),
+        e este callback só respeita o que já está declarado no
+        componente, em vez de duplicar esses números em dois lugares.
+        """
+        if not ctx.triggered_id:
+            raise PreventUpdate
+
+        passo = passo if passo not in (None, 0) else 1
+        valor_atual = valor_atual if valor_atual is not None else (minimo or 0)
+
+        if ctx.triggered_id.get('type') == 'stepper-menos':
+            novo_valor = valor_atual - passo
+        else:
+            novo_valor = valor_atual + passo
+
+        if minimo is not None:
+            novo_valor = max(minimo, novo_valor)
+        if maximo is not None:
+            novo_valor = min(maximo, novo_valor)
+        return novo_valor

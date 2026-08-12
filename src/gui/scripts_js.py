@@ -1,4 +1,4 @@
-SCRIPT_DIVISORIA = """
+SCRIPT_DIVISORIA = r"""
 <script>
 // Conversores HSV<->RGB do seletor de cor (ver _seletor_cor em
 // renderizadores.py). Ficam FORA do DOMContentLoaded, presos em
@@ -304,6 +304,85 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
     iniciarSeletorCor();
+
+    // Mapa de comandos LaTeX 'simples' -> símbolo Unicode equivalente,
+    // usado nas caixas de texto de Título/Axis x/Axis y da seção
+    // 'Eixos' (ver 'painel-edicao-latex-input' em edit_menu.css e
+    // _linha_eixo em renderizadores.py). NÃO é um motor de LaTeX de
+    // verdade (sem fórmulas, frações, sub/sobrescrito) — só troca o
+    // comando digitado pelo caractere Unicode correspondente, porque
+    // um <input> comum só mostra texto puro, nunca fórmula renderizada.
+    // Lista ordenada com os nomes mais longos primeiro onde há risco de
+    // sobreposição (ex: 'Sigma' antes de qualquer coisa que pudesse
+    // bater como prefixo dela).
+    var MAPA_LATEX_SIMPLES = [
+        ['\\Delta', 'Δ'], ['\\delta', 'δ'],
+        ['\\Gamma', 'Γ'], ['\\gamma', 'γ'],
+        ['\\Theta', 'Θ'], ['\\theta', 'θ'],
+        ['\\Lambda', 'Λ'], ['\\lambda', 'λ'],
+        ['\\Sigma', 'Σ'], ['\\sigma', 'σ'],
+        ['\\Omega', 'Ω'], ['\\omega', 'ω'],
+        ['\\Phi', 'Φ'], ['\\phi', 'φ'],
+        ['\\Psi', 'Ψ'], ['\\psi', 'ψ'],
+        ['\\Pi', 'Π'], ['\\pi', 'π'],
+        ['\\alpha', 'α'], ['\\beta', 'β'], ['\\chi', 'χ'],
+        ['\\epsilon', 'ε'], ['\\eta', 'η'], ['\\mu', 'μ'],
+        ['\\nu', 'ν'], ['\\xi', 'ξ'], ['\\rho', 'ρ'], ['\\tau', 'τ'],
+        ['\\infty', '∞'], ['\\pm', '±'], ['\\mp', '∓'],
+        ['\\times', '×'], ['\\div', '÷'], ['\\cdot', '·'],
+        ['\\leq', '≤'], ['\\geq', '≥'], ['\\neq', '≠'], ['\\approx', '≈'],
+        ['\\equiv', '≡'], ['\\rightarrow', '→'], ['\\leftarrow', '←'],
+        ['\\sqrt', '√'], ['\\circ', '°'], ['\\degree', '°'],
+        ['\\partial', '∂'], ['\\nabla', '∇'], ['\\sum', 'Σ'],
+        ['\\prod', 'Π'], ['\\int', '∫'],
+    ];
+
+    function traduzirLatexSimples(texto) {
+        var resultado = texto;
+        MAPA_LATEX_SIMPLES.forEach(function (par) {
+            resultado = resultado.split(par[0]).join(par[1]);
+        });
+        // '$...$' são só os delimitadores de 'modo matemático' do
+        // LaTeX — depois que os comandos já viraram símbolo, não
+        // sobra função nenhuma pra eles aqui (não existe renderização
+        // de fórmula real nesta caixa, só a troca pontual de símbolo).
+        resultado = resultado.split('$').join('');
+        return resultado;
+    }
+
+    function iniciarTraducaoLatex() {
+        // Setter nativo de 'value' do <input>: setar 'e.target.value'
+        // direto funciona visualmente, mas o React (por trás do
+        // dcc.Input) rastreia o valor anterior por fora do DOM e pode
+        // não perceber a troca — resultando no campo "voltando" pro
+        // texto digitado assim que o Dash re-renderiza algo. Usar o
+        // setter nativo (em vez da atribuição direta) antes de disparar
+        // o evento 'input' é o contorno padrão pra isso.
+        var setterNativoValue = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype, 'value'
+        ).set;
+
+        document.addEventListener('input', function (e) {
+            var alvo = e.target;
+            if (!alvo || !alvo.classList || !alvo.classList.contains('painel-edicao-latex-input')) return;
+
+            var original = alvo.value;
+            var traduzido = traduzirLatexSimples(original);
+            if (traduzido === original) return;
+
+            setterNativoValue.call(alvo, traduzido);
+            alvo.dispatchEvent(new Event('input', { bubbles: true }));
+
+            // Cursor vai pro fim: a troca normalmente ENCURTA o texto
+            // (ex: 6 caracteres '\Delta' viram 1 'Δ'), então preservar a
+            // posição exata exigiria mapear cada substituição
+            // individualmente. Pra caixas curtas de título/rótulo (uso
+            // real daqui), ir pro fim é a opção simples e previsível.
+            var posicao = traduzido.length;
+            alvo.setSelectionRange(posicao, posicao);
+        });
+    }
+    iniciarTraducaoLatex();
 
     function iniciarBarraCarregamentoRodape() {
         // Liga o preenchimento verde do '#rodape-status' ao estado REAL de

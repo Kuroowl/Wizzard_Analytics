@@ -176,11 +176,26 @@
   color: var(--cor-texto-escuro);
 }
 
-/* Seta '▾' do cabeçalho: gira 180° quando a seção está aberta. */
+/* Seta '▾' do cabeçalho: mesmo tamanho/formato do antigo botão '✕'
+   que ficava aqui (20x20px, cantos arredondados, fundo suave no
+   hover) — antes era só um caractere solto de 10px, praticamente sem
+   área de clique/toque. Gira 180° quando a seção está aberta. */
 .painel-edicao-secao-seta {
-  font-size: 10px;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 13px;
   color: var(--cor-texto-mudo);
-  transition: transform 0.15s ease;
+  transition: transform 0.15s ease, background 0.1s, color 0.1s;
+}
+
+.painel-edicao-secao-cabecalho:hover .painel-edicao-secao-seta {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--cor-texto-escuro);
 }
 
 .painel-edicao-secao.aberta .painel-edicao-secao-seta {
@@ -498,4 +513,140 @@
 .painel-edicao-campo .rc-slider-handle-dragging {
   border-color: var(--cor-accent) !important;
   box-shadow: 0 0 0 4px rgba(47, 165, 160, 0.2) !important;
+}
+
+/* ==========================================================================
+   Seção 'Eixos' (Título / Axis x / Axis y) — cada linha tem: rótulo,
+   caixa de texto (com suporte a comandos LaTeX simples, ver
+   traduzirLatexSimples em scripts_js.py), stepper de tamanho de fonte
+   ('Aa') e stepper de espaçamento entre caracteres ('↔'). Os cabeçalhos
+   'Aa'/'↔' aparecem uma vez só, acima das 3 linhas (renderizar_painel_
+   edicao em renderizadores.py monta essa fileira como
+   painel-edicao-eixos-cabecalho).
+   ========================================================================== */
+.painel-edicao-eixos-cabecalho {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 4px;
+}
+
+/* Espaçador do tamanho do rótulo ('Título:', 'Axis x:'...) nas linhas
+   abaixo, pra 'Aa' e '↔' ficarem alinhados com os steppers de verdade,
+   não com o texto do input. */
+.painel-edicao-eixos-cabecalho-rotulo {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.painel-edicao-eixos-cabecalho-coluna {
+  flex: 0 0 auto;
+  width: 74px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--cor-texto-mudo);
+}
+
+.painel-edicao-linha-eixo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.painel-edicao-linha-eixo .painel-edicao-label {
+  flex: 0 0 auto;
+  width: 46px;
+}
+
+/* Caixa de texto do título/rótulo do eixo — aceita comandos LaTeX
+   simples (ex: '\Delta' vira 'Δ' ao digitar, ver traduzirLatexSimples
+   em scripts_js.py). O placeholder cinza claro é só o hint visual de
+   'enter text...'; não é o valor de verdade do campo. */
+.painel-edicao-latex-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--cor-borda);
+  border-radius: 6px;
+  font-family: var(--fonte-ui);
+  font-size: 11px;
+  color: var(--cor-texto-escuro);
+  background-color: var(--cor-fundo);
+}
+
+.painel-edicao-latex-input::placeholder {
+  color: #c7c7c7;
+}
+
+.painel-edicao-latex-input:focus {
+  outline: none;
+  border-color: var(--cor-accent);
+}
+
+/* Par de botões '-'/'+' ao lado de um campo numérico (tamanho de
+   fonte, espaçamento) — usado tanto em 'Eixos' quanto, no futuro, em
+   'Ticks' (ver _stepper em renderizadores.py e alternar_stepper em
+   callbacks.py, que é genérico pra qualquer stepper do painel). */
+.painel-edicao-stepper {
+  flex: 0 0 auto;
+  width: 74px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.painel-edicao-stepper-btn {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 26px;
+  border: 1px solid var(--cor-borda);
+  background-color: var(--cor-fundo);
+  color: var(--cor-texto-escuro);
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.painel-edicao-stepper-btn:hover {
+  background-color: var(--cor-accent-suave);
+  border-color: var(--cor-accent);
+}
+
+.painel-edicao-stepper-input {
+  flex: 1 1 0;
+  width: 0; /* deixa o flex mandar; evita que o 'number' input estoure a coluna de 74px */
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--cor-borda);
+  border-radius: 4px;
+  text-align: center;
+  font-family: var(--fonte-ui);
+  font-size: 11px;
+  color: var(--cor-texto-escuro);
+  background-color: var(--cor-fundo);
+}
+
+.painel-edicao-stepper-input:focus {
+  outline: none;
+  border-color: var(--cor-accent);
+}
+
+/* Remove as setinhas nativas do <input type="number"> — o stepper já
+   tem os botões '-'/'+' próprios, as setinhas do navegador só
+   duplicam a função ocupando espaço que a coluna de 74px não tem
+   sobrando. */
+.painel-edicao-stepper-input::-webkit-outer-spin-button,
+.painel-edicao-stepper-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.painel-edicao-stepper-input[type='number'] {
+  -moz-appearance: textfield;
 }
