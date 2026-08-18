@@ -887,7 +887,17 @@ def registrar_callbacks(app, estado):
         Output('edicao-ticks-largura', 'value'),
         Output('edicao-ticks-comprimento', 'value'),
         Output('edicao-ticks-sliders-wrapper', 'className'),
-        Output({'type': 'toggle', 'index': 'ticks-both-sides'}, 'className'),
+        # allow_duplicate=True: este Output também é atingido pelo
+        # callback genérico alternar_toggle (Output({'type':'toggle',
+        # 'index': MATCH}, 'className')) — sem isso o Dash recusa
+        # registrar os dois porque, em tese, os dois PODERIAM escrever
+        # no mesmo componente ao mesmo tempo. Na prática nunca colidem
+        # de verdade: alternar_toggle só dispara em resposta a um
+        # clique no PRÓPRIO toggle 'Both sides' (n_clicks), enquanto
+        # este aqui só dispara em resposta ao dropdown 'Eixo' ou ao
+        # toggle 'Division/Subdivision' — nunca os dois no mesmo
+        # clique.
+        Output({'type': 'toggle', 'index': 'ticks-both-sides'}, 'className', allow_duplicate=True),
         Input('edicao-ticks-eixo', 'value'),
         Input({'type': 'toggle', 'index': 'ticks-subdivisao'}, 'className'),
         State('aba-ativa-store', 'data'),
