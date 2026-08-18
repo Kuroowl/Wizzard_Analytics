@@ -505,13 +505,16 @@ def _linha_toggle_dupla(rotulo_esquerda, rotulo_direita, indice, ativo=False):
     que está ligado agora), diferente de um toggle com um rótulo único
     tipo 'Grid' ou 'Both sides'.
 
-    Usa 'painel-edicao-toggle-modo' como classe extra (ver _toggle) —
-    é o que deixa este toggle específico laranja quando ativo (modo
-    Subdivision), em vez do teal padrão dos outros toggles do painel.
+    O TOGGLE em si fica com a cor padrão (teal), igual a qualquer
+    outro do painel — quem muda de cor ao trocar de modo são os 3
+    sliders logo abaixo (ver .painel-edicao-ticks-sliders.modo-
+    subdivisao em edit_menu.css): são eles que passam a controlar um
+    conjunto de valores diferente, o toggle é só o controle que decide
+    qual conjunto é esse.
     """
     return html.Div(className='painel-edicao-toggle-linha painel-edicao-toggle-linha-dupla', children=[
         html.Span(rotulo_esquerda, className='painel-edicao-toggle-rotulo-lateral'),
-        _toggle(indice, ativo=ativo, classe_extra='painel-edicao-toggle-modo'),
+        _toggle(indice, ativo=ativo),
         html.Span(rotulo_direita, className='painel-edicao-toggle-rotulo-lateral'),
     ])
 
@@ -741,22 +744,27 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
         _linha_limite_eixo('y', 'edicao-eixo-y-limite-min', 'edicao-eixo-y-limite-max', 'y'),
     ]
 
-    # Valores 'de fábrica' de 'Ticks' — mesmo caso de 'Eixos' (comentário
-    # acima): os controles já funcionam de ponta a ponta (dropdown de
-    # eixo, sliders de divisão/subdivisão trocando de valor no toggle,
-    # 'both sides'), só falta a parte de LER/GRAVAR em 'estado' e
-    # aplicar de fato no plotter (fig.update_xaxes/update_yaxes) quando
-    # isso for definido.
+    # 'Ticks' — ao contrário de 'Eixos' (ainda placeholder de valores),
+    # esta seção JÁ lê os valores de partida direto de
+    # 'arquivo.preferencias' (ver PreferenciasTicksEixo em
+    # src/core/arquivo.py) — abrir a edição herda o que está REALMENTE
+    # desenhado no gráfico agora, não um valor fixo de fábrica. A
+    # partir daqui, qualquer alteração (slider, toggle, dropdown de
+    # eixo) grava de volta nesse mesmo objeto e redesenha a figura
+    # (ver sincronizar_campos_ticks/aplicar_preferencias_ticks em
+    # callbacks.py).
     #
-    # O MESMO trio de sliders (ids fixos 'edicao-ticks-numero'/
-    # '-largura'/'-comprimento') serve pras 'Divisions' E pra
-    # 'Subdivision' — não nascem 6 sliders. 'edicao-ticks-divisoes-store'
-    # guarda os dois conjuntos de valores (um por modo); o toggle
-    # 'Subdivision' só troca QUAL dos dois conjuntos os sliders mostram
-    # agora (ver alternar_modo_ticks/gravar_valores_ticks em
-    # callbacks.py, MATCH em cima do toggle genérico _toggle).
-    valores_divisoes_padrao = {'numero': 4, 'largura': 1, 'comprimento': 5}
-    valores_subdivisoes_padrao = {'numero': 2, 'largura': 1, 'comprimento': 3}
+    # O dropdown 'Eixo' nasce em 'x' (não 'both') — cada eixo tem seu
+    # PRÓPRIO conjunto de valores (ticks_x/ticks_y); 'x' é só o ponto
+    # de partida mais direto pra mostrar 1 conjunto sem ambiguidade.
+    # 'Both' continua disponível pra editar os dois de uma vez (grava
+    # o mesmo valor em ticks_x E ticks_y), mas ao SELECIONAR 'Both' os
+    # sliders mostram os valores de X (ver _prefs_ticks_eixo em
+    # callbacks.py) — se X e Y estiverem diferentes nesse momento, é
+    # o valor de X que aparece até a primeira edição igualar os dois.
+    ticks_x = arquivo.preferencias.ticks_x
+    valores_divisoes_iniciais = ticks_x.divisoes
+    valores_subdivisoes_iniciais = ticks_x.subdivisoes
 
     conteudo_ticks = [
         html.Div(className='painel-edicao-campo', children=[
@@ -768,7 +776,7 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
                     {'label': 'Y', 'value': 'y'},
                     {'label': 'Both', 'value': 'both'},
                 ],
-                value='both',
+                value='x',
                 clearable=False, searchable=False,
                 className='painel-edicao-dropdown',
             ),
@@ -789,52 +797,46 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
             children=[
                 _campo_slider(
                     'Number:', 'edicao-ticks-numero',
-                    valores_divisoes_padrao['numero'], minimo=2, maximo=20, step=1,
+                    valores_divisoes_iniciais['numero'], minimo=2, maximo=20, step=1,
                 ),
                 _campo_slider(
                     'Width:', 'edicao-ticks-largura',
-                    valores_divisoes_padrao['largura'], minimo=1, maximo=10, step=1,
+                    valores_divisoes_iniciais['largura'], minimo=1, maximo=10, step=1,
                 ),
                 _campo_slider(
                     'Length:', 'edicao-ticks-comprimento',
-                    valores_divisoes_padrao['comprimento'], minimo=1, maximo=20, step=1,
+                    valores_divisoes_iniciais['comprimento'], minimo=1, maximo=20, step=1,
                 ),
             ],
         ),
-        _linha_toggle('Both sides', 'ticks-both-sides'),
-
-        dcc.Store(id='edicao-ticks-divisoes-store', data={
-            'divisoes': valores_divisoes_padrao,
-            'subdivisoes': valores_subdivisoes_padrao,
-        }),
+        _linha_toggle('Both sides', 'ticks-both-sides', ativo=ticks_x.both_sides),
     ]
 
-    # 'Outros' — por enquanto só Grid (on/off) e a cor do grid/fundo do
-    # gráfico. Mesmo status de 'Ticks'/'Eixos': o seletor de cor
-    # (_seletor_cor, generalizado com 'prefixo' pra caber mais de uma
-    # instância no painel — ver comentário na própria função) e o
-    # toggle já funcionam de ponta a ponta; falta só ligar os dois em
-    # 'estado' e no plotter (fig.update_layout(plot_bgcolor=...) /
-    # showgrid=False nos eixos) quando essa etapa for definida.
+    # 'Outros' — Grid (on/off) e a cor de fundo da área de plotagem.
+    # Igual a 'Ticks': valores de partida vêm de 'arquivo.preferencias'
+    # (grid/cor_fundo — ver PreferenciasGrafico em src/core/arquivo.py),
+    # não de um padrão fixo — e cada alteração grava de volta e
+    # redesenha o gráfico (ver aplicar_preferencias_outros em
+    # callbacks.py).
     #
-    # O seletor em si é EXATAMENTE o mesmo widget do campo 'cor' de
-    # 'Curva' (mesma _seletor_cor, mesmo _campo_rgb, mesmo JS de
-    # arraste) — só o destino muda: aqui grava em
-    # {'type': 'cor-store', 'index': 'fundo'}, não 'curva'. Por isso
-    # fica dentro de um 'painel-edicao-subcampo' de largura fixa (86px,
-    # igual à coluna 'cor:' de Curva) em vez de um 'painel-edicao-campo'
-    # esticado — sem isso a caixinha vira uma barra comprida em vez do
+    # O seletor de cor em si é EXATAMENTE o mesmo widget do campo 'cor'
+    # de 'Curva' (mesma _seletor_cor, mesmo _campo_rgb, mesmo JS de
+    # arraste) — só o destino muda: aqui grava em 'preferencias.
+    # cor_fundo', não numa curva. Por isso fica dentro de um
+    # 'painel-edicao-subcampo' de largura fixa (86px, igual à coluna
+    # 'cor:' de Curva) em vez de um 'painel-edicao-campo' esticado —
+    # sem isso a caixinha vira uma barra comprida em vez do
     # quadradinho compacto que aparece em Curva.
-    cor_fundo_padrao = '#FFFFFF'
+    cor_fundo_atual = arquivo.preferencias.cor_fundo or '#FFFFFF'
 
     conteudo_outros = [
-        _linha_toggle('Grid', 'outros-grid', ativo=True),
+        _linha_toggle('Grid', 'outros-grid', ativo=arquivo.preferencias.grid),
 
         html.Div(className='painel-edicao-campo', children=[
-            html.Label('Grid / Background:', className='painel-edicao-label'),
+            html.Label('Background:', className='painel-edicao-label'),
             html.Div(className='painel-edicao-subcampo', style={'flex': '0 0 auto', 'width': '86px'}, children=[
-                dcc.Store(id={'type': 'cor-store', 'index': 'fundo'}, data=cor_fundo_padrao),
-                _seletor_cor(cor_fundo_padrao, 'fundo'),
+                dcc.Store(id={'type': 'cor-store', 'index': 'fundo'}, data=cor_fundo_atual),
+                _seletor_cor(cor_fundo_atual, 'fundo'),
             ]),
         ]),
     ]

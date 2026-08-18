@@ -823,6 +823,33 @@ def registrar_callbacks(app, estado):
             return '🔓', 'painel-edicao-limite-btn'
         return '🔒', 'painel-edicao-limite-btn travado'
 
+    def _prefs_ticks_eixo(arquivo, eixo):
+        """
+        Devolve o PreferenciasTicksEixo (ver src/core/arquivo.py) que
+        representa 'eixo' ('x'/'y'/'both') pra fins de LEITURA (o que
+        mostrar nos sliders). 'both' não tem um objeto próprio — mostra
+        o de X (ver justificativa em renderizar_painel_edicao,
+        renderizadores.py: X e Y só divergem se o usuário editar cada
+        um separadamente; ao editar com 'Both' selecionado os dois são
+        igualados de novo, ver _prefs_ticks_alvos abaixo).
+        """
+        return arquivo.preferencias.ticks_x if eixo != 'y' else arquivo.preferencias.ticks_y
+
+    def _prefs_ticks_alvos(arquivo, eixo):
+        """
+        Devolve a LISTA de PreferenciasTicksEixo que uma EDIÇÃO deve
+        gravar: só X, só Y, ou os dois juntos (mesmo valor nos dois)
+        quando 'Eixo: Both' está selecionado — é assim que 'Both'
+        funciona como atalho pra editar os dois eixos de uma vez, sem
+        precisar de um terceiro conjunto de preferências.
+        """
+        prefs = arquivo.preferencias
+        if eixo == 'x':
+            return [prefs.ticks_x]
+        if eixo == 'y':
+            return [prefs.ticks_y]
+        return [prefs.ticks_x, prefs.ticks_y]
+
     @app.callback(
         Output({'type': 'toggle', 'index': MATCH}, 'className'),
         Input({'type': 'toggle', 'index': MATCH}, 'n_clicks'),
@@ -841,11 +868,10 @@ def registrar_callbacks(app, estado):
         futuro, só usar _toggle() com um 'index' próprio.
 
         Só ADICIONA/REMOVE a classe 'ativo' na lista de classes
-        existente (em vez de devolver uma string fixa) — preserva
-        qualquer 'classe_extra' pendurada no botão por _toggle (ex:
-        'painel-edicao-toggle-modo', que dá uma cor própria ao toggle
-        'Division/Subdivision' — ver edit_menu.css). Devolver uma
-        string fixa aqui apagaria essa classe extra no primeiro clique.
+        existente (em vez de devolver uma string fixa) — mais robusto
+        a qualquer classe extra que _toggle venha a pendurar no botão
+        no futuro (hoje nenhum toggle usa isso, mas o suporte continua
+        aqui pronto).
         """
         if not n_clicks:
             raise PreventUpdate
@@ -861,69 +887,126 @@ def registrar_callbacks(app, estado):
         Output('edicao-ticks-largura', 'value'),
         Output('edicao-ticks-comprimento', 'value'),
         Output('edicao-ticks-sliders-wrapper', 'className'),
+        Output({'type': 'toggle', 'index': 'ticks-both-sides'}, 'className'),
+        Input('edicao-ticks-eixo', 'value'),
         Input({'type': 'toggle', 'index': 'ticks-subdivisao'}, 'className'),
-        State('edicao-ticks-divisoes-store', 'data'),
+        State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
-    def alternar_modo_ticks(classe_toggle, dados):
+    def sincronizar_campos_ticks(eixo, classe_modo, aba_ativa):
         """
-        Liga/desliga o toggle 'Division/Subdivision' (seção 'Ticks')
-        faz os MESMOS 3 sliders (Number/Width/Length) trocarem de
-        valor entre os dois conjuntos guardados em
-        'edicao-ticks-divisoes-store' ('divisoes' com o toggle à
-        esquerda/desligado, 'subdivisoes' à direita/ligado) — não
-        existem 6 sliders, só um trio reaproveitado (ver conteudo_ticks
-        em renderizadores.py).
+        Repopula os controles de 'Ticks' sempre que muda QUAL conjunto
+        de valores deve aparecer — seja porque o usuário trocou o
+        dropdown 'Eixo' (X/Y/Both), seja porque ligou/desligou o toggle
+        'Division/Subdivision'. Os 4 (eixo × modo) formam a matriz de
+        onde ler: 'estado.arquivos[aba_ativa].preferencias.ticks_x/
+        ticks_y . divisoes/subdivisoes' (ver PreferenciasTicksEixo em
+        src/core/arquivo.py) — é essa leitura direta de 'estado' que
+        corrige o bug relatado (trocar de X pra Y não deve herdar o
+        último valor mexido, e sim o que está REALMENTE aplicado
+        naquele eixo específico).
 
-        TAMBÉM troca a classe do wrapper dos 3 sliders
-        ('edicao-ticks-sliders-wrapper'), somando/removendo
-        'modo-subdivisao' — é isso que muda a cor das barras (teal
-        'divisoes' / laranja 'subdivisoes', ver
-        .painel-edicao-ticks-sliders.modo-subdivisao em
-        edit_menu.css), deixando claro qual dos dois conjuntos está
-        sendo editado sem precisar ler o texto do toggle.
-
-        Dispara a partir da CLASSE do toggle (não de um valor booleano
-        à parte) porque é a própria classe que alternar_toggle (acima)
-        já alterna via MATCH — evita duplicar o estado 'ligado/
-        desligado' em dois lugares (className do botão E um Store).
+        TAMBÉM sincroniza o toggle 'Both sides' (reflete
+        'both_sides' do eixo que passou a estar selecionado) e a
+        classe do wrapper dos sliders (cor teal/laranja conforme o
+        modo — ver .painel-edicao-ticks-sliders.modo-subdivisao em
+        edit_menu.css).
         """
-        if not dados:
+        if not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
-        ativo = 'ativo' in (classe_toggle or '').split()
-        chave = 'subdivisoes' if ativo else 'divisoes'
-        valores = dados.get(chave) or {}
-        classe_wrapper = 'painel-edicao-ticks-sliders' + (' modo-subdivisao' if ativo else '')
+
+        arquivo = estado.arquivos[aba_ativa]
+        prefs_eixo = _prefs_ticks_eixo(arquivo, eixo)
+        modo_subdivisao = 'ativo' in (classe_modo or '').split()
+        conjunto = prefs_eixo.subdivisoes if modo_subdivisao else prefs_eixo.divisoes
+        classe_wrapper = 'painel-edicao-ticks-sliders' + (' modo-subdivisao' if modo_subdivisao else '')
+        classe_both_sides = 'painel-edicao-toggle' + (' ativo' if prefs_eixo.both_sides else '')
+
         return (
-            valores.get('numero', 2), valores.get('largura', 1), valores.get('comprimento', 3),
-            classe_wrapper,
+            conjunto.get('numero', 2), conjunto.get('largura', 1), conjunto.get('comprimento', 3),
+            classe_wrapper, classe_both_sides,
         )
 
     @app.callback(
-        Output('edicao-ticks-divisoes-store', 'data'),
+        Output('container-grafico', 'children', allow_duplicate=True),
         Input('edicao-ticks-numero', 'value'),
         Input('edicao-ticks-largura', 'value'),
         Input('edicao-ticks-comprimento', 'value'),
+        Input({'type': 'toggle', 'index': 'ticks-both-sides'}, 'className'),
+        State('edicao-ticks-eixo', 'value'),
         State({'type': 'toggle', 'index': 'ticks-subdivisao'}, 'className'),
-        State('edicao-ticks-divisoes-store', 'data'),
+        State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
-    def gravar_valores_ticks(numero, largura, comprimento, classe_toggle, dados):
+    def aplicar_preferencias_ticks(numero, largura, comprimento, classe_both_sides, eixo, classe_modo, aba_ativa):
         """
-        Espelho de alternar_modo_ticks: sempre que o usuário MEXE num
-        dos 3 sliders, grava o valor de volta no conjunto ('divisoes'
-        ou 'subdivisoes') que está ativo NESTE momento — sem isto, uma
-        edição feita com 'Subdivision' ligado se perderia ao desligar
-        (os sliders voltariam pro valor antigo de 'divisoes', e
-        vice-versa). Também dispara (sem efeito real, mesmo valor
-        regravado) logo depois de alternar_modo_ticks trocar os
-        sliders de conjunto — inofensivo, é a mesma classe de gatilho
-        'fantasma' comentado em _clique_real.
+        Grava os 3 sliders + 'Both sides' como preferência PERMANENTE
+        do(s) eixo(s) alvo (ver _prefs_ticks_alvos: X, Y, ou os dois se
+        'Eixo: Both' estiver selecionado) e redesenha o gráfico na
+        hora (ver _aplicar_preferencias_grafico em plotter.py) —
+        mesmo espírito de aplicar_preferencias_curva, só que pro
+        LAYOUT em vez de uma curva.
+
+        Grava no conjunto 'divisoes' ou 'subdivisoes' conforme o
+        estado ATUAL do toggle 'Division/Subdivision' (lido como
+        State, não Input — este callback não deve disparar sozinho só
+        porque o modo mudou; quem faz os sliders REFLETIREM a troca de
+        modo é sincronizar_campos_ticks acima; este aqui só reage a
+        edição de verdade nos sliders/both-sides).
+
+        Também dispara (gravação idempotente, mesmo valor) logo depois
+        de sincronizar_campos_ticks trocar os sliders de eixo/modo —
+        mesma classe de gatilho 'fantasma' comentado em _clique_real;
+        sem efeito real no gráfico além de redesenhar com os mesmos
+        números.
         """
-        if not dados:
+        if not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
-        ativo = 'ativo' in (classe_toggle or '').split()
-        chave = 'subdivisoes' if ativo else 'divisoes'
-        dados = dict(dados)
-        dados[chave] = {'numero': numero, 'largura': largura, 'comprimento': comprimento}
-        return dados
+
+        arquivo = estado.arquivos[aba_ativa]
+        if not arquivo.grafico_gerado:
+            raise PreventUpdate
+
+        modo_subdivisao = 'ativo' in (classe_modo or '').split()
+        chave = 'subdivisoes' if modo_subdivisao else 'divisoes'
+        both_sides = 'ativo' in (classe_both_sides or '').split()
+        conjunto = {'numero': numero, 'largura': largura, 'comprimento': comprimento}
+
+        for prefs_eixo in _prefs_ticks_alvos(arquivo, eixo):
+            setattr(prefs_eixo, chave, conjunto)
+            prefs_eixo.both_sides = both_sides
+
+        fig = construir_figura_serie_temporal(estado, aba_ativa)
+        arquivo.figura = fig
+        return renderizar_grafico_com_fechar(fig)
+
+    @app.callback(
+        Output('container-grafico', 'children', allow_duplicate=True),
+        Input({'type': 'toggle', 'index': 'outros-grid'}, 'className'),
+        Input({'type': 'cor-store', 'index': 'fundo'}, 'data'),
+        State('aba-ativa-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def aplicar_preferencias_outros(classe_grid, cor_fundo, aba_ativa):
+        """
+        Grava 'Grid' e a cor de fundo (seção 'Outros') como preferência
+        PERMANENTE do gráfico inteiro (ver PreferenciasGrafico.grid/
+        cor_fundo em src/core/arquivo.py) e redesenha na hora — mesmo
+        padrão de aplicar_preferencias_ticks acima. Diferente de
+        'Ticks', não tem um 'eixo alvo': 'Grid' liga/desliga nos DOIS
+        eixos junto (o painel só tem um interruptor pros dois) e a cor
+        de fundo é do gráfico inteiro, não de um eixo específico.
+        """
+        if not aba_ativa or aba_ativa not in estado.arquivos:
+            raise PreventUpdate
+
+        arquivo = estado.arquivos[aba_ativa]
+        if not arquivo.grafico_gerado:
+            raise PreventUpdate
+
+        arquivo.preferencias.grid = 'ativo' in (classe_grid or '').split()
+        arquivo.preferencias.cor_fundo = cor_fundo
+
+        fig = construir_figura_serie_temporal(estado, aba_ativa)
+        arquivo.figura = fig
+        return renderizar_grafico_com_fechar(fig)

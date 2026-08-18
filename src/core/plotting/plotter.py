@@ -113,6 +113,61 @@ def resolver_eixo_x(estado, df):
     return colunas_numericas[0] if len(colunas_numericas) else df.columns[0]
 
 
+def _aplicar_preferencias_grafico(fig, preferencias):
+    """
+    Aplica em 'fig' o que foi ajustado nas seções 'Ticks' e 'Outros' do
+    painel de edição (ver PreferenciasGrafico em src/core/arquivo.py) —
+    chamado no fim de construir_figura_serie_temporal, depois que as
+    curvas já foram desenhadas, porque essas propriedades são do
+    LAYOUT (eixos/fundo), não de uma curva específica.
+
+    Mapeamento pros parâmetros do Plotly:
+      - 'divisoes' (ticks principais) -> nticks/tickwidth/ticklen do
+        próprio eixo. 'nticks' é uma contagem APROXIMADA (o Plotly
+        ainda escolhe posições "redondas" pros ticks) — não existe um
+        parâmetro que force um número EXATO de divisões sem também
+        fixar 'dtick' (o que exigiria calcular o passo a partir do
+        range dos dados, fora do escopo desta etapa).
+      - 'subdivisoes' -> o recurso de "minor ticks" do Plotly (eixo.
+        minor=dict(...)), literalmente ticks secundários entre os
+        principais — é o equivalente mais próximo que a lib tem de
+        "subdivisão".
+      - 'ticks=\"outside\"' em ambos (principal e minor): sem isso o
+        Plotly desenha só as LINHAS de grade, nenhum traço de tick de
+        verdade — então largura/comprimento (tickwidth/ticklen) não
+        teriam efeito visual nenhum.
+      - 'both_sides' -> mirror='ticks' (espelha o tick pro lado oposto
+        do eixo, sem espelhar rótulos).
+      - 'grid' -> showgrid nos dois eixos (o painel só tem UM
+        interruptor 'Grid' em 'Outros', não um por eixo).
+      - 'cor_fundo' -> plot_bgcolor (a ÁREA de plotagem; 'paper_bgcolor',
+        a moldura ao redor, continua a cargo do template).
+    """
+    for eixo_prefs, atualizar_eixo in (
+        (preferencias.ticks_x, fig.update_xaxes),
+        (preferencias.ticks_y, fig.update_yaxes),
+    ):
+        divisoes = eixo_prefs.divisoes
+        subdivisoes = eixo_prefs.subdivisoes
+        atualizar_eixo(
+            showgrid=preferencias.grid,
+            ticks='outside',
+            nticks=divisoes.get('numero'),
+            tickwidth=divisoes.get('largura'),
+            ticklen=divisoes.get('comprimento'),
+            mirror='ticks' if eixo_prefs.both_sides else False,
+            minor=dict(
+                ticks='outside',
+                nticks=subdivisoes.get('numero'),
+                tickwidth=subdivisoes.get('largura'),
+                ticklen=subdivisoes.get('comprimento'),
+            ),
+        )
+
+    if preferencias.cor_fundo:
+        fig.update_layout(plot_bgcolor=preferencias.cor_fundo)
+
+
 def construir_figura_serie_temporal(estado, aba_ativa):
     """
     Monta a figura de 'Série Temporal' (linhas) para UM ÚNICO arquivo: o da
@@ -220,6 +275,8 @@ def construir_figura_serie_temporal(estado, aba_ativa):
         uirevision='constant',
 
     )
+
+    _aplicar_preferencias_grafico(fig, arquivo.preferencias)
 
     if houve_amostragem:
         fig.add_annotation(

@@ -99,6 +99,29 @@ class PreferenciasCanal:
 
 
 @dataclass
+class PreferenciasTicksEixo:
+    """
+    Como os ticks de UM eixo (x ou y) aparecem no gráfico — ver seção
+    'Ticks' do painel de edição (renderizadores.py/callbacks.py).
+
+    'divisoes' e 'subdivisoes' guardam os mesmos 3 números (número de
+    marcas / largura / comprimento do traço do tick) em dois conjuntos
+    INDEPENDENTES — os ticks "principais" (mapeados em
+    fig.update_xaxes/yaxes(nticks=..., tickwidth=..., ticklen=...)) e
+    os "secundários" (mapeados no recurso de minor ticks do Plotly,
+    xaxis.minor=dict(...)). O painel usa o MESMO trio de sliders pros
+    dois (ver _campo_slider/alternar_modo_ticks), só troca qual dict
+    aqui está sendo lido/escrito no momento.
+    """
+    divisoes: dict = field(default_factory=lambda: {'numero': 4, 'largura': 1, 'comprimento': 5})
+    subdivisoes: dict = field(default_factory=lambda: {'numero': 2, 'largura': 1, 'comprimento': 3})
+    # Espelha o tick pro lado oposto do eixo (topo/direita), via
+    # fig.update_xaxes/yaxes(mirror='ticks') — ver 'Both sides' no
+    # painel.
+    both_sides: bool = False
+
+
+@dataclass
 class PreferenciasGrafico:
     """Como o gráfico inteiro aparece: eixos, limites, título."""
     titulo: str | None = None
@@ -107,6 +130,19 @@ class PreferenciasGrafico:
     limite_x: tuple | None = None
     limite_y: tuple | None = None
     por_canal: dict[str, PreferenciasCanal] = field(default_factory=dict)
+    # Ticks de cada eixo — independentes entre si (ver
+    # PreferenciasTicksEixo). Quando o painel edita com 'Eixo: Both'
+    # selecionado, os DOIS são escritos com o mesmo valor (ver
+    # _prefs_ticks_alvos em callbacks.py), mas continuam podendo
+    # divergir se o usuário editar X e Y separadamente depois.
+    ticks_x: PreferenciasTicksEixo = field(default_factory=PreferenciasTicksEixo)
+    ticks_y: PreferenciasTicksEixo = field(default_factory=PreferenciasTicksEixo)
+    # 'Outros': grid ligado/desligado (fig.update_xaxes/yaxes(showgrid=))
+    # e cor de fundo da ÁREA de plotagem (fig.update_layout(plot_bgcolor=)).
+    # 'cor_fundo' None = deixa o Plotly usar o padrão do template
+    # ('plotly_white'), não força branco por cima.
+    grid: bool = True
+    cor_fundo: str | None = None
 
     def preferencias_do_canal(self, nome_interno: str) -> PreferenciasCanal:
         """Cria (na primeira vez) e devolve as preferências de um canal."""

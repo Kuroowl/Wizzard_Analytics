@@ -803,13 +803,15 @@
 /* Variante 'dupla' (Division <-> Subdivision, seção 'Ticks'): dois
    rótulos, um de cada lado do toggle (ver _linha_toggle_dupla em
    renderizadores.py) — a própria posição do interruptor já indica o
-   modo, então os rótulos ficam discretos e do MESMO peso visual (não
-   é um deles que "acende"; quem muda de cor é o toggle e os sliders
-   logo abaixo, ver .painel-edicao-toggle-modo e
-   .painel-edicao-ticks-sliders.modo-subdivisao). 'justify-content:
-   center' (em vez de 'space-between', usado pela variante de rótulo
-   único) porque aqui os 2 textos + o toggle formam um bloco só, não
-   uma linha 'rótulo à esquerda / controle à direita'. */
+   modo, então os rótulos ficam discretos e do MESMO peso visual. O
+   TOGGLE em si fica com a cor padrão (igual 'Both sides'/'Grid') —
+   quem muda de cor ao trocar de modo são os 3 sliders logo abaixo
+   (ver .painel-edicao-ticks-sliders.modo-subdivisao), porque são eles
+   que passam a controlar outro conjunto de valores; o toggle é só o
+   controle que decide qual conjunto é esse. 'justify-content: center'
+   (em vez de 'space-between', usado pela variante de rótulo único)
+   porque aqui os 2 textos + o toggle formam um bloco só, não uma
+   linha 'rótulo à esquerda / controle à direita'. */
 .painel-edicao-toggle-linha-dupla {
   justify-content: center;
   gap: 10px;
@@ -821,26 +823,10 @@
   color: var(--cor-texto-mudo);
 }
 
-/* Toggle 'Division/Subdivision': cor PRÓPRIA (laranja) quando ativo
-   (= modo Subdivision), diferente do teal padrão dos outros toggles
-   do painel ('Both sides', 'Grid') — é o que _toggle(classe_extra=
-   'painel-edicao-toggle-modo') pendura no botão. Precisa vir DEPOIS
-   de '.painel-edicao-toggle.ativo' no arquivo pra ganhar o empate de
-   especificidade (duas classes cada) e realmente sobrescrever a cor
-   teal. */
-.painel-edicao-toggle-modo:hover {
-  border-color: var(--cor-accent-subdivisao);
-}
-
-.painel-edicao-toggle-modo.ativo {
-  background-color: var(--cor-accent-subdivisao);
-  border-color: var(--cor-accent-subdivisao);
-}
-
 /* Os 3 sliders (Number/Width/Length) trocam de cor junto com o toggle
-   acima (mesmo callback, alternar_modo_ticks em callbacks.py, grava a
-   classe 'modo-subdivisao' no MESMO wrapper que troca o valor dos
-   sliders) — teal = editando 'Division', laranja = editando
+   acima (mesmo callback, sincronizar_campos_ticks em callbacks.py,
+   grava a classe 'modo-subdivisao' no MESMO wrapper que troca o valor
+   dos sliders) — teal = editando 'Division', laranja = editando
    'Subdivision'. Sobrescreve as regras genéricas de
    '.painel-edicao-campo .rc-slider-*' (mais acima neste arquivo) só
    dentro deste wrapper específico. */
