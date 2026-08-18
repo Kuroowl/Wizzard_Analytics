@@ -225,17 +225,21 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         function aplicarRgb(wrapper, h, s, v) {
+            // Busca os 3 campos pela ORDEM em que nascem dentro do wrapper
+            // (R, G, B — ver _campo_rgb x3 em _seletor_cor, renderizadores.py),
+            // não mais por id fixo: desde que _seletor_cor passou a aceitar
+            // um 'prefixo' (pode existir mais de um seletor de cor no
+            // painel, ex: cor da 'Curva' e cor de fundo em 'Outros'), os
+            // ids de cada campo variam por instância — só a ORDEM é garantida.
             var rgb = window.wizzardCor.hsvParaRgb(h, s, v);
             wrapper.dataset.hue = h;
             wrapper.dataset.sat = s;
             wrapper.dataset.val = v;
 
-            var campoR = wrapper.querySelector('#edicao-curva-rgb-r');
-            var campoG = wrapper.querySelector('#edicao-curva-rgb-g');
-            var campoB = wrapper.querySelector('#edicao-curva-rgb-b');
-            if (campoR) definirCampoRgb(campoR, rgb.r);
-            if (campoG) definirCampoRgb(campoG, rgb.g);
-            if (campoB) definirCampoRgb(campoB, rgb.b);
+            var campos = wrapper.querySelectorAll('.cor-picker-input');
+            if (campos[0]) definirCampoRgb(campos[0], rgb.r);
+            if (campos[1]) definirCampoRgb(campos[1], rgb.g);
+            if (campos[2]) definirCampoRgb(campos[2], rgb.b);
         }
 
         var arrastandoArea = null;

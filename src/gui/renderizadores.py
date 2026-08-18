@@ -303,7 +303,7 @@ def renderizar_painel_direito_padrao(disabled=True):
     ]
 
 
-def _seletor_cor(cor_atual):
+def _seletor_cor(cor_atual, prefixo):
     """
     Seletor de cor customizado: uma caixinha mostrando a cor atual que,
     ao ser clicada, abre um painel com uma área de saturação/brilho +
@@ -315,10 +315,21 @@ def _seletor_cor(cor_atual):
     email/range/search/tel/url/hidden), então o seletor nativo do
     navegador nunca foi opção aqui.
 
-    'edicao-curva-cor' (dcc.Store, mesmo de antes) continua sendo a
-    fonte de verdade em hexadecimal pra aplicar_preferencias_curva; os
-    campos R/G/B são o que o usuário mexe de fato — um callback
-    (sincronizar_cor_rgb, em callbacks.py) traduz pra hex e grava lá.
+    'prefixo' identifica QUAL seletor de cor é este (ex: 'curva',
+    'fundo') — usado como 'index' de todo id em padrão {'type':...,
+    'index': prefixo} (MATCH em callbacks.py) e como 'data-prefixo' no
+    wrapper. Foi generalizado a partir da versão original (que só
+    existia uma vez, com ids fixos tipo 'cor-picker-caixa') pra poder
+    nascer mais de uma instância no mesmo painel — hoje: a cor da
+    'Curva' e a cor de fundo do gráfico em 'Outros' — sem duplicar
+    nenhum callback nem a lógica de arraste em scripts_js.py, que já
+    trabalha só com querySelector RELATIVO ao próprio wrapper (nunca
+    por id fixo).
+
+    O dcc.Store com o hex final (fonte de verdade pra quem consome a
+    cor, ex: aplicar_preferencias_curva) fica de fora desta função —
+    quem chama _seletor_cor decide o id dele (ver renderizar_painel_
+    edicao), sempre como {'type': 'cor-store', 'index': prefixo}.
 
     'data-hue'/'data-sat'/'data-val' no wrapper guardam o HSV atual: é
     o que o arraste do mouse lê/escreve, porque RGB sozinho não
@@ -330,33 +341,40 @@ def _seletor_cor(cor_atual):
 
     return html.Div(
         className='cor-picker-wrapper',
-        **{'data-hue': round(h, 2), 'data-sat': round(s, 4), 'data-val': round(v, 4)},
+        **{
+            'data-prefixo': prefixo,
+            'data-hue': round(h, 2), 'data-sat': round(s, 4), 'data-val': round(v, 4),
+        },
         children=[
             html.Button(
-                id='cor-picker-caixa', className='cor-picker-caixa', n_clicks=0,
+                id={'type': 'cor-picker-caixa', 'index': prefixo},
+                className='cor-picker-caixa', n_clicks=0,
                 title='Escolher cor', style={'backgroundColor': cor_atual},
             ),
-            html.Div(id='cor-picker-painel', className='cor-picker-painel', children=[
-                html.Div(id='cor-picker-area', className='cor-picker-area', children=[
+            html.Div(className='cor-picker-painel', children=[
+                html.Div(className='cor-picker-area', children=[
                     html.Div(
-                        id='cor-picker-area-fundo', className='cor-picker-area-fundo',
+                        id={'type': 'cor-picker-area-fundo', 'index': prefixo},
+                        className='cor-picker-area-fundo',
                         style={'backgroundColor': f'hsl({h:.1f}, 100%, 50%)'},
                     ),
                     html.Div(
-                        id='cor-picker-area-cursor', className='cor-picker-area-cursor',
+                        id={'type': 'cor-picker-area-cursor', 'index': prefixo},
+                        className='cor-picker-area-cursor',
                         style={'left': f'{s * 100:.2f}%', 'top': f'{(1 - v) * 100:.2f}%'},
                     ),
                 ]),
-                html.Div(id='cor-picker-hue', className='cor-picker-hue', children=[
+                html.Div(className='cor-picker-hue', children=[
                     html.Div(
-                        id='cor-picker-hue-cursor', className='cor-picker-hue-cursor',
+                        id={'type': 'cor-picker-hue-cursor', 'index': prefixo},
+                        className='cor-picker-hue-cursor',
                         style={'left': f'{(h / 360) * 100:.2f}%'},
                     ),
                 ]),
                 html.Div(className='cor-picker-campos', children=[
-                    _campo_rgb('edicao-curva-rgb-r', 'R', r),
-                    _campo_rgb('edicao-curva-rgb-g', 'G', g),
-                    _campo_rgb('edicao-curva-rgb-b', 'B', b),
+                    _campo_rgb({'type': 'cor-rgb-r', 'index': prefixo}, 'R', r),
+                    _campo_rgb({'type': 'cor-rgb-g', 'index': prefixo}, 'G', g),
+                    _campo_rgb({'type': 'cor-rgb-b', 'index': prefixo}, 'B', b),
                 ]),
             ]),
         ],
@@ -429,6 +447,93 @@ def _stepper(index, valor, minimo, maximo, step=1):
         html.Button(
             '+', id={'type': 'stepper-mais', 'index': index},
             className='painel-edicao-stepper-btn', n_clicks=0,
+        ),
+    ])
+
+
+def _toggle(indice, ativo=False, classe_extra=None):
+    """
+    Interruptor genérico (on/off), no mesmo espírito visual de um
+    <input type='checkbox'> mas como um <button> — mesma técnica já
+    usada pro cadeado de 'Limits' (_linha_limite_eixo /
+    alternar_cadeado_limite): a classe 'ativo' liga/desliga via
+    callback (ver alternar_toggle em callbacks.py, MATCH), sem
+    precisar de um dcc.Checklist por trás.
+
+    Reaproveitado em: 'Both sides' e 'Division/Subdivision' (seção
+    'Ticks') e 'Grid' (seção 'Outros') — qualquer novo on/off do
+    painel pode usar este mesmo componente, bastando um 'indice'
+    próprio (único dentro do painel).
+
+    'classe_extra' é uma classe FIXA (não mexida pelo callback, que só
+    liga/desliga 'ativo' preservando o resto — ver alternar_toggle)
+    pendurada no botão além de 'painel-edicao-toggle'. Serve pra dar
+    uma cor PRÓPRIA a um toggle específico sem afetar os outros: hoje
+    só o toggle 'Division/Subdivision' usa isso
+    ('painel-edicao-toggle-modo', ver .painel-edicao-toggle-modo.ativo
+    em edit_menu.css), pra ficar laranja em vez do teal padrão — o
+    mesmo tom usado nos sliders quando 'Subdivision' está ativo,
+    reforçando visualmente que os dois estão no mesmo modo.
+    """
+    classes = ['painel-edicao-toggle']
+    if classe_extra:
+        classes.append(classe_extra)
+    if ativo:
+        classes.append('ativo')
+    return html.Button(
+        id={'type': 'toggle', 'index': indice},
+        className=' '.join(classes), n_clicks=0, type='button',
+        children=html.Span(className='painel-edicao-toggle-bolinha'),
+    )
+
+
+def _linha_toggle(rotulo, indice, ativo=False, classe_rotulo='painel-edicao-limite-titulo'):
+    """Rótulo + _toggle numa linha só (cabeçalho de 'Both sides'/'Grid')."""
+    return html.Div(className='painel-edicao-toggle-linha', children=[
+        html.Span(rotulo, className=classe_rotulo),
+        _toggle(indice, ativo=ativo),
+    ])
+
+
+def _linha_toggle_dupla(rotulo_esquerda, rotulo_direita, indice, ativo=False):
+    """
+    Variante de _linha_toggle com um rótulo de CADA LADO do
+    interruptor, em vez de um rótulo só — usada pelo par 'Division' /
+    'Subdivision' em 'Ticks': a própria POSIÇÃO do toggle (esquerda =
+    Division, direita = Subdivision) já comunica qual dos dois modos
+    está ativo, então os dois nomes ficam sempre visíveis (não só o
+    que está ligado agora), diferente de um toggle com um rótulo único
+    tipo 'Grid' ou 'Both sides'.
+
+    Usa 'painel-edicao-toggle-modo' como classe extra (ver _toggle) —
+    é o que deixa este toggle específico laranja quando ativo (modo
+    Subdivision), em vez do teal padrão dos outros toggles do painel.
+    """
+    return html.Div(className='painel-edicao-toggle-linha painel-edicao-toggle-linha-dupla', children=[
+        html.Span(rotulo_esquerda, className='painel-edicao-toggle-rotulo-lateral'),
+        _toggle(indice, ativo=ativo, classe_extra='painel-edicao-toggle-modo'),
+        html.Span(rotulo_direita, className='painel-edicao-toggle-rotulo-lateral'),
+    ])
+
+
+def _campo_slider(rotulo, id_slider, valor, minimo, maximo, step=1):
+    """
+    Rótulo + dcc.Slider, no mesmo padrão do slider 'Thickness' da
+    seção 'Curva' (ver renderizar_painel_edicao). Reaproveitado pelos
+    3 sliders de 'Division'/'Subdivision' em 'Ticks' — os mesmos 3
+    componentes (mesmos ids) trocam de VALOR quando o toggle
+    'Division/Subdivision' é ligado/desligado (ver alternar_modo_ticks
+    em callbacks.py); não nascem 6 sliders duplicados. Ficam dentro de
+    um wrapper com id próprio ('edicao-ticks-sliders-wrapper') cuja
+    CLASSE também troca junto (mesmo callback) — é o que permite os
+    3 sliders mudarem de cor (teal <-> laranja) ao trocar de modo, ver
+    .painel-edicao-ticks-sliders.modo-subdivisao em edit_menu.css.
+    """
+    return html.Div(className='painel-edicao-campo', children=[
+        html.Label(rotulo, className='painel-edicao-label'),
+        dcc.Slider(
+            id=id_slider, min=minimo, max=maximo, step=step, value=valor,
+            marks=None, tooltip={'placement': 'bottom', 'always_visible': False},
         ),
     ])
 
@@ -571,8 +676,8 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
         html.Div(className='painel-edicao-campo painel-edicao-linha', children=[
             html.Div(className='painel-edicao-subcampo', children=[
                 html.Label('cor:', className='painel-edicao-label'),
-                dcc.Store(id='edicao-curva-cor', data=cor_atual),
-                _seletor_cor(cor_atual),
+                dcc.Store(id={'type': 'cor-store', 'index': 'curva'}, data=cor_atual),
+                _seletor_cor(cor_atual, 'curva'),
             ]),
             html.Div(className='painel-edicao-subcampo', children=[
                 html.Label('Style:', htmlFor='edicao-curva-estilo', className='painel-edicao-label'),
@@ -636,17 +741,109 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
         _linha_limite_eixo('y', 'edicao-eixo-y-limite-min', 'edicao-eixo-y-limite-max', 'y'),
     ]
 
+    # Valores 'de fábrica' de 'Ticks' — mesmo caso de 'Eixos' (comentário
+    # acima): os controles já funcionam de ponta a ponta (dropdown de
+    # eixo, sliders de divisão/subdivisão trocando de valor no toggle,
+    # 'both sides'), só falta a parte de LER/GRAVAR em 'estado' e
+    # aplicar de fato no plotter (fig.update_xaxes/update_yaxes) quando
+    # isso for definido.
+    #
+    # O MESMO trio de sliders (ids fixos 'edicao-ticks-numero'/
+    # '-largura'/'-comprimento') serve pras 'Divisions' E pra
+    # 'Subdivision' — não nascem 6 sliders. 'edicao-ticks-divisoes-store'
+    # guarda os dois conjuntos de valores (um por modo); o toggle
+    # 'Subdivision' só troca QUAL dos dois conjuntos os sliders mostram
+    # agora (ver alternar_modo_ticks/gravar_valores_ticks em
+    # callbacks.py, MATCH em cima do toggle genérico _toggle).
+    valores_divisoes_padrao = {'numero': 4, 'largura': 1, 'comprimento': 5}
+    valores_subdivisoes_padrao = {'numero': 2, 'largura': 1, 'comprimento': 3}
+
+    conteudo_ticks = [
+        html.Div(className='painel-edicao-campo', children=[
+            html.Label('Eixo:', htmlFor='edicao-ticks-eixo', className='painel-edicao-label'),
+            dcc.Dropdown(
+                id='edicao-ticks-eixo',
+                options=[
+                    {'label': 'X', 'value': 'x'},
+                    {'label': 'Y', 'value': 'y'},
+                    {'label': 'Both', 'value': 'both'},
+                ],
+                value='both',
+                clearable=False, searchable=False,
+                className='painel-edicao-dropdown',
+            ),
+        ]),
+
+        # Toggle 'Division' <-> 'Subdivision': a POSIÇÃO do interruptor
+        # (esquerda/direita) já diz qual dos dois modos está sendo
+        # editado agora — não precisa mais de um título 'Divisions'
+        # separado em cima nem de um segundo toggle 'Subdivision' lá
+        # embaixo (era redundante com este). Logo abaixo do 'Eixo' por
+        # pedido: é o primeiro controle que o usuário vê ao abrir
+        # 'Ticks', antes mesmo dos sliders que ele afeta.
+        _linha_toggle_dupla('Division', 'Subdivision', 'ticks-subdivisao'),
+
+        html.Div(
+            id='edicao-ticks-sliders-wrapper',
+            className='painel-edicao-ticks-sliders',
+            children=[
+                _campo_slider(
+                    'Number:', 'edicao-ticks-numero',
+                    valores_divisoes_padrao['numero'], minimo=2, maximo=20, step=1,
+                ),
+                _campo_slider(
+                    'Width:', 'edicao-ticks-largura',
+                    valores_divisoes_padrao['largura'], minimo=1, maximo=10, step=1,
+                ),
+                _campo_slider(
+                    'Length:', 'edicao-ticks-comprimento',
+                    valores_divisoes_padrao['comprimento'], minimo=1, maximo=20, step=1,
+                ),
+            ],
+        ),
+        _linha_toggle('Both sides', 'ticks-both-sides'),
+
+        dcc.Store(id='edicao-ticks-divisoes-store', data={
+            'divisoes': valores_divisoes_padrao,
+            'subdivisoes': valores_subdivisoes_padrao,
+        }),
+    ]
+
+    # 'Outros' — por enquanto só Grid (on/off) e a cor do grid/fundo do
+    # gráfico. Mesmo status de 'Ticks'/'Eixos': o seletor de cor
+    # (_seletor_cor, generalizado com 'prefixo' pra caber mais de uma
+    # instância no painel — ver comentário na própria função) e o
+    # toggle já funcionam de ponta a ponta; falta só ligar os dois em
+    # 'estado' e no plotter (fig.update_layout(plot_bgcolor=...) /
+    # showgrid=False nos eixos) quando essa etapa for definida.
+    #
+    # O seletor em si é EXATAMENTE o mesmo widget do campo 'cor' de
+    # 'Curva' (mesma _seletor_cor, mesmo _campo_rgb, mesmo JS de
+    # arraste) — só o destino muda: aqui grava em
+    # {'type': 'cor-store', 'index': 'fundo'}, não 'curva'. Por isso
+    # fica dentro de um 'painel-edicao-subcampo' de largura fixa (86px,
+    # igual à coluna 'cor:' de Curva) em vez de um 'painel-edicao-campo'
+    # esticado — sem isso a caixinha vira uma barra comprida em vez do
+    # quadradinho compacto que aparece em Curva.
+    cor_fundo_padrao = '#FFFFFF'
+
+    conteudo_outros = [
+        _linha_toggle('Grid', 'outros-grid', ativo=True),
+
+        html.Div(className='painel-edicao-campo', children=[
+            html.Label('Grid / Background:', className='painel-edicao-label'),
+            html.Div(className='painel-edicao-subcampo', style={'flex': '0 0 auto', 'width': '86px'}, children=[
+                dcc.Store(id={'type': 'cor-store', 'index': 'fundo'}, data=cor_fundo_padrao),
+                _seletor_cor(cor_fundo_padrao, 'fundo'),
+            ]),
+        ]),
+    ]
+
     # 'fechar-edicao-curva' (mesmo id de antes) agora fecha o painel
     # inteiro, não só a seção 'Curva' — por isso saiu do cabeçalho da
     # seção e virou um cabeçalho geral, acima do acordeão. Nenhum
     # callback que já usava esse id precisou mudar (ver
     # fechar_edicao_curva em callbacks.py).
-    #
-    # 'Ticks' e 'Outros' ainda são placeholders — trocar o 'html.P' de
-    # cada uma pelos controles reais quando forem implementadas é o
-    # único passo necessário; o toggle (abrir/fechar) já funciona
-    # sozinho pra qualquer seção nova, via alternar_secao_edicao
-    # (callbacks.py), que usa MATCH.
     return [
         html.Div(className='painel-edicao-cabecalho-geral', children=[
             html.Span('Opções do gráfico', className='painel-edicao-titulo-geral'),
@@ -657,12 +854,8 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
         ]),
         _secao_colapsavel('curva', 'Curva', conteudo_curva, aberta=True),
         _secao_colapsavel('eixos', 'Eixos', conteudo_eixos),
-        _secao_colapsavel('ticks', 'Ticks', [
-            html.P('Em breve.', className='painel-edicao-placeholder-secao'),
-        ]),
-        _secao_colapsavel('outros', 'Outros', [
-            html.P('Em breve.', className='painel-edicao-placeholder-secao'),
-        ]),
+        _secao_colapsavel('ticks', 'Ticks', conteudo_ticks),
+        _secao_colapsavel('outros', 'Outros', conteudo_outros),
     ]
 
 

@@ -20,6 +20,15 @@
   --cor-superficie-escura-2: #232F3D;
   --cor-accent: #2FA5A0;
   --cor-accent-suave: #DCEEEC;
+  /* Segundo tom de destaque, só pro par 'Division'/'Subdivision' em
+     'Ticks' (ver .painel-edicao-toggle-modo e
+     .painel-edicao-ticks-sliders.modo-subdivisao em edit_menu.css) —
+     laranja, deliberadamente longe do teal padrão, pra ficar óbvio
+     de relance que os 3 sliders (Number/Width/Length) mudaram de
+     'modo' quando o toggle vai pra 'Subdivision', sem precisar ler
+     o rótulo. */
+  --cor-accent-subdivisao: #C97A3D;
+  --cor-accent-subdivisao-suave: #F3E3D3;
   --cor-borda: #DDE4E2;
   --cor-texto-escuro: #1B2430;
   --cor-texto-claro: #E7ECEA;

@@ -522,12 +522,12 @@ def registrar_callbacks(app, estado):
 
     @app.callback(
         Output('edicao-curva-espessura', 'value'),
-        Output('edicao-curva-cor', 'data'),
+        Output({'type': 'cor-store', 'index': 'curva'}, 'data'),
         Output('edicao-curva-estilo', 'value'),
         Output('edicao-curva-marcador', 'value'),
-        Output('edicao-curva-rgb-r', 'value'),
-        Output('edicao-curva-rgb-g', 'value'),
-        Output('edicao-curva-rgb-b', 'value'),
+        Output({'type': 'cor-rgb-r', 'index': 'curva'}, 'value'),
+        Output({'type': 'cor-rgb-g', 'index': 'curva'}, 'value'),
+        Output({'type': 'cor-rgb-b', 'index': 'curva'}, 'value'),
         Input('edicao-curva-dado', 'value'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
@@ -566,24 +566,34 @@ def registrar_callbacks(app, estado):
         return espessura_atual, cor_atual, estilo_atual, marcador_atual, r, g, b
 
     @app.callback(
-        Output('edicao-curva-cor', 'data', allow_duplicate=True),
-        Output('cor-picker-caixa', 'style', allow_duplicate=True),
-        Input('edicao-curva-rgb-r', 'value'),
-        Input('edicao-curva-rgb-g', 'value'),
-        Input('edicao-curva-rgb-b', 'value'),
+        Output({'type': 'cor-store', 'index': MATCH}, 'data', allow_duplicate=True),
+        Output({'type': 'cor-picker-caixa', 'index': MATCH}, 'style', allow_duplicate=True),
+        Input({'type': 'cor-rgb-r', 'index': MATCH}, 'value'),
+        Input({'type': 'cor-rgb-g', 'index': MATCH}, 'value'),
+        Input({'type': 'cor-rgb-b', 'index': MATCH}, 'value'),
         prevent_initial_call=True,
     )
     def sincronizar_cor_rgb(r, g, b):
         """
-        Fonte de verdade dos 3 campos R/G/B do novo seletor de cor (ver
-        _seletor_cor em renderizadores.py) — preenchidos tanto por
-        digitação direta quanto pelo arraste do mouse na área de
-        saturação/matiz (que escreve nesses mesmos campos disparando um
-        evento 'input' nativo, ver iniciarSeletorCor em scripts_js.py).
+        Fonte de verdade dos 3 campos R/G/B de QUALQUER seletor de cor
+        do painel (ver _seletor_cor em renderizadores.py) — preenchidos
+        tanto por digitação direta quanto pelo arraste do mouse na área
+        de saturação/matiz (que escreve nesses mesmos campos disparando
+        um evento 'input' nativo, ver iniciarSeletorCor em
+        scripts_js.py).
 
-        Traduz pra hex e grava em 'edicao-curva-cor' (o Store que
-        aplicar_preferencias_curva realmente lê pra desenhar a curva) e
-        atualiza a cor de fundo da caixinha visível fora do painel.
+        MATCH liga cada instância deste callback a UM seletor de cor
+        específico (mesmo 'index'/prefixo nos ids do trio R/G/B, do
+        Store e da caixinha) — é o que permite existir mais de um
+        seletor de cor no painel (hoje: cor da 'Curva' e cor de fundo
+        do gráfico em 'Outros') com um único callback genérico, em vez
+        de duplicar esta função por seletor.
+
+        Traduz pra hex e grava no Store 'cor-store' daquele índice (o
+        que aplicar_preferencias_curva lê pra cor da curva; a cor de
+        fundo ainda não tem um consumidor no gráfico — ver comentário
+        em conteudo_outros, renderizadores.py) e atualiza a cor de
+        fundo da caixinha visível fora do painel.
         """
         if r is None or g is None or b is None:
             raise PreventUpdate
@@ -602,6 +612,15 @@ def registrar_callbacks(app, estado):
     # cor mudasse por um caminho que não fosse o próprio arraste do
     # mouse (que já se auto-posiciona, ver moverNaArea/moverNoHue em
     # scripts_js.py).
+    #
+    # MATCH também aqui (mesmo 'index'/prefixo nos 3 R/G/B de entrada e
+    # nos 3 alvos de saída) — cada seletor de cor do painel atualiza só
+    # o próprio cursor/área, nunca o de outro seletor. Pra achar O
+    # WRAPPER certo (guardar hue/sat/val em dataset, usado pelo próximo
+    # arraste do mouse) não dá pra usar mais um id fixo tipo
+    # 'cor-picker-caixa' — em vez disso lê 'triggered_id.index' (o
+    # mesmo prefixo) e procura o wrapper por '[data-prefixo=...]',
+    # atributo gravado no Python em _seletor_cor (renderizadores.py).
     app.clientside_callback(
         """
         function(r, g, b) {
@@ -613,8 +632,11 @@ def registrar_callbacks(app, estado):
                 Math.max(0, Math.min(255, g)),
                 Math.max(0, Math.min(255, b))
             );
-            var caixa = document.getElementById('cor-picker-caixa');
-            var wrapper = caixa ? caixa.closest('.cor-picker-wrapper') : null;
+            var triggered = window.dash_clientside.callback_context.triggered_id;
+            var prefixo = triggered ? triggered.index : null;
+            var wrapper = prefixo
+                ? document.querySelector('.cor-picker-wrapper[data-prefixo="' + prefixo + '"]')
+                : null;
             if (wrapper) {
                 wrapper.dataset.hue = hsv.h;
                 wrapper.dataset.sat = hsv.s;
@@ -627,19 +649,19 @@ def registrar_callbacks(app, estado):
             ];
         }
         """,
-        Output('cor-picker-area-fundo', 'style'),
-        Output('cor-picker-area-cursor', 'style'),
-        Output('cor-picker-hue-cursor', 'style'),
-        Input('edicao-curva-rgb-r', 'value'),
-        Input('edicao-curva-rgb-g', 'value'),
-        Input('edicao-curva-rgb-b', 'value'),
+        Output({'type': 'cor-picker-area-fundo', 'index': MATCH}, 'style'),
+        Output({'type': 'cor-picker-area-cursor', 'index': MATCH}, 'style'),
+        Output({'type': 'cor-picker-hue-cursor', 'index': MATCH}, 'style'),
+        Input({'type': 'cor-rgb-r', 'index': MATCH}, 'value'),
+        Input({'type': 'cor-rgb-g', 'index': MATCH}, 'value'),
+        Input({'type': 'cor-rgb-b', 'index': MATCH}, 'value'),
         prevent_initial_call=True,
     )
 
     @app.callback(
         Output('container-grafico', 'children', allow_duplicate=True),
         Input('edicao-curva-espessura', 'value'),
-        Input('edicao-curva-cor', 'data'),
+        Input({'type': 'cor-store', 'index': 'curva'}, 'data'),
         Input('edicao-curva-estilo', 'value'),
         Input('edicao-curva-marcador', 'value'),
         State('edicao-curva-dado', 'value'),
@@ -800,3 +822,108 @@ def registrar_callbacks(app, estado):
         if travado:
             return '🔓', 'painel-edicao-limite-btn'
         return '🔒', 'painel-edicao-limite-btn travado'
+
+    @app.callback(
+        Output({'type': 'toggle', 'index': MATCH}, 'className'),
+        Input({'type': 'toggle', 'index': MATCH}, 'n_clicks'),
+        State({'type': 'toggle', 'index': MATCH}, 'className'),
+        prevent_initial_call=True,
+    )
+    def alternar_toggle(n_clicks, classe_atual):
+        """
+        Callback ÚNICO e genérico pra QUALQUER interruptor on/off do
+        painel de edição (ver _toggle em renderizadores.py) — hoje:
+        'Both sides' e 'Division/Subdivision' (seção 'Ticks') e 'Grid'
+        (seção 'Outros'). MATCH liga cada instância a UM toggle
+        específico (mesmo 'index'), no mesmo espírito de
+        alternar_secao_edicao/alternar_cadeado_limite logo acima —
+        nenhum callback novo precisa ser escrito pra um interruptor
+        futuro, só usar _toggle() com um 'index' próprio.
+
+        Só ADICIONA/REMOVE a classe 'ativo' na lista de classes
+        existente (em vez de devolver uma string fixa) — preserva
+        qualquer 'classe_extra' pendurada no botão por _toggle (ex:
+        'painel-edicao-toggle-modo', que dá uma cor própria ao toggle
+        'Division/Subdivision' — ver edit_menu.css). Devolver uma
+        string fixa aqui apagaria essa classe extra no primeiro clique.
+        """
+        if not n_clicks:
+            raise PreventUpdate
+        classes = (classe_atual or 'painel-edicao-toggle').split()
+        if 'ativo' in classes:
+            classes.remove('ativo')
+        else:
+            classes.append('ativo')
+        return ' '.join(classes)
+
+    @app.callback(
+        Output('edicao-ticks-numero', 'value'),
+        Output('edicao-ticks-largura', 'value'),
+        Output('edicao-ticks-comprimento', 'value'),
+        Output('edicao-ticks-sliders-wrapper', 'className'),
+        Input({'type': 'toggle', 'index': 'ticks-subdivisao'}, 'className'),
+        State('edicao-ticks-divisoes-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def alternar_modo_ticks(classe_toggle, dados):
+        """
+        Liga/desliga o toggle 'Division/Subdivision' (seção 'Ticks')
+        faz os MESMOS 3 sliders (Number/Width/Length) trocarem de
+        valor entre os dois conjuntos guardados em
+        'edicao-ticks-divisoes-store' ('divisoes' com o toggle à
+        esquerda/desligado, 'subdivisoes' à direita/ligado) — não
+        existem 6 sliders, só um trio reaproveitado (ver conteudo_ticks
+        em renderizadores.py).
+
+        TAMBÉM troca a classe do wrapper dos 3 sliders
+        ('edicao-ticks-sliders-wrapper'), somando/removendo
+        'modo-subdivisao' — é isso que muda a cor das barras (teal
+        'divisoes' / laranja 'subdivisoes', ver
+        .painel-edicao-ticks-sliders.modo-subdivisao em
+        edit_menu.css), deixando claro qual dos dois conjuntos está
+        sendo editado sem precisar ler o texto do toggle.
+
+        Dispara a partir da CLASSE do toggle (não de um valor booleano
+        à parte) porque é a própria classe que alternar_toggle (acima)
+        já alterna via MATCH — evita duplicar o estado 'ligado/
+        desligado' em dois lugares (className do botão E um Store).
+        """
+        if not dados:
+            raise PreventUpdate
+        ativo = 'ativo' in (classe_toggle or '').split()
+        chave = 'subdivisoes' if ativo else 'divisoes'
+        valores = dados.get(chave) or {}
+        classe_wrapper = 'painel-edicao-ticks-sliders' + (' modo-subdivisao' if ativo else '')
+        return (
+            valores.get('numero', 2), valores.get('largura', 1), valores.get('comprimento', 3),
+            classe_wrapper,
+        )
+
+    @app.callback(
+        Output('edicao-ticks-divisoes-store', 'data'),
+        Input('edicao-ticks-numero', 'value'),
+        Input('edicao-ticks-largura', 'value'),
+        Input('edicao-ticks-comprimento', 'value'),
+        State({'type': 'toggle', 'index': 'ticks-subdivisao'}, 'className'),
+        State('edicao-ticks-divisoes-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def gravar_valores_ticks(numero, largura, comprimento, classe_toggle, dados):
+        """
+        Espelho de alternar_modo_ticks: sempre que o usuário MEXE num
+        dos 3 sliders, grava o valor de volta no conjunto ('divisoes'
+        ou 'subdivisoes') que está ativo NESTE momento — sem isto, uma
+        edição feita com 'Subdivision' ligado se perderia ao desligar
+        (os sliders voltariam pro valor antigo de 'divisoes', e
+        vice-versa). Também dispara (sem efeito real, mesmo valor
+        regravado) logo depois de alternar_modo_ticks trocar os
+        sliders de conjunto — inofensivo, é a mesma classe de gatilho
+        'fantasma' comentado em _clique_real.
+        """
+        if not dados:
+            raise PreventUpdate
+        ativo = 'ativo' in (classe_toggle or '').split()
+        chave = 'subdivisoes' if ativo else 'divisoes'
+        dados = dict(dados)
+        dados[chave] = {'numero': numero, 'largura': largura, 'comprimento': comprimento}
+        return dados

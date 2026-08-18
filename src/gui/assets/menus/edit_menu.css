@@ -744,3 +744,117 @@
   background-color: var(--cor-accent-suave);
   border-color: var(--cor-accent);
 }
+
+/* ==========================================================================
+   Interruptor on/off genérico (_toggle em renderizadores.py, alternar_toggle
+   em callbacks.py — MATCH) — usado hoje em 'Both sides'/'Subdivision'
+   (seção 'Ticks') e 'Grid' (seção 'Outros'). É um <button> (não um
+   <input type='checkbox'>) com uma bolinha interna que desliza via
+   'transform' — a classe 'ativo' (adicionada/removida pelo callback)
+   é o único gatilho de toda a animação, sem JS extra.
+   ========================================================================== */
+.painel-edicao-toggle-linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.painel-edicao-toggle {
+  flex: 0 0 auto;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  padding: 2px;
+  border: 1px solid var(--cor-borda);
+  border-radius: 10px;
+  background-color: #FFFFFF;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.painel-edicao-toggle:hover {
+  border-color: var(--cor-accent);
+}
+
+.painel-edicao-toggle-bolinha {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: var(--cor-texto-mudo);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+/* Estado ligado: fundo/borda na cor de accent (mesmo tom usado pelo
+   slider e pelo cadeado travado, ver .rc-slider-track e
+   .painel-edicao-limite-btn.travado acima) + bolinha desliza pra
+   direita e vira branca, pro contraste com o fundo colorido. */
+.painel-edicao-toggle.ativo {
+  background-color: var(--cor-accent);
+  border-color: var(--cor-accent);
+}
+
+.painel-edicao-toggle.ativo .painel-edicao-toggle-bolinha {
+  background-color: #FFFFFF;
+  transform: translateX(14px);
+}
+
+/* Variante 'dupla' (Division <-> Subdivision, seção 'Ticks'): dois
+   rótulos, um de cada lado do toggle (ver _linha_toggle_dupla em
+   renderizadores.py) — a própria posição do interruptor já indica o
+   modo, então os rótulos ficam discretos e do MESMO peso visual (não
+   é um deles que "acende"; quem muda de cor é o toggle e os sliders
+   logo abaixo, ver .painel-edicao-toggle-modo e
+   .painel-edicao-ticks-sliders.modo-subdivisao). 'justify-content:
+   center' (em vez de 'space-between', usado pela variante de rótulo
+   único) porque aqui os 2 textos + o toggle formam um bloco só, não
+   uma linha 'rótulo à esquerda / controle à direita'. */
+.painel-edicao-toggle-linha-dupla {
+  justify-content: center;
+  gap: 10px;
+}
+
+.painel-edicao-toggle-rotulo-lateral {
+  font-size: 11px;
+  font-family: var(--fonte-ui);
+  color: var(--cor-texto-mudo);
+}
+
+/* Toggle 'Division/Subdivision': cor PRÓPRIA (laranja) quando ativo
+   (= modo Subdivision), diferente do teal padrão dos outros toggles
+   do painel ('Both sides', 'Grid') — é o que _toggle(classe_extra=
+   'painel-edicao-toggle-modo') pendura no botão. Precisa vir DEPOIS
+   de '.painel-edicao-toggle.ativo' no arquivo pra ganhar o empate de
+   especificidade (duas classes cada) e realmente sobrescrever a cor
+   teal. */
+.painel-edicao-toggle-modo:hover {
+  border-color: var(--cor-accent-subdivisao);
+}
+
+.painel-edicao-toggle-modo.ativo {
+  background-color: var(--cor-accent-subdivisao);
+  border-color: var(--cor-accent-subdivisao);
+}
+
+/* Os 3 sliders (Number/Width/Length) trocam de cor junto com o toggle
+   acima (mesmo callback, alternar_modo_ticks em callbacks.py, grava a
+   classe 'modo-subdivisao' no MESMO wrapper que troca o valor dos
+   sliders) — teal = editando 'Division', laranja = editando
+   'Subdivision'. Sobrescreve as regras genéricas de
+   '.painel-edicao-campo .rc-slider-*' (mais acima neste arquivo) só
+   dentro deste wrapper específico. */
+.painel-edicao-ticks-sliders.modo-subdivisao .rc-slider-track {
+  background-color: var(--cor-accent-subdivisao);
+}
+
+.painel-edicao-ticks-sliders.modo-subdivisao .rc-slider-handle {
+  border-color: var(--cor-accent-subdivisao);
+}
+
+.painel-edicao-ticks-sliders.modo-subdivisao .rc-slider-handle:hover,
+.painel-edicao-ticks-sliders.modo-subdivisao .rc-slider-handle:focus,
+.painel-edicao-ticks-sliders.modo-subdivisao .rc-slider-handle-dragging {
+  border-color: var(--cor-accent-subdivisao) !important;
+  box-shadow: 0 0 0 4px rgba(201, 122, 61, 0.2) !important;
+}
