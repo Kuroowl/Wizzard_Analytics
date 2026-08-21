@@ -466,7 +466,20 @@ document.addEventListener('DOMContentLoaded', function () {
         // largura/altura úteis), não o tamanho do <svg> inteiro (que
         // inclui eixos, títulos, legenda).
         function pixelParaDadoX(gd, clientX) {
-            var rect = gd.getBoundingClientRect();
+            // A referência de pixel é o próprio <svg> ('svg.main-svg'),
+            // não o <div class="js-plotly-plot"> que o envolve — esse
+            // div tem 'padding: 12px 12px 0 12px' (ver '.centro .js-
+            // plotly-plot' em central_menu.css, intencional, pra dar
+            // uma respiração visual ao redor do gráfico), então usar o
+            // rect DELE como base jogava a guia ~12px pra DIREITA do
+            // cursor de verdade (confirmado medindo: a linha desenhada
+            // saía sistematicamente ~12px à direita da posição real do
+            // mouse) — exatamente o "a barra parece estar à direita da
+            // mira" relatado. O <svg> não tem esse padding — sua borda
+            // esquerda já é o x=0 de verdade no sistema de coordenadas
+            // que '_fullLayout._size' usa.
+            var svg = gd.querySelector('svg.main-svg') || gd;
+            var rect = svg.getBoundingClientRect();
             var tamanho = gd._fullLayout._size;
             var range = gd._fullLayout.xaxis.range;
             var fracao = (clientX - rect.left - tamanho.l) / tamanho.w;
@@ -651,27 +664,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 campo.dispatchEvent(new Event('input', { bubbles: true }));
             });
 
-            // Arraste dos 2 manípulos já confirmados — só liberado
-            // depois do 2º clique (ver 'arrastavel' em
-            // aplicar_guias_corte, plotter.py: os manípulos só nascem
-            // com editable=true nesse momento; antes disso nem
-            // existem). Índices FIXOS (ver docstring de
-            // aplicar_guias_corte): 4 = manípulo do corte 'primeiro',
-            // 5 = manípulo do 'segundo' (0/2 = as hachuras, 1/3 = as
-            // linhas — nem manípulo nem linha são a MESMA coisa
-            // arrastável; ver docstring de _linha_guia_corte pro
-            // motivo de ser o manípulo, não a linha, quem realmente
-            // arrasta).
-            //
-            // 'plotly_relayout' (esse SIM continua sendo o evento
-            // NATIVO do Plotly — arrastar uma shape 'editable' é
-            // mecanismo interno da lib, não tem como reimplementar por
-            // conta própria sem reescrever o drag inteiro) só dispara
-            // no FIM do gesto (solta o mouse), não durante o arraste
-            // inteiro — um round-trip a cada pixel arrastado inundaria
-            // o servidor à toa; o próprio Plotly já cuida do feedback
-            // visual do manípulo ENQUANTO arrasta, sem precisar de
-            // nada nosso.
+            /* PAUSADO por enquanto: arraste dos manípulos das guias já
+               confirmadas — ver o passo a passo completo pra retomar
+               no comentário de aplicar_guias_corte, plotter.py (esse
+               é o passo 4 da lista: descomentar o bloco inteiro
+               abaixo). Já tinha ficado funcionando e testado em
+               navegador real, mas a decisão foi adiar essa interação
+               específica por enquanto ("a barra ainda não está
+               100%"). Sem nenhum shape com editable=true no momento
+               (ver plotter.py), 'plotly_relayout' nunca dispara com
+               'shapes[4]'/'shapes[5]' de qualquer forma — comentado
+               só por clareza, não por necessidade.
+
             gd.on('plotly_relayout', function (dadosEvento) {
                 // Nenhuma checagem de 'corte-completo' aqui de propósito
                 // — este handler só tem QUALQUER EFEITO em shapes com
@@ -762,6 +766,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 setterArraste.call(campo, novoX);
                 campo.dispatchEvent(new Event('input', { bubbles: true }));
             });
+            */
         }, true);
     }
     iniciarSelecaoCorte();

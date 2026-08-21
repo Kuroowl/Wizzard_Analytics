@@ -82,21 +82,26 @@ def montar_layout(estado):
                     className='toolbar-upload',
                     multiple=False,
                 ),
-                # 'aparar-dados' é um html.Button (não dcc.Upload como os
-                # outros) — precisa de um clique DE VERDADE (n_clicks) pra
-                # entrar no modo de seleção no gráfico; um dcc.Upload
-                # abriria o seletor de arquivo nativo do sistema, o que
-                # não faz sentido nenhum aqui.
+                # 'aparar-dados'/'excluir-dados' são html.Button (não
+                # dcc.Upload como os outros) — precisam de um clique DE
+                # VERDADE (n_clicks) pra entrar no modo de seleção no
+                # gráfico; um dcc.Upload abriria o seletor de arquivo
+                # nativo do sistema, o que não faz sentido nenhum aqui.
+                # Os dois usam o MESMO fluxo de 2 cliques (ver
+                # iniciar_selecao_corte, callbacks.py) — só muda o
+                # 'tipo' gravado em 'corte-selecao-store' e, por
+                # tabela, onde a hachura aparece e qual operação de
+                # dados roda no fim (aparar_dados vs excluir_dados,
+                # src/core/operations/sampling.py).
                 html.Button(
                     id='aparar-dados',
                     children=html.Div([icone_colorido('TrimData_icon.png'), html.Span('Aparar dados', className='toolbar-tooltip')]),
                     className='toolbar-upload', disabled=sem_grafico, n_clicks=0,
                 ),
-                dcc.Upload(
+                html.Button(
                     id='excluir-dados',
                     children=html.Div([icone_colorido('CutData_icon.png'), html.Span('Excluir dados', className='toolbar-tooltip')]),
-                    className='toolbar-upload', disabled=sem_grafico,
-                    multiple=False,
+                    className='toolbar-upload', disabled=sem_grafico, n_clicks=0,
                 ),
                 dcc.Upload(
                     id='nova-analise',

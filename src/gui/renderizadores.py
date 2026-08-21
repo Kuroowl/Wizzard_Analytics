@@ -912,17 +912,15 @@ def renderizar_grafico_com_fechar(fig):
     """
     return html.Div(className='grafico-wrapper', children=[
         html.Button('✕', id='fechar-grafico', className='botao-fechar-grafico', n_clicks=0),
-        # 'config.edits.shapePosition=True': permissão GLOBAL do Plotly
-        # pra shapes arrastáveis — 'shapes[i].editable=True' sozinho
-        # (ver aplicar_guias_corte, plotter.py) NÃO É SUFICIENTE nesta
-        # versão da lib; confirmado testando em navegador real (um app
-        # Dash mínimo, só com essa diferença, não arrastava nada sem
-        # este config). Só habilita o *mecanismo*: shapes sem
-        # 'editable=True' continuam fixas normalmente — é o par dos
-        # dois flags que libera o arraste das guias de corte (ver
-        # 'Aparar dados', callbacks.py) depois do 2º clique.
-        dcc.Graph(
-            id='grafico-plotly-real', figure=fig, className='grafico-plotly',
-            config={'edits': {'shapePosition': True}},
-        ),
+        # 'config.edits.shapePosition=True' — permissão GLOBAL do
+        # Plotly pra shapes arrastáveis, PAUSADA junto com o resto da
+        # interação de arraste das guias de corte (ver comentário
+        # completo com o passo a passo pra retomar em
+        # aplicar_guias_corte, src/core/plotting/plotter.py). Sem
+        # nenhum shape com 'editable=True' no momento (todos ficam
+        # explicitamente False enquanto isso durar), manter ou não
+        # este config não muda nada na prática — comentado só por
+        # consistência com o resto da pausa.
+        # config={'edits': {'shapePosition': True}},
+        dcc.Graph(id='grafico-plotly-real', figure=fig, className='grafico-plotly'),
     ])

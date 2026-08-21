@@ -216,11 +216,18 @@
   transition: opacity 0.15s ease;
 }
 
-/* Botão que INICIOU a seleção ('aparar-dados' por enquanto) continua
-   se destacando mesmo com o resto apagado — um contorno vermelho (a
-   mesma cor das guias de corte no gráfico, COR_GUIA_CORTE em
-   plotter.py) deixa claro qual ferramenta está ativa agora. */
-.toolbar-icones.inativo #aparar-dados {
+/* Botão que INICIOU a seleção continua se destacando mesmo com o
+   resto apagado — um contorno vermelho (a mesma cor das guias de
+   corte no gráfico, COR_GUIA_CORTE em plotter.py) deixa claro qual
+   ferramenta está ativa agora. 'toolbar-icones' ganha uma classe
+   extra identificando QUAL ferramenta ('ferramenta-aparar' ou
+   'ferramenta-excluir' — ver iniciar_selecao_corte em callbacks.py,
+   mesmo mecanismo de 2 cliques pros dois, só muda o que a hachura
+   representa e a operação final), então só o botão CORRESPONDENTE
+   ganha o destaque — o outro fica apagado junto com o resto (só um
+   corte roda por vez). */
+.toolbar-icones.ferramenta-aparar #aparar-dados,
+.toolbar-icones.ferramenta-excluir #excluir-dados {
   opacity: 1;
   border-color: #D62728;
 }
@@ -327,23 +334,13 @@
   cursor: crosshair;
 }
 
-/* Em cima de um dos 2 MANÍPULOS de arraste (círculos decorativos —
-   são eles que arrastam de verdade, não as linhas por trás; ver
-   docstring de _linha_guia_corte, plotter.py; só existem depois do
-   2º clique — ver 'corte-completo', a mesma classe que o JS usa pra
-   saber quando parar a guia viva; aqui é só cosmético, uma leitura
-   errada no pior caso mostraria o cursor errado por uma fração de
-   segundo, não quebra nada funcionalmente), o cursor troca de cruz
-   pra "mão de agarrar" — combina melhor com "isto aqui se arrasta",
-   a cruz sozinha sugeria só "clique pra marcar", que deixa de ser
-   verdade nesse manípulo específico. Um seletor batendo DIRETO no
-   elemento (não herdado) sempre GANHA de uma regra herdada como a de
-   cima, não importa a ordem no arquivo — não precisa de
-   '!important'. 'path[data-index]' é como o Plotly desenha shapes
-   editáveis (confirmado inspecionando o DOM real, mesmo os do tipo
-   'circle' viram <path>); 4/5 são sempre os 2 manípulos (ver
-   docstring de aplicar_guias_corte, plotter.py). */
-#container-grafico.corte-ativo.corte-completo #grafico-plotly-real .shapelayer path[data-index='4'],
+/* PAUSADO junto com o resto da interação de arraste (ver passo a
+   passo completo pra retomar em aplicar_guias_corte, plotter.py) —
+   sem nenhum manípulo nascendo no momento (ver plotter.py), essas
+   regras não bateriam em elemento nenhum de qualquer forma; comentado
+   só por clareza/consistência com o resto da pausa.
+
+.shapelayer path[data-index='4'],
 #container-grafico.corte-ativo.corte-completo #grafico-plotly-real .shapelayer path[data-index='5'] {
   cursor: grab;
 }
@@ -352,6 +349,7 @@
 #container-grafico.corte-ativo.corte-completo #grafico-plotly-real .shapelayer path[data-index='5']:active {
   cursor: grabbing;
 }
+*/
 
 /* Esconde o hover NATIVO do Plotly inteiro (spike line + caixinha de
    valores) enquanto o modo de seleção está ativo — desde que

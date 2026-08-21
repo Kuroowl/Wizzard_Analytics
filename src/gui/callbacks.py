@@ -1,7 +1,7 @@
 from dash import Input, Output, State, ctx, ALL, MATCH, no_update
 from dash.exceptions import PreventUpdate
 
-from src.core.operations.sampling import aparar_dados
+from src.core.operations.sampling import aparar_dados, excluir_dados
 from src.core.plotting.plotter import (
     construir_figura_serie_temporal, resolver_eixo_x, colunas_plotadas, cor_da_coluna,
     aplicar_guias_corte,
@@ -504,18 +504,27 @@ def registrar_callbacks(app, estado):
         Output('container-grafico', 'className'),
         Output('rodape-status', 'children', allow_duplicate=True),
         Input('aparar-dados', 'n_clicks'),
+        Input('excluir-dados', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
-    def iniciar_selecao_corte(n_clicks, aba_ativa):
+    def iniciar_selecao_corte(n_clicks_aparar, n_clicks_excluir, aba_ativa):
         """
-        Liga o modo de seleção: borra sidebar/painel de edição
-        ('.area-inativa-selecao', estilo.css — pointer-events desligado
-        de verdade, não só visual), apaga os ícones da toolbar (menos
-        o próprio 'aparar-dados', que fica destacado — ver
-        '.toolbar-icones.inativo', icon_menu.css) e liga a classe
-        'corte-ativo' (é ela que faz iniciarSelecaoCorte, scripts_js.py,
-        começar a reagir a mousemove/click no gráfico).
+        Liga o modo de seleção — de 'Aparar dados' OU 'Excluir dados'
+        (mesmo mecanismo de 2 cliques pros dois; 'ctx.triggered_id' diz
+        qual dos dois foi clicado, e isso vira 'tipo' em 'corte-
+        selecao-store', lido depois por registrar_clique_corte
+        (decide ONDE a hachura aparece) e confirmar_corte (decide qual
+        operação de dados aplicar — aparar_dados ou excluir_dados,
+        src/core/operations/sampling.py)).
+
+        Borra sidebar/painel de edição ('.area-inativa-selecao',
+        estilo.css — pointer-events desligado de verdade, não só
+        visual), apaga os ícones da toolbar (menos o que foi clicado,
+        que fica destacado — ver '.toolbar-icones.ferramenta-aparar/
+        -excluir', icon_menu.css) e liga a classe 'corte-ativo' (é ela
+        que faz iniciarSelecaoCorte, scripts_js.py, começar a reagir a
+        mousemove/click no gráfico).
 
         A classe 'corte-ativo' vai em 'container-grafico' (o wrapper
         ESTÁVEL, definido uma vez em layout.py — nunca recriado), não
@@ -527,17 +536,24 @@ def registrar_callbacks(app, estado):
         parado). scripts_js.py já sabe ler a classe daqui e olhar o
         elemento do Plotly separadamente.
         """
-        if not n_clicks or not aba_ativa or aba_ativa not in estado.arquivos:
+        gatilho = ctx.triggered_id
+        if gatilho not in ('aparar-dados', 'excluir-dados'):
+            raise PreventUpdate
+        if not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
 
-        dados_selecao = {'tipo': 'aparar', 'aba': aba_ativa, 'primeiro': None, 'segundo': None}
-        mensagem = '🧙‍♂️: " Clique no gráfico para marcar o INÍCIO do recorte. "'
+        tipo = 'aparar' if gatilho == 'aparar-dados' else 'excluir'
+        dados_selecao = {'tipo': tipo, 'aba': aba_ativa, 'primeiro': None, 'segundo': None}
+        if tipo == 'aparar':
+            mensagem = '🧙‍♂️: " Clique no gráfico para marcar o INÍCIO do recorte. "'
+        else:
+            mensagem = '🧙‍♂️: " Clique no gráfico para marcar o INÍCIO do trecho a excluir. "'
 
         return (
             dados_selecao,
             'sidebar area-inativa-selecao',
             'painel-direito area-inativa-selecao',
-            'toolbar-icones inativo',
+            'toolbar-icones inativo ferramenta-' + tipo,
             'area-grafico-container corte-ativo',
             mensagem,
         )
@@ -559,19 +575,25 @@ def registrar_callbacks(app, estado):
         'corte-clique-x', escrito pelo JS — ver iniciarSelecaoCorte em
         scripts_js.py) enquanto uma seleção está em andamento.
 
-        1º clique: vira 'primeiro' — redesenha com uma guia sólida +
-        hachura à esquerda dela (aplicar_guias_corte, plotter.py).
+        1º clique: vira 'primeiro'. Em modo 'aparar', já redesenha com
+        uma guia sólida + hachura à esquerda dela — cada faixa já faz
+        sentido sozinha ("tudo antes deste ponto"). Em modo 'excluir',
+        só a linha aparece ainda (sem hachura — com um clique só não
+        dá pra saber a extensão do trecho a excluir); ver 'modo' em
+        aplicar_guias_corte, plotter.py.
         2º clique: só é aceito se for MAIOR que o primeiro (senão o
         intervalo não faz sentido — ignora silenciosamente, o usuário
         só tenta de novo); vira 'segundo' — redesenha com as DUAS
-        guias/hachuras, revela o prompt 'Confirmar seleção?' na
-        toolbar E soma a classe 'corte-completo' em 'container-grafico'
-        (junto com 'corte-ativo', que continua lá) — é essa classe
-        extra que faz a guia TRACEJADA parar de seguir o mouse (ver
-        iniciarSelecaoCorte, scripts_js.py: só desenha a guia viva
-        quando 'corte-ativo' está presente E 'corte-completo' não
-        está). Cliques depois disso (os dois já marcados) são
-        ignorados — só resta confirmar ou cancelar.
+        guias (+ a hachura, nos dois modos agora — em 'excluir' ela só
+        nasce aqui, cobrindo o intervalo ENTRE os dois pontos), revela
+        o prompt 'Confirmar seleção?' na toolbar E soma a classe
+        'corte-completo' em 'container-grafico' (junto com 'corte-
+        ativo', que continua lá) — é essa classe extra que faz a guia
+        TRACEJADA parar de seguir o mouse (ver iniciarSelecaoCorte,
+        scripts_js.py: só desenha a guia viva quando 'corte-ativo'
+        está presente E 'corte-completo' não está). Cliques depois
+        disso (os dois já marcados) são ignorados — só resta confirmar
+        ou cancelar.
         """
         if not dados_selecao or valor_x is None:
             raise PreventUpdate
@@ -579,85 +601,81 @@ def registrar_callbacks(app, estado):
             raise PreventUpdate
 
         arquivo = estado.arquivos[aba_ativa]
+        tipo = dados_selecao.get('tipo', 'aparar')
         primeiro = dados_selecao.get('primeiro')
         segundo = dados_selecao.get('segundo')
         classe_container = no_update
 
         if primeiro is None:
             primeiro = valor_x
-            mensagem = '🧙‍♂️: " Agora clique um pouco mais à direita para marcar o FIM do recorte. "'
+            if tipo == 'aparar':
+                mensagem = '🧙‍♂️: " Agora clique um pouco mais à direita para marcar o FIM do recorte. "'
+            else:
+                mensagem = '🧙‍♂️: " Agora clique um pouco mais à direita para marcar o FIM do trecho a excluir. "'
             estilo_prompt = no_update
         elif segundo is None:
             if valor_x <= primeiro:
                 raise PreventUpdate
             segundo = valor_x
-            mensagem = '🧙‍♂️: " Confirma o recorte? "'
+            mensagem = '🧙‍♂️: " Confirma? "'
             estilo_prompt = {'display': 'flex'}
             classe_container = 'area-grafico-container corte-ativo corte-completo'
         else:
             raise PreventUpdate
 
         dados_selecao = dict(dados_selecao, primeiro=primeiro, segundo=segundo)
-        fig = aplicar_guias_corte(arquivo.figura, primeiro=primeiro, segundo=segundo, arrastavel=(segundo is not None))
+        # 'arrastavel' fica sempre False por enquanto — ver comentário
+        # em _pilula_arraste/aplicar_guias_corte (plotter.py) sobre a
+        # interação de arraste estar PAUSADA (o passo a passo pra
+        # retomar está lá).
+        fig = aplicar_guias_corte(arquivo.figura, primeiro=primeiro, segundo=segundo, arrastavel=False, modo=tipo)
         return dados_selecao, fig, mensagem, estilo_prompt, classe_container
 
-    @app.callback(
-        Output('corte-selecao-store', 'data', allow_duplicate=True),
-        Output('grafico-plotly-real', 'figure', allow_duplicate=True),
-        Input('corte-arraste-primeiro', 'value'),
-        Input('corte-arraste-segundo', 'value'),
-        State('corte-selecao-store', 'data'),
-        State('aba-ativa-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def arrastar_corte(novo_primeiro, novo_segundo, dados_selecao, aba_ativa):
-        """
-        Reage ao ARRASTE de uma das duas linhas já confirmadas (só
-        possível depois do 2º clique — ver 'arrastavel' em
-        aplicar_guias_corte, plotter.py) — o valor final (já
-        sincronizado com a hachura vizinha e validado contra a OUTRA
-        linha) chega via 'corte-arraste-primeiro'/'-segundo', escritos
-        pelo JS no fim do gesto de arrastar (ver 'plotly_relayout' em
-        iniciarSelecaoCorte, scripts_js.py — só no FIM, não durante o
-        arraste inteiro, pra não inundar o servidor de requisições a
-        cada pixel).
-
-        'ctx.triggered_id' diz QUAL dos dois campos mudou — só esse
-        lado é atualizado; o outro corte permanece exatamente como
-        estava. A VALIDAÇÃO de ordem (primeiro < segundo) já aconteceu
-        no JS antes de escrever aqui (ele lê a posição da linha irmã
-        direto do gráfico) — este callback confia nisso, mas ainda
-        assim descarta silenciosamente qualquer valor client-side
-        maluco (raise PreventUpdate) como segunda camada de segurança,
-        já que nunca custa nada checar de novo no lado que manda de
-        verdade.
-        """
-        if not dados_selecao:
-            raise PreventUpdate
-        if not aba_ativa or aba_ativa not in estado.arquivos:
-            raise PreventUpdate
-
-        primeiro = dados_selecao.get('primeiro')
-        segundo = dados_selecao.get('segundo')
-        if primeiro is None or segundo is None:
-            raise PreventUpdate  # arraste só existe depois dos 2 cortes definidos
-
-        gatilho = ctx.triggered_id
-        if gatilho == 'corte-arraste-primeiro':
-            if novo_primeiro is None or novo_primeiro >= segundo:
-                raise PreventUpdate
-            primeiro = novo_primeiro
-        elif gatilho == 'corte-arraste-segundo':
-            if novo_segundo is None or novo_segundo <= primeiro:
-                raise PreventUpdate
-            segundo = novo_segundo
-        else:
-            raise PreventUpdate
-
-        arquivo = estado.arquivos[aba_ativa]
-        dados_selecao = dict(dados_selecao, primeiro=primeiro, segundo=segundo)
-        fig = aplicar_guias_corte(arquivo.figura, primeiro=primeiro, segundo=segundo, arrastavel=True)
-        return dados_selecao, fig
+    # PAUSADO por enquanto: arraste das guias já confirmadas (ver
+    # comentário detalhado em aplicar_guias_corte, plotter.py, com o
+    # passo a passo completo pra retomar — inclui religar este
+    # callback). Já tinha ficado funcionando e testado em navegador
+    # real (linha/hachura/manípulo sincronizados, limite entre os 2
+    # cortes respeitado), mas a decisão foi adiar essa interação
+    # específica por enquanto ("a barra ainda não está 100%").
+    #
+    # @app.callback(
+    #     Output('corte-selecao-store', 'data', allow_duplicate=True),
+    #     Output('grafico-plotly-real', 'figure', allow_duplicate=True),
+    #     Input('corte-arraste-primeiro', 'value'),
+    #     Input('corte-arraste-segundo', 'value'),
+    #     State('corte-selecao-store', 'data'),
+    #     State('aba-ativa-store', 'data'),
+    #     prevent_initial_call=True,
+    # )
+    # def arrastar_corte(novo_primeiro, novo_segundo, dados_selecao, aba_ativa):
+    #     if not dados_selecao:
+    #         raise PreventUpdate
+    #     if not aba_ativa or aba_ativa not in estado.arquivos:
+    #         raise PreventUpdate
+    #
+    #     primeiro = dados_selecao.get('primeiro')
+    #     segundo = dados_selecao.get('segundo')
+    #     if primeiro is None or segundo is None:
+    #         raise PreventUpdate
+    #
+    #     gatilho = ctx.triggered_id
+    #     if gatilho == 'corte-arraste-primeiro':
+    #         if novo_primeiro is None or novo_primeiro >= segundo:
+    #             raise PreventUpdate
+    #         primeiro = novo_primeiro
+    #     elif gatilho == 'corte-arraste-segundo':
+    #         if novo_segundo is None or novo_segundo <= primeiro:
+    #             raise PreventUpdate
+    #         segundo = novo_segundo
+    #     else:
+    #         raise PreventUpdate
+    #
+    #     arquivo = estado.arquivos[aba_ativa]
+    #     dados_selecao = dict(dados_selecao, primeiro=primeiro, segundo=segundo)
+    #     tipo = dados_selecao.get('tipo', 'aparar')
+    #     fig = aplicar_guias_corte(arquivo.figura, primeiro=primeiro, segundo=segundo, arrastavel=True, modo=tipo)
+    #     return dados_selecao, fig
 
     def _restaurar_apos_selecao():
         """
@@ -689,18 +707,22 @@ def registrar_callbacks(app, estado):
     )
     def confirmar_corte(n_clicks, dados_selecao):
         """
-        Aplica o corte DE VERDADE: 'aparar_dados' (src/core/operations/
-        sampling.py) filtra 'arquivo.df_editado' (NUNCA 'df_original',
-        que continua intocado — ver src/core/arquivo.py) mantendo só o
-        que fica ENTRE os dois cliques, redesenha o gráfico do zero a
-        partir desses dados já filtrados (nenhuma guia/hachura sobra —
-        essas eram só um overlay temporário em cima da figura antiga)
-        e desliga o modo de seleção.
+        Aplica o corte DE VERDADE — 'aparar_dados' (mantém só o que
+        fica ENTRE os dois cliques) OU 'excluir_dados' (remove o que
+        fica entre eles, mantém o resto — src/core/operations/
+        sampling.py, conforme 'tipo' em 'corte-selecao-store', ver
+        iniciar_selecao_corte acima) — filtrando 'arquivo.df_editado'
+        (NUNCA 'df_original', que continua intocado — ver
+        src/core/arquivo.py), redesenha o gráfico do zero a partir
+        desses dados já filtrados (nenhuma guia/hachura sobra — essas
+        eram só um overlay temporário em cima da figura antiga) e
+        desliga o modo de seleção.
         """
         if not n_clicks or not dados_selecao:
             raise PreventUpdate
 
         aba_ativa = dados_selecao.get('aba')
+        tipo = dados_selecao.get('tipo', 'aparar')
         primeiro = dados_selecao.get('primeiro')
         segundo = dados_selecao.get('segundo')
         if not aba_ativa or aba_ativa not in estado.arquivos or primeiro is None or segundo is None:
@@ -708,13 +730,17 @@ def registrar_callbacks(app, estado):
 
         arquivo = estado.arquivos[aba_ativa]
         eixo_x = resolver_eixo_x(estado, arquivo.df_editado)
-        arquivo.df_editado = aparar_dados(arquivo.df_editado, eixo_x, primeiro, segundo)
+        if tipo == 'excluir':
+            arquivo.df_editado = excluir_dados(arquivo.df_editado, eixo_x, primeiro, segundo)
+            mensagem = '🧙‍♂️: " Trecho excluído! O que estava entre os dois cortes sumiu, o resto ficou. "'
+        else:
+            arquivo.df_editado = aparar_dados(arquivo.df_editado, eixo_x, primeiro, segundo)
+            mensagem = '🧙‍♂️: " Dados aparados! Só ficou o que estava entre os dois cortes. "'
         arquivo.invalidar_grafico()
 
         fig = construir_figura_serie_temporal(estado, aba_ativa)
         arquivo.figura = fig
         container_grafico = renderizar_grafico_com_fechar(fig)
-        mensagem = '🧙‍♂️: " Dados aparados! Só ficou o que estava entre os dois cortes. "'
 
         _, sidebar, painel, icones, grafico_classe, prompt_estilo = _restaurar_apos_selecao()
         return None, sidebar, painel, icones, grafico_classe, prompt_estilo, container_grafico, mensagem

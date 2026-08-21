@@ -579,12 +579,12 @@ def _faixa_hachurada_corte(x0, x1):
     )
 
 
-def aplicar_guias_corte(fig, primeiro=None, segundo=None, arrastavel=False):
+def aplicar_guias_corte(fig, primeiro=None, segundo=None, arrastavel=False, modo='aparar'):
     """
     Devolve uma CÓPIA de 'fig' com as guias visuais dos cortes já
     CONFIRMADOS (clicados) desenhadas por cima — usado durante o modo de
-    seleção de 'Aparar dados' (ver registrar_clique_corte em
-    callbacks.py), enquanto o usuário ainda não confirmou a ação de
+    seleção de 'Aparar dados'/'Excluir dados' (ver registrar_clique_corte
+    em callbacks.py), enquanto o usuário ainda não confirmou a ação de
     verdade. NUNCA modifica 'fig' original nem toca em 'arquivo.figura'
     — só o que aparece na tela nesse meio-tempo; cancelar a seleção
     (cancelar_corte, callbacks.py) simplesmente reexibe a figura
@@ -596,28 +596,29 @@ def aplicar_guias_corte(fig, primeiro=None, segundo=None, arrastavel=False):
     Plotly.relayout, sem round-trip com o servidor a cada movimento do
     mouse). Esta função só cuida das linhas SÓLIDAS (já clicadas).
 
-    'primeiro'/'segundo' (float ou None): os dois cortes. 'aparar_dados'
-    MANTÉM o que fica ENTRE eles — por isso a hachura cobre FORA desse
-    intervalo (da borda esquerda até 'primeiro', e de 'segundo' até a
-    borda direita). As bordas vêm do range REAL dos dados já plotados
-    (_range_dos_dados, definida mais acima neste módulo), com uma
-    margem de 5% pra a hachura alcançar visualmente a moldura do
-    gráfico mesmo se o Plotly folgar um pouco o autorange.
+    'primeiro'/'segundo' (float ou None): os dois cortes.
 
-    'arrastavel': repassado só pras LINHAS (ver _linha_guia_corte) —
-    quando True, o usuário pode clicar e arrastar cada linha pra
-    ajustar o corte sem precisar cancelar e clicar tudo de novo (ver
-    'plotly_relayout' em iniciarSelecaoCorte, scripts_js.py, que
-    detecta o arraste do MANÍPULO e sincroniza a linha + a hachura
-    vizinhos, e informa o Python via arrastar_corte em callbacks.py).
-    A ORDEM das shapes aqui é significativa — scripts_js.py sabe que,
-    com os dois cortes presentes, o índice 1 é sempre a linha do
-    'primeiro' e o índice 3 é sempre a linha do 'segundo' (índices 0/2
-    são as respectivas faixas hachuradas); quando 'arrastavel' está
-    ligado, os índices 4/5 são os MANÍPULOS de arraste de verdade (ver
-    _pilula_arraste — são eles que têm editable=True, não as linhas)
-    dos cortes 'primeiro'/'segundo', nessa ordem. Mudar essa ordem sem
-    atualizar o JS quebra a sincronização do arraste.
+    'modo' decide ONDE a hachura aparece — e QUANDO:
+      - 'aparar' (padrão): mantém o que fica ENTRE os dois cortes, então
+        a hachura cobre FORA desse intervalo (da borda esquerda até
+        'primeiro', e de 'segundo' até a borda direita) — aparece
+        PROGRESSIVAMENTE, uma faixa a cada clique, porque cada faixa já
+        faz sentido sozinha (é só "tudo antes/depois deste ponto").
+      - 'excluir': REMOVE o que fica entre os dois, então a hachura
+        cobre o intervalo [primeiro, segundo] — só aparece depois do
+        2º clique (com um clique só não dá pra saber a extensão do
+        buraco ainda); o 1º clique desenha só a linha, sem hachura
+        nenhuma.
+      As bordas ('aparar') vêm do range REAL dos dados já plotados
+      (_range_dos_dados, definida mais acima neste módulo), com uma
+      margem de 5% pra a hachura alcançar visualmente a moldura do
+      gráfico mesmo se o Plotly folgar um pouco o autorange.
+
+    'arrastavel': PAUSADO por enquanto (ver bloco comentado no fim desta
+    função) — o parâmetro continua aqui e _linha_guia_corte ainda lê ele
+    (só pra engrossar a linha, ver essa função), mas nenhum chamador
+    atual passa True; fica pronto pra retomar quando essa interação
+    voltar a ser trabalhada.
     """
     fig = go.Figure(fig)
     if primeiro is None and segundo is None:
@@ -632,17 +633,42 @@ def aplicar_guias_corte(fig, primeiro=None, segundo=None, arrastavel=False):
     borda_esquerda, borda_direita = x_min - margem, x_max + margem
 
     formas = []
-    if primeiro is not None:
-        formas.append(_faixa_hachurada_corte(borda_esquerda, primeiro))
-        formas.append(_linha_guia_corte(primeiro, arrastavel=arrastavel))
-    if segundo is not None:
-        formas.append(_faixa_hachurada_corte(segundo, borda_direita))
-        formas.append(_linha_guia_corte(segundo, arrastavel=arrastavel))
-    if arrastavel:
+    if modo == 'excluir':
         if primeiro is not None:
-            formas.append(_pilula_arraste(primeiro, span))
+            formas.append(_linha_guia_corte(primeiro, arrastavel=arrastavel))
         if segundo is not None:
-            formas.append(_pilula_arraste(segundo, span))
+            formas.append(_faixa_hachurada_corte(primeiro, segundo))
+            formas.append(_linha_guia_corte(segundo, arrastavel=arrastavel))
+    else:
+        if primeiro is not None:
+            formas.append(_faixa_hachurada_corte(borda_esquerda, primeiro))
+            formas.append(_linha_guia_corte(primeiro, arrastavel=arrastavel))
+        if segundo is not None:
+            formas.append(_faixa_hachurada_corte(segundo, borda_direita))
+            formas.append(_linha_guia_corte(segundo, arrastavel=arrastavel))
+
+    # PAUSADO por enquanto: arraste das guias já confirmadas via um
+    # manípulo/pílula no meio de cada linha (ver _pilula_arraste, logo
+    # acima) — a interação inteira já tinha ficado funcionando e
+    # testada (linha/hachura/manípulo sincronizados, limite entre os 2
+    # cortes respeitado), mas a decisão foi adiar essa etapa por
+    # enquanto ("a barra ainda não está 100%"). Pra retomar:
+    #   1) descomentar o bloco abaixo;
+    #   2) em callbacks.py: trocar 'arrastavel=False' de volta pra
+    #      'arrastavel=(segundo is not None)' em registrar_clique_corte,
+    #      e descomentar o callback arrastar_corte inteiro;
+    #   3) em renderizadores.py: religar 'config={'edits': {
+    #      'shapePosition': True}}' no dcc.Graph;
+    #   4) em scripts_js.py: descomentar o bloco 'gd.on(plotly_relayout,
+    #      ...)' inteiro dentro de iniciarSelecaoCorte;
+    #   5) em icon_menu.css: religar as regras de cursor 'grab'/
+    #      'grabbing' pros manípulos (path[data-index='4'/'5']).
+    # if arrastavel:
+    #     if primeiro is not None:
+    #         formas.append(_pilula_arraste(primeiro, span))
+    #     if segundo is not None:
+    #         formas.append(_pilula_arraste(segundo, span))
 
     fig.update_layout(shapes=formas)
+    return fig
     return fig
