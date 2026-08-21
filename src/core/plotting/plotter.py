@@ -159,8 +159,14 @@ def _aplicar_preferencias_grafico(fig, preferencias):
       - 'fonte_labels' -> tickfont.size (tamanho dos NÚMEROS ao lado
         de cada tick — diferente da fonte do RÓTULO do eixo, que é
         PreferenciasTexto.fonte).
-      - 'both_sides' -> mirror='ticks' (espelha o tick pro lado oposto
-        do eixo, sem espelhar rótulos).
+      - moldura fechada (as 4 bordas do gráfico, padrão matplotlib):
+        showline=True + linecolor sempre ligados, e 'mirror' copiando
+        a linha do eixo pro lado oposto — sem isso o Plotly
+        ('plotly_white') não desenha NENHUMA linha de eixo por padrão.
+      - 'both_sides' -> só controla se os TICKS (marcas) também
+        espelham pro lado oposto (mirror='ticks') ou só a linha da
+        moldura (mirror=True, sem marca do lado espelhado) — a
+        moldura em si aparece sempre, independente deste toggle.
       - 'grid' -> showgrid nos dois eixos (o painel só tem UM
         interruptor 'Grid' em 'Outros', não um por eixo).
       - 'cor_fundo' -> plot_bgcolor (a ÁREA de plotagem; 'paper_bgcolor',
@@ -198,12 +204,29 @@ def _aplicar_preferencias_grafico(fig, preferencias):
         subdivisoes = eixo_prefs.subdivisoes
         atualizar_eixo(
             showgrid=preferencias.grid,
+            # Moldura fechada em volta da área de plotagem (as 4
+            # bordas — comum no matplotlib, onde os eixos SEMPRE vêm
+            # com essa caixa por padrão) — sem 'showline'/'linecolor'
+            # aqui, o Plotly (template 'plotly_white') não desenha
+            # NENHUMA linha de eixo, só as linhas de grade internas;
+            # 'mirror' copia a linha do eixo pro lado oposto (topo/
+            # direita), fechando a caixa nos 4 lados.
+            #
+            # 'both_sides' (toggle 'Both sides' em Ticks) continua
+            # controlando só os TICKS (as marcas) mirrados ou não pro
+            # lado oposto — a caixa em si aparece sempre,
+            # independente disso: 'ticks' mirra linha E marcas,
+            # True (sem 'both_sides') mirra só a linha, fechando a
+            # caixa sem marca nenhuma do lado espelhado.
+            showline=True,
+            linewidth=1,
+            linecolor='#4A5560',
+            mirror='ticks' if eixo_prefs.both_sides else True,
             ticks=eixo_prefs.direcao,
             tickfont=dict(size=eixo_prefs.fonte_labels),
             nticks=divisoes.get('numero'),
             tickwidth=divisoes.get('largura'),
             ticklen=divisoes.get('comprimento'),
-            mirror='ticks' if eixo_prefs.both_sides else False,
             minor=dict(
                 ticks=eixo_prefs.direcao,
                 nticks=subdivisoes.get('numero'),
@@ -327,18 +350,12 @@ def construir_figura_serie_temporal(estado, aba_ativa):
     _aplicar_preferencias_grafico(fig, arquivo.preferencias)
 
     if houve_amostragem:
-        fig.add_annotation(
-            text=(
-                f"Exibindo até {MAX_PONTOS_EXIBICAO:,} pontos por curva "
-                f"(amostra uniforme) — dados completos preservados"
-            ).replace(',', '.'),
-            xref='paper', yref='paper', x=0, y=1.06,
-            showarrow=False, font=dict(size=11, color='#888'),
-        )
-
-        # Alimenta a caixinha de alerta do rodapé (só uma vez por arquivo —
-        # regenerar o gráfico ao marcar/desmarcar canal não deve empilhar
-        # o mesmo aviso de novo).
+        # A mensagem pro usuário vive só no alerta do rodapé (o
+        # "mago") agora — ela costumava também aparecer como anotação
+        # dentro da própria figura, mas isso brigava visualmente com o
+        # título do gráfico (que pode ocupar a mesma área, perto do
+        # topo) sempre que o usuário definia um. Um aviso duplicado
+        # (dentro do gráfico E no rodapé) também não agregava nada.
         mensagem = (
             f"Aviso: o arquivo tem mais de {MAX_PONTOS_EXIBICAO:,} linhas — o gráfico "
             f"exibe uma amostra uniforme por curva, mas os dados completos "

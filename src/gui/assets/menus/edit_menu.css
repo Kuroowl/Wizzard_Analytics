@@ -321,7 +321,7 @@
 .cor-picker-caixa {
   width: 100%;
   min-width: 62px;  /* mesmo piso das outras 2 caixas da linha (Style/Marker) — ver .painel-edicao-subcampo */
-  height: 26px;
+  height: 24px;  /* altura padrão de toda caixa/campo do painel — ver nota em .painel-edicao-latex-input */
   padding: 0;
   border: 1px solid var(--cor-borda);
   border-radius: 6px;
@@ -475,8 +475,8 @@
 }
 
 .painel-edicao-dropdown .dash-dropdown-trigger {
-  min-height: 26px;
-  height: 26px;
+  min-height: 24px;  /* altura padrão de toda caixa/campo do painel — ver nota em .painel-edicao-latex-input */
+  height: 24px;
   padding: 0 8px;
 }
 
@@ -498,12 +498,24 @@
    arrastável — SEM relação nenhuma com as antigas classes '.rc-
    slider-*', que nunca bateram em nada aqui (bug antigo: a cor roxa
    que aparecia sempre era só o padrão da biblioteca, nenhuma regra
-   deste arquivo chegava a se aplicar). '.dash-slider-wrapper' recebe
-   a margem lateral que antes ia no elemento raiz do rc-slider, pra
-   bolinha não ficar cortada nas bordas do card quando o valor está no
-   mínimo/máximo. */
+   deste arquivo chegava a se aplicar).
+
+   'height: 24px' no wrapper E no root (o próprio componente reserva
+   34px de altura por padrão — bem mais alto que qualquer outra caixa
+   do painel) — é o que alinha a linha do slider com a altura padrão
+   de 24px usada em todo o resto (ver nota em .painel-edicao-latex-
+   input, edit_menu.css). A bolinha (16px) continua centralizada
+   verticalmente dentro dos 24px sem cortar (o componente centraliza
+   sozinho via CSS interno, não por posição fixa em pixels). */
 .painel-edicao-campo .dash-slider-wrapper {
   margin: 10px 6px 4px 6px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+}
+
+.painel-edicao-campo .dash-slider-root {
+  height: 24px;
 }
 
 .painel-edicao-campo .dash-slider-range {
@@ -565,11 +577,22 @@
 /* Caixa de texto do título/rótulo do eixo — aceita comandos LaTeX
    simples (ex: '\Delta' vira 'Δ' ao digitar, ver traduzirLatexSimples
    em scripts_js.py). O placeholder cinza claro é só o hint visual de
-   'enter text...'; não é o valor de verdade do campo. */
+   'enter text...'; não é o valor de verdade do campo.
+
+   'height: 24px' É O PADRÃO de altura de TODA caixa/campo/slider do
+   painel de edição inteiro (Curva/Eixos/Ticks/Outros) — dropdown
+   (.dash-dropdown-trigger), swatch de cor (.cor-picker-caixa),
+   stepper (.painel-edicao-stepper-input/-btn), campos de limite
+   (.painel-edicao-limite-input/-btn) e a linha do slider
+   (.dash-slider-wrapper, em Ticks) usam o MESMO valor — pra manter os
+   4 submenus visualmente uniformes, nenhum control mais alto/baixo
+   que o vizinho. Mudar aqui sem replicar nos outros quebra essa
+   uniformidade — não há uma variável CSS única compartilhada entre
+   eles ainda. */
 .painel-edicao-latex-input {
   flex: 1 1 auto;
   min-width: 0;
-  height: 26px;
+  height: 24px;
   padding: 0 8px;
   border: 1px solid var(--cor-borda);
   border-radius: 6px;
@@ -603,7 +626,7 @@
 .painel-edicao-stepper-btn {
   flex: 0 0 auto;
   width: 18px;
-  height: 26px;
+  height: 24px;
   border: 1px solid var(--cor-borda);
   background-color: var(--cor-fundo);
   color: var(--cor-texto-escuro);
@@ -625,7 +648,7 @@
 .painel-edicao-stepper-input {
   flex: 1 1 0;
   width: 0; /* deixa o flex mandar; evita que o 'number' input estoure a coluna de 74px */
-  height: 26px;
+  height: 24px;
   padding: 0;
   border: 1px solid var(--cor-borda);
   border-radius: 4px;
@@ -684,7 +707,7 @@
   flex: 1 1 0;
   width: 0; /* mesmo truque do stepper-input: o flex decide a largura real */
   min-width: 0;
-  height: 26px;
+  height: 24px;
   padding: 0 4px;
   border: 1px solid var(--cor-borda);
   border-radius: 6px;
@@ -729,7 +752,7 @@
 .painel-edicao-limite-btn {
   flex: 0 0 auto;
   width: 26px;
-  height: 26px;
+  height: 24px;
   border: 1px solid var(--cor-borda);
   border-radius: 6px;
   background-color: #FFFFFF;
