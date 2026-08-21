@@ -883,3 +883,11 @@
 .painel-edicao-ticks-sliders.modo-subdivisao .dash-slider-thumb:focus {
   box-shadow: 0 0 0 4px rgba(47, 158, 91, 0.2) !important;
 }
+
+/* Utilitário genérico pra esconder qualquer controle condicionalmente
+   via callback (Output em 'className') — hoje só usado no wrapper de
+   'Label font' (some em modo 'Subdivision', ver sincronizar_campos_
+   ticks em callbacks.py), mas serve pra qualquer outro caso futuro. */
+.painel-edicao-oculto {
+  display: none;
+}

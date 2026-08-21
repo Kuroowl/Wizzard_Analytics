@@ -812,8 +812,13 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
             className='painel-edicao-ticks-sliders',
             children=[
                 _campo_slider(
+                    # minimo=1 (era 2): 'Number' agora é o número de
+                    # marcas NOVAS entre os extremos do eixo (ver
+                    # _tick0_e_dtick em plotter.py) — 1 é um valor
+                    # válido e útil (1 marca no meio do intervalo),
+                    # não um caso degenerado a evitar.
                     'Number:', 'edicao-ticks-numero',
-                    valores_divisoes_iniciais['numero'], minimo=2, maximo=20, step=1,
+                    valores_divisoes_iniciais['numero'], minimo=1, maximo=20, step=1,
                 ),
                 _campo_slider(
                     'Width:', 'edicao-ticks-largura',
@@ -829,16 +834,22 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
 
         html.Hr(className='painel-edicao-separador'),
 
-        # Fonte dos rótulos de tick e direção (inward/outward) — ao
-        # contrário do trio Number/Width/Length, NÃO trocam de cor nem
-        # de valor com o toggle Division/Subdivision: são propriedades
-        # do eixo inteiro, não fazem sentido "por modo" (não existe
-        # 'fonte dos labels das subdivisões' separada — os labels são
-        # sempre dos ticks principais). Por isso ficam FORA do
-        # 'edicao-ticks-sliders-wrapper'.
-        _campo_slider(
-            'Label font:', 'edicao-ticks-fonte-labels',
-            ticks_x.fonte_labels, minimo=6, maximo=24, step=1,
+        # Fonte dos rótulos de tick: NÃO troca de valor com o toggle
+        # Division/Subdivision (é uma propriedade do eixo inteiro, só
+        # existe UM tamanho de fonte pros números — não tem 'fonte dos
+        # labels das subdivisões' separada), mas fica ESCONDIDA em
+        # modo 'Subdivision' — a pedido explícito: como as marcas
+        # secundárias não têm número/rótulo nenhum do lado (só as
+        # principais têm), o controle de fonte não tem o que afetar
+        # visivelmente nesse modo, então melhor sumir do que ficar
+        # solto sem efeito aparente. Ver 'edicao-ticks-fonte-labels-
+        # wrapper' (Output em sincronizar_campos_ticks, callbacks.py).
+        html.Div(
+            id='edicao-ticks-fonte-labels-wrapper',
+            children=_campo_slider(
+                'Label font:', 'edicao-ticks-fonte-labels',
+                ticks_x.fonte_labels, minimo=6, maximo=24, step=1,
+            ),
         ),
         _linha_toggle_dupla('Outward', 'Inward', 'ticks-direcao', ativo=(ticks_x.direcao == 'inside')),
     ]

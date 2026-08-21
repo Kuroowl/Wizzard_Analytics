@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import plotly.graph_objects as go
 
@@ -113,6 +115,89 @@ def resolver_eixo_x(estado, df):
     return colunas_numericas[0] if len(colunas_numericas) else df.columns[0]
 
 
+def _intervalo_arredondado(vmin, vmax):
+    """
+    Arredonda [vmin, vmax] pra baixo/cima até a POTÊNCIA DE 10 mais
+    próxima do tamanho do intervalo — ex: [0.3, 4.55095] -> [0, 5], não
+    fica preso aos valores exatos (e meio aleatórios) dos dados. É o
+    que evita rótulos de tick tipo '4.5509166...' quando o usuário só
+    queria ver '0, 1, 2, 3, 4, 5'.
+
+    Não é o algoritmo "nice numbers" completo (tipo o do matplotlib,
+    que também escolhe passos em 1/2/5 vezes a potência de 10) — só a
+    parte de arredondar as BORDAS do intervalo; o passo entre ticks
+    (dtick, calculado por _dtick_major/_dtick_minor logo abaixo) ainda
+    pode sair com casas decimais depois de dividir esse intervalo já
+    arredondado pelo número de divisões escolhido — arredondar o passo
+    TAMBÉM exigiria ajustar o número de divisões pra baixo/cima do que
+    o usuário pediu, o que preferimos não fazer (o slider 'Number' diz
+    respeito ao que o usuário vê e mexe, então o valor dele fica
+    intocado).
+    """
+    if vmin is None or vmax is None or vmin == vmax:
+        return vmin, vmax
+    span = vmax - vmin
+    if span <= 0:
+        return vmin, vmax
+    magnitude = 10 ** math.floor(math.log10(span))
+    vmin_novo = math.floor(vmin / magnitude) * magnitude
+    vmax_novo = math.ceil(vmax / magnitude) * magnitude
+    return vmin_novo, vmax_novo
+
+
+def _range_dos_dados(fig, eixo):
+    """
+    Min/max de TODOS os traços já desenhados em 'fig' pro eixo 'x' ou
+    'y' — usado como base pro cálculo de dtick quando o usuário NÃO
+    travou um limite manual pra esse eixo (ver PreferenciasLimiteEixo
+    em arquivo.py). Lê direto de 'fig.data' (os traços já montados,
+    já com a amostragem de exibição aplicada se houve) em vez do
+    DataFrame original — mesma faixa que está REALMENTE desenhada.
+
+    (None, None) se não há nenhum traço ainda (gráfico em branco, sem
+    canal marcado) — quem chama trata isso como "sem dtick calculável,
+    volta pro comportamento automático do Plotly".
+    """
+    valores_min, valores_max = [], []
+    for traco in fig.data:
+        dados = getattr(traco, eixo, None)
+        if dados is None or len(dados) == 0:
+            continue
+        valores_min.append(np.nanmin(dados))
+        valores_max.append(np.nanmax(dados))
+    if not valores_min:
+        return None, None
+    return min(valores_min), max(valores_max)
+
+
+def _tick0_e_dtick(vmin, vmax, numero_divisoes):
+    """
+    'numero_divisoes' é o número de marcas NOVAS (o slider 'Number' em
+    Ticks) entre vmin e vmax, SEM CONTAR os dois extremos — os extremos
+    já estão implícitos (é a própria moldura do gráfico, ver 'moldura
+    fechada' em _aplicar_preferencias_grafico). Então 'numero_divisoes'
+    marcas dividem o intervalo em (numero_divisoes + 1) pedaços iguais:
+    numero_divisoes=1 num intervalo de 0 a 1 -> 1 marca nova, bem no
+    meio (0.5) — 2 pedaços. numero_divisoes=5 (padrão) num intervalo
+    de 0 a 5 -> 5 marcas novas (1, 2, 3, 4 e... nesse caso dtick=5/6,
+    então nem sempre as marcas caem em número redondo — só as BORDAS
+    do intervalo (via _intervalo_arredondado) são garantidamente
+    redondas, o passo entre elas depende de quantas divisões o usuário
+    pediu).
+
+    Devolve (None, None) se não dá pra calcular (faltam dados, ou
+    'numero_divisoes' inválido) — quem chama cai de volta pro
+    comportamento automático do Plotly (nticks aproximado) nesse caso.
+    """
+    if vmin is None or vmax is None or not numero_divisoes or numero_divisoes <= 0:
+        return None, None
+    span = vmax - vmin
+    if span <= 0:
+        return None, None
+    dtick = span / (numero_divisoes + 1)
+    return vmin, dtick
+
+
 def _aplicar_preferencias_grafico(fig, preferencias):
     """
     Aplica em 'fig' o que foi ajustado nas seções 'Eixos', 'Ticks' e
@@ -120,7 +205,9 @@ def _aplicar_preferencias_grafico(fig, preferencias):
     src/core/arquivo.py) — chamado no fim de
     construir_figura_serie_temporal, depois que as curvas já foram
     desenhadas, porque essas propriedades são do LAYOUT (eixos/fundo),
-    não de uma curva específica.
+    não de uma curva específica (e porque o cálculo de dtick, logo
+    abaixo, precisa OLHAR os traços já desenhados pra saber o range
+    real dos dados quando o usuário não travou um limite manual).
 
     Mapeamento pros parâmetros do Plotly:
       - 'titulo'/'titulo_eixo_x'/'titulo_eixo_y' (PreferenciasTexto) ->
@@ -140,16 +227,21 @@ def _aplicar_preferencias_grafico(fig, preferencias):
         não define um intervalo válido — fica ambíguo se seria só
         limite inferior/superior aberto, então nesse caso o Plotly
         continua decidindo sozinho, como se nada tivesse sido digitado).
-      - 'divisoes' (ticks principais) -> nticks/tickwidth/ticklen do
-        próprio eixo. 'nticks' é uma contagem APROXIMADA (o Plotly
-        ainda escolhe posições "redondas" pros ticks) — não existe um
-        parâmetro que force um número EXATO de divisões sem também
-        fixar 'dtick' (o que exigiria calcular o passo a partir do
-        range dos dados, fora do escopo desta etapa).
-      - 'subdivisoes' -> o recurso de "minor ticks" do Plotly (eixo.
-        minor=dict(...)), literalmente ticks secundários entre os
-        principais — é o equivalente mais próximo que a lib tem de
-        "subdivisão".
+      - 'divisoes'/'subdivisoes' (ticks principais/secundários) ->
+        tick0+dtick calculados na mão (ver _tick0_e_dtick) a partir do
+        range EFETIVO do eixo — os limites travados manualmente
+        (PreferenciasLimiteEixo), OU (se não há limite travado) o
+        range dos dados JÁ ARREDONDADO pra bordas redondas (ver
+        _intervalo_arredondado — evita dtick baseado em algo tipo
+        4.55095). 'numero_divisoes' é o número de marcas NOVAS entre
+        os extremos, ver _tick0_e_dtick pra a conta exata. As
+        secundárias usam o MESMO dtick principal dividido pelo número
+        de subdivisões, pra ficarem igualmente espaçadas DENTRO de
+        cada intervalo principal.
+
+        Se não der pra calcular (gráfico em branco, sem traço nenhum
+        ainda) cai de volta em 'nticks' (contagem aproximada, decidida
+        pelo próprio Plotly) — mesmo comportamento de antes.
       - 'direcao' ('outside'/'inside', ver 'Inward'/'Outward' no
         painel) em ambos (principal e minor) — sem 'ticks' definido
         (string vazia, o padrão do Plotly) o eixo desenha só as LINHAS
@@ -196,13 +288,31 @@ def _aplicar_preferencias_grafico(fig, preferencias):
         if kwargs:
             atualizar_eixo(**kwargs)
 
-    for eixo_prefs, atualizar_eixo in (
-        (preferencias.ticks_x, fig.update_xaxes),
-        (preferencias.ticks_y, fig.update_yaxes),
+    for eixo_prefs, atualizar_eixo, prefs_limite, letra_eixo in (
+        (preferencias.ticks_x, fig.update_xaxes, preferencias.limite_x, 'x'),
+        (preferencias.ticks_y, fig.update_yaxes, preferencias.limite_y, 'y'),
     ):
         divisoes = eixo_prefs.divisoes
         subdivisoes = eixo_prefs.subdivisoes
-        atualizar_eixo(
+
+        # Range efetivo pro cálculo de dtick: o limite TRAVADO (se os
+        # dois — min E max — estiverem preenchidos), senão o range dos
+        # dados já desenhados, arredondado pra bordas redondas (ver
+        # docstring da função).
+        if prefs_limite.minimo is not None and prefs_limite.maximo is not None:
+            vmin, vmax = prefs_limite.minimo, prefs_limite.maximo
+        else:
+            vmin, vmax = _range_dos_dados(fig, letra_eixo)
+            vmin, vmax = _intervalo_arredondado(vmin, vmax)
+
+        tick0, dtick = _tick0_e_dtick(vmin, vmax, divisoes.get('numero'))
+        _, dtick_minor = (
+            (None, dtick / (subdivisoes.get('numero') + 1))
+            if dtick and subdivisoes.get('numero')
+            else (None, None)
+        )
+
+        kwargs_eixo = dict(
             showgrid=preferencias.grid,
             # Moldura fechada em volta da área de plotagem (as 4
             # bordas — comum no matplotlib, onde os eixos SEMPRE vêm
@@ -224,16 +334,30 @@ def _aplicar_preferencias_grafico(fig, preferencias):
             mirror='ticks' if eixo_prefs.both_sides else True,
             ticks=eixo_prefs.direcao,
             tickfont=dict(size=eixo_prefs.fonte_labels),
-            nticks=divisoes.get('numero'),
             tickwidth=divisoes.get('largura'),
             ticklen=divisoes.get('comprimento'),
-            minor=dict(
-                ticks=eixo_prefs.direcao,
-                nticks=subdivisoes.get('numero'),
-                tickwidth=subdivisoes.get('largura'),
-                ticklen=subdivisoes.get('comprimento'),
-            ),
         )
+        if dtick:
+            kwargs_eixo['tick0'] = tick0
+            kwargs_eixo['dtick'] = dtick
+        else:
+            # Sem range calculável (gráfico em branco) — volta pro
+            # comportamento aproximado de antes, só pra não deixar o
+            # eixo sem tick nenhum.
+            kwargs_eixo['nticks'] = divisoes.get('numero')
+
+        kwargs_minor = dict(
+            ticks=eixo_prefs.direcao,
+            tickwidth=subdivisoes.get('largura'),
+            ticklen=subdivisoes.get('comprimento'),
+        )
+        if dtick_minor:
+            kwargs_minor['dtick'] = dtick_minor
+        else:
+            kwargs_minor['nticks'] = subdivisoes.get('numero')
+        kwargs_eixo['minor'] = kwargs_minor
+
+        atualizar_eixo(**kwargs_eixo)
 
     if preferencias.cor_fundo:
         fig.update_layout(plot_bgcolor=preferencias.cor_fundo)

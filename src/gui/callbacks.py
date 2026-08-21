@@ -1020,6 +1020,7 @@ def registrar_callbacks(app, estado):
         Output({'type': 'toggle', 'index': 'ticks-both-sides'}, 'className', allow_duplicate=True),
         Output('edicao-ticks-fonte-labels', 'value'),
         Output({'type': 'toggle', 'index': 'ticks-direcao'}, 'className', allow_duplicate=True),
+        Output('edicao-ticks-fonte-labels-wrapper', 'className'),
         Input('edicao-ticks-eixo', 'value'),
         Input({'type': 'toggle', 'index': 'ticks-subdivisao'}, 'className'),
         State('aba-ativa-store', 'data'),
@@ -1045,7 +1046,12 @@ def registrar_callbacks(app, estado):
         edit_menu.css). 'Label font' e o toggle 'Outward/Inward' só
         reagem à troca de EIXO (não têm um conjunto separado por modo
         — ver comentário em conteudo_ticks, renderizadores.py), então
-        ficam de fora do 'if modo_subdivisao' que decide os 3 sliders.
+        ficam de fora do 'if modo_subdivisao' que decide os 3 sliders
+        — MAS a VISIBILIDADE do slider 'Label font' (não o valor)
+        ainda depende do modo: escondido em 'Subdivision' (marcas
+        secundárias não têm rótulo/número do lado, então o controle
+        não teria efeito visível nesse modo — ver '.painel-edicao-
+        oculto' em edit_menu.css).
         """
         if not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
@@ -1057,11 +1063,13 @@ def registrar_callbacks(app, estado):
         classe_wrapper = 'painel-edicao-ticks-sliders' + (' modo-subdivisao' if modo_subdivisao else '')
         classe_both_sides = 'painel-edicao-toggle' + (' ativo' if prefs_eixo.both_sides else '')
         classe_direcao = 'painel-edicao-toggle' + (' ativo' if prefs_eixo.direcao == 'inside' else '')
+        classe_fonte_labels_wrapper = 'painel-edicao-oculto' if modo_subdivisao else ''
 
         return (
             conjunto.get('numero', 2), conjunto.get('largura', 1), conjunto.get('comprimento', 3),
             classe_wrapper, classe_both_sides,
             prefs_eixo.fonte_labels, classe_direcao,
+            classe_fonte_labels_wrapper,
         )
 
     @app.callback(

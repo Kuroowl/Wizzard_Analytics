@@ -118,7 +118,7 @@ class PreferenciasTexto:
     """
     texto: str = ''
     fonte: int = 12
-    espacamento: int = 1
+    espacamento: int = 15
 
 
 @dataclass
@@ -147,17 +147,28 @@ class PreferenciasTicksEixo:
     Como os ticks de UM eixo (x ou y) aparecem no gráfico — ver seção
     'Ticks' do painel de edição (renderizadores.py/callbacks.py).
 
+    'divisoes'/'subdivisoes'.numero é o número de marcas NOVAS entre
+    os extremos do eixo (ou entre duas marcas principais, no caso das
+    subdivisões) — NÃO conta os próprios extremos, que já ficam
+    implícitos na moldura do gráfico. Ex: numero=1 num eixo de 0 a 1
+    -> só 1 marca nova, bem no meio (0.5); numero=5 (padrão) -> 5
+    marcas novas. O passo entre elas (dtick) é calculado a partir do
+    range REAL do eixo em _tick0_e_dtick (plotter.py) — que também
+    arredonda esse range pra bordas "redondas" antes de dividir, pra
+    não gerar marcas em números feios tipo 4.55095 quando os dados não
+    terminam num valor redondo.
+
     'divisoes' e 'subdivisoes' guardam os mesmos 3 números (número de
     marcas / largura / comprimento do traço do tick) em dois conjuntos
-    INDEPENDENTES — os ticks "principais" (mapeados em
-    fig.update_xaxes/yaxes(nticks=..., tickwidth=..., ticklen=...)) e
-    os "secundários" (mapeados no recurso de minor ticks do Plotly,
-    xaxis.minor=dict(...)). O painel usa o MESMO trio de sliders pros
-    dois (ver _campo_slider/alternar_modo_ticks), só troca qual dict
-    aqui está sendo lido/escrito no momento.
+    INDEPENDENTES — os ticks "principais" e os "secundários" (o
+    recurso de minor ticks do Plotly, xaxis.minor=dict(...); as
+    marcas SECUNDÁRIAS ficam igualmente espaçadas DENTRO de cada
+    intervalo principal). O painel usa o MESMO trio de sliders pros
+    dois (ver _campo_slider/sincronizar_campos_ticks), só troca qual
+    dict aqui está sendo lido/escrito no momento.
     """
-    divisoes: dict = field(default_factory=lambda: {'numero': 4, 'largura': 1, 'comprimento': 5})
-    subdivisoes: dict = field(default_factory=lambda: {'numero': 2, 'largura': 1, 'comprimento': 3})
+    divisoes: dict = field(default_factory=lambda: {'numero': 5, 'largura': 1, 'comprimento': 5})
+    subdivisoes: dict = field(default_factory=lambda: {'numero': 4, 'largura': 1, 'comprimento': 3})
     # Espelha o tick pro lado oposto do eixo (topo/direita), via
     # fig.update_xaxes/yaxes(mirror='ticks') — ver 'Both sides' no
     # painel.
@@ -168,7 +179,7 @@ class PreferenciasTicksEixo:
     # (título do eixo): aquele é o tamanho do RÓTULO "Axis x:"/"Axis
     # y:" digitado pelo usuário; este é o tamanho dos números que o
     # Plotly desenha sozinho em cada tick.
-    fonte_labels: int = 11
+    fonte_labels: int = 14
     # 'outside' (padrão) ou 'inside' — pra que lado o traço do tick
     # aponta a partir da linha do eixo, fig.update_xaxes/yaxes(
     # ticks=...); aplicado igual nos ticks principais E secundários
