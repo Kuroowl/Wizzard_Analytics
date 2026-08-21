@@ -547,6 +547,7 @@ def registrar_callbacks(app, estado):
         Output('grafico-plotly-real', 'figure', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
         Output('toolbar-confirmacao-corte', 'style'),
+        Output('container-grafico', 'className', allow_duplicate=True),
         Input('corte-clique-x', 'value'),
         State('corte-selecao-store', 'data'),
         State('aba-ativa-store', 'data'),
@@ -563,8 +564,13 @@ def registrar_callbacks(app, estado):
         2º clique: só é aceito se for MAIOR que o primeiro (senão o
         intervalo não faz sentido — ignora silenciosamente, o usuário
         só tenta de novo); vira 'segundo' — redesenha com as DUAS
-        guias/hachuras e revela o prompt 'Confirmar seleção?' na
-        toolbar. Cliques depois disso (os dois já marcados) são
+        guias/hachuras, revela o prompt 'Confirmar seleção?' na
+        toolbar E soma a classe 'corte-completo' em 'container-grafico'
+        (junto com 'corte-ativo', que continua lá) — é essa classe
+        extra que faz a guia TRACEJADA parar de seguir o mouse (ver
+        iniciarSelecaoCorte, scripts_js.py: só desenha a guia viva
+        quando 'corte-ativo' está presente E 'corte-completo' não
+        está). Cliques depois disso (os dois já marcados) são
         ignorados — só resta confirmar ou cancelar.
         """
         if not dados_selecao or valor_x is None:
@@ -575,6 +581,7 @@ def registrar_callbacks(app, estado):
         arquivo = estado.arquivos[aba_ativa]
         primeiro = dados_selecao.get('primeiro')
         segundo = dados_selecao.get('segundo')
+        classe_container = no_update
 
         if primeiro is None:
             primeiro = valor_x
@@ -586,12 +593,13 @@ def registrar_callbacks(app, estado):
             segundo = valor_x
             mensagem = '🧙‍♂️: " Confirma o recorte? "'
             estilo_prompt = {'display': 'flex'}
+            classe_container = 'area-grafico-container corte-ativo corte-completo'
         else:
             raise PreventUpdate
 
         dados_selecao = dict(dados_selecao, primeiro=primeiro, segundo=segundo)
         fig = aplicar_guias_corte(arquivo.figura, primeiro=primeiro, segundo=segundo)
-        return dados_selecao, fig, mensagem, estilo_prompt
+        return dados_selecao, fig, mensagem, estilo_prompt, classe_container
 
     def _restaurar_apos_selecao():
         """

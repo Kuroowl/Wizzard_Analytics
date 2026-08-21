@@ -411,98 +411,104 @@ document.addEventListener('DOMContentLoaded', function () {
     function iniciarSelecaoCorte() {
         // Modo de seleção de 'Aparar dados' (e, no futuro, 'Excluir
         // dados' — mesma mecânica de 2 cliques): a guia vermelha
-        // TRACEJADA que acompanha o mouse é 100% client-side (desenhada
-        // via Plotly.relayout direto no gráfico já renderizado) — um
-        // round-trip com o servidor a cada pixel de movimento do mouse
-        // deixaria a linha visivelmente "atrasada". As guias SÓLIDAS
-        // (cortes já clicados) e a hachura continuam vindo do Python
-        // (aplicar_guias_corte, plotter.py) — só a linha viva é daqui.
+        // TRACEJADA que acompanha o mouse é 100% client-side — mas usa
+        // os eventos NATIVOS do Plotly ('plotly_hover'/'plotly_click',
+        // disparados pela própria lib no elemento do gráfico) em vez
+        // de calcular pixel->dado na mão. Antes fazia esse cálculo
+        // manualmente (posição do mouse + range do eixo) por cima do
+        // 'hovermode' padrão do Plotly, que desenha o PRÓPRIO
+        // indicador (spike line + rótulo) — como o Plotly ENCAIXA no
+        // ponto de dado mais próximo e o cálculo manual seguia o pixel
+        // exato do mouse, as duas linhas discordavam visualmente. Usar
+        // o evento nativo elimina esse desencontro (nossa linha nasce
+        // EXATAMENTE onde o Plotly já calculou) — e o indicador nativo
+        // (spike/hover label) fica escondido via CSS só durante
+        // 'corte-ativo' (ver '#container-grafico.corte-ativo' em
+        // icon_menu.css), sobrando só a nossa.
         //
-        // O gráfico só reage a isso quando tem a classe 'corte-ativo'
-        // (ligada/desligada por iniciar_selecao_corte/confirmar_corte/
-        // cancelar_corte em callbacks.py, via Output no className do
-        // dcc.Graph) — sem essa classe, mousemove/click no gráfico não
-        // fazem nada aqui, comportamento normal do Plotly.
+        // O gráfico só reage quando 'container-grafico' (o wrapper
+        // ESTÁVEL — ver layout.py; dcc.Graph em si não reflete bem
+        // atualizações de className via callback, peculiaridade da
+        // própria biblioteca) tem a classe 'corte-ativo', ligada/
+        // desligada por iniciar_selecao_corte/confirmar_corte/
+        // cancelar_corte em callbacks.py. A guia PARA de seguir o
+        // mouse assim que o segundo corte é clicado — 'corte-completo'
+        // (adicionada por registrar_clique_corte no mesmo momento que
+        // o segundo clique é aceito) é o que marca esse ponto.
 
-        // O gráfico só reage a isso quando 'container-grafico' (o
-        // wrapper ESTÁVEL — ver layout.py; dcc.Graph em si não
-        // reflete bem atualizações de className via callback, é uma
-        // peculiaridade da própria biblioteca, então a classe
-        // 'corte-ativo' fica num ancestral comum em vez do gráfico) tem
-        // a classe 'corte-ativo', ligada/desligada por
-        // iniciar_selecao_corte/confirmar_corte/cancelar_corte em
-        // callbacks.py — sem essa classe, mousemove/click no gráfico
-        // não fazem nada aqui, comportamento normal do Plotly.
-
-        function elementoGrafico() {
+        function emModoSelecao() {
             var container = document.getElementById('container-grafico');
-            if (!container || !container.classList.contains('corte-ativo')) return null;
-            var wrapper = document.getElementById('grafico-plotly-real');
-            var gd = wrapper && wrapper.querySelector('.js-plotly-plot');
-            // '_fullLayout' só existe depois que o Plotly termina de
-            // desenhar o gráfico pela primeira vez — sem essa checagem,
-            // um mousemove bem no instante da abertura do modo de
-            // seleção poderia cair aqui antes do gráfico estar pronto.
-            if (!gd || !gd._fullLayout) return null;
-            return gd;
+            return !!(container && container.classList.contains('corte-ativo'));
         }
 
-        // Converte a posição do mouse (pixels, relativa à JANELA) pro
-        // valor correspondente no eixo X dos DADOS — usa o range atual
-        // do eixo (gd._fullLayout.xaxis.range, que o Plotly mantém
-        // sincronizado mesmo depois de um zoom/pan manual) e a área de
-        // plotagem em pixels (gd._fullLayout._size: margens l/r/t/b e
-        // largura/altura úteis), não o tamanho do <svg> inteiro (que
-        // inclui eixos, títulos, legenda).
-        function pixelParaDadoX(gd, clientX) {
-            var rect = gd.getBoundingClientRect();
-            var tamanho = gd._fullLayout._size;
-            var range = gd._fullLayout.xaxis.range;
-            var fracao = (clientX - rect.left - tamanho.l) / tamanho.w;
-            return range[0] + fracao * (range[1] - range[0]);
+        function selecaoCompleta() {
+            var container = document.getElementById('container-grafico');
+            return !!(container && container.classList.contains('corte-completo'));
         }
 
         // Shapes JÁ DESENHADAS pelo Python (linhas sólidas + hachura dos
         // cortes confirmados) — filtra fora qualquer guia tracejada de
-        // um movimento de mouse anterior, senão cada novo mousemove
-        // empilharia mais uma linha em cima da última em vez de
-        // substituir.
+        // um hover anterior, senão cada novo movimento empilharia mais
+        // uma linha em cima da última em vez de substituir.
         function formasConfirmadas(gd) {
             return (gd.layout.shapes || []).filter(function (s) {
                 return !(s.line && s.line.dash === 'dash');
             });
         }
 
-        document.addEventListener('mousemove', function (e) {
-            var gd = elementoGrafico();
-            if (!gd) return;
-            var xDado = pixelParaDadoX(gd, e.clientX);
-            var formas = formasConfirmadas(gd);
-            formas.push({
-                type: 'line', xref: 'x', yref: 'paper',
-                x0: xDado, x1: xDado, y0: 0, y1: 1,
-                line: { color: '#D62728', width: 2, dash: 'dash' },
-            });
-            Plotly.relayout(gd, { shapes: formas });
-        });
+        // Liga os listeners NATIVOS do Plotly ('gd.on(...)') uma única
+        // vez por elemento de gráfico — 'gd' muda de instância sempre
+        // que 'container-grafico.children' é substituído por inteiro
+        // (ver confirmar_corte/cancelar_corte, callbacks.py); o guard
+        // via 'dataset.corteLigado' evita ligar os mesmos listeners
+        // duas vezes numa instância que já os tem, e o 'mouseenter'
+        // (fase de captura, que ele não faz bubble normalmente) garante
+        // que uma instância NOVA seja pega assim que o mouse chega
+        // nela, sem precisar de um MutationObserver à parte.
+        document.addEventListener('mouseenter', function (e) {
+            var wrapper = e.target.closest && e.target.closest('#grafico-plotly-real');
+            if (!wrapper) return;
+            var gd = wrapper.querySelector('.js-plotly-plot');
+            if (!gd || gd.dataset.corteLigado) return;
+            gd.dataset.corteLigado = '1';
 
-        // O clique de verdade não desenha nada aqui (isso é papel do
-        // Python, depois que o valor for confirmado como um corte —
-        // ver registrar_clique_corte em callbacks.py) — só ESCREVE o
-        // valor no campo escondido 'corte-clique-x', pelo mesmo truque
-        // de setter nativo + evento 'input' já usado no seletor de cor
-        // (iniciarSeletorCor, acima) — é isso que faz o Dash perceber a
-        // mudança e rodar o callback Python correspondente.
-        document.addEventListener('click', function (e) {
-            var gd = elementoGrafico();
-            if (!gd || !gd.contains(e.target)) return;
-            var xDado = pixelParaDadoX(gd, e.clientX);
-            var campo = document.getElementById('corte-clique-x');
-            if (!campo) return;
-            var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-            setter.call(campo, xDado);
-            campo.dispatchEvent(new Event('input', { bubbles: true }));
-        });
+            gd.on('plotly_hover', function (dadosEvento) {
+                if (!emModoSelecao() || selecaoCompleta()) return;
+                var ponto = dadosEvento.points && dadosEvento.points[0];
+                if (!ponto) return;
+                var formas = formasConfirmadas(gd);
+                formas.push({
+                    type: 'line', xref: 'x', yref: 'paper',
+                    x0: ponto.x, x1: ponto.x, y0: 0, y1: 1,
+                    line: { color: '#D62728', width: 2, dash: 'dash' },
+                });
+                Plotly.relayout(gd, { shapes: formas });
+            });
+
+            gd.on('plotly_unhover', function () {
+                if (!emModoSelecao() || selecaoCompleta()) return;
+                Plotly.relayout(gd, { shapes: formasConfirmadas(gd) });
+            });
+
+            // O clique de verdade não desenha nada aqui (isso é papel
+            // do Python, depois que o valor for confirmado como um
+            // corte — ver registrar_clique_corte em callbacks.py) — só
+            // ESCREVE o valor no campo escondido 'corte-clique-x',
+            // pelo mesmo truque de setter nativo + evento 'input' já
+            // usado no seletor de cor (iniciarSeletorCor, acima) — é
+            // isso que faz o Dash perceber a mudança e rodar o
+            // callback Python correspondente.
+            gd.on('plotly_click', function (dadosEvento) {
+                if (!emModoSelecao() || selecaoCompleta()) return;
+                var ponto = dadosEvento.points && dadosEvento.points[0];
+                if (!ponto) return;
+                var campo = document.getElementById('corte-clique-x');
+                if (!campo) return;
+                var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                setter.call(campo, ponto.x);
+                campo.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        }, true);
     }
     iniciarSelecaoCorte();
 
@@ -584,6 +590,77 @@ document.addEventListener('DOMContentLoaded', function () {
         tentar();
     }
     iniciarBarraCarregamentoRodape();
+
+    function iniciarBarraCarregamentoToolbar() {
+        // MESMO padrão da barra do rodapé (iniciarBarraCarregamentoRodape,
+        // logo acima — reaproveita literalmente as classes 'rodape-
+        // carregando'/'rodape-concluido' e a keyframe 'rodape-progresso-
+        // concluir', já que o efeito visual é idêntico, só muda ONDE
+        // aparece), só que na barra do PROMPT de corte ('Confirmar
+        // seleção?' — ver toolbar-confirmacao-progresso em layout.py),
+        // não na seção central do rodapé. Único sinal novo: só ativa se
+        // o prompt estiver VISÍVEL no momento (senão qualquer outro
+        // carregamento de 'container-grafico' — trocar de aba, marcar
+        // canal — faria essa barra picar sem sentido nenhum, já que o
+        // prompt nem aparece nesses casos).
+        function tentar() {
+            var alvo = document.getElementById('container-grafico');
+            var prompt = document.getElementById('toolbar-confirmacao-corte');
+            var barra = document.getElementById('toolbar-confirmacao-progresso');
+            if (!alvo || !prompt || !barra) {
+                setTimeout(tentar, 300);
+                return;
+            }
+
+            var progresso = 0;
+            var intervalo = null;
+            var estavaCarregando = false;
+
+            function promptVisivel() {
+                return prompt.style.display !== 'none';
+            }
+
+            function definirLargura(pct) {
+                barra.style.width = pct + '%';
+            }
+
+            function iniciarProgresso() {
+                clearInterval(intervalo);
+                barra.classList.remove('rodape-concluido');
+                barra.classList.add('rodape-carregando');
+                progresso = 0;
+                definirLargura(0);
+                intervalo = setInterval(function () {
+                    var passo = (90 - progresso) * 0.08;
+                    progresso = Math.min(90, progresso + Math.max(passo, 0.4));
+                    definirLargura(progresso);
+                }, 120);
+            }
+
+            function concluirProgresso() {
+                clearInterval(intervalo);
+                barra.classList.remove('rodape-carregando');
+                definirLargura(100);
+                barra.classList.add('rodape-concluido');
+                setTimeout(function () {
+                    barra.classList.remove('rodape-concluido');
+                    definirLargura(0);
+                }, 700);
+            }
+
+            new MutationObserver(function () {
+                var carregando = alvo.getAttribute('data-dash-is-loading') === 'true' && promptVisivel();
+                if (carregando && !estavaCarregando) {
+                    iniciarProgresso();
+                } else if (!carregando && estavaCarregando) {
+                    concluirProgresso();
+                }
+                estavaCarregando = carregando;
+            }).observe(alvo, { attributes: true, attributeFilter: ['data-dash-is-loading'] });
+        }
+        tentar();
+    }
+    iniciarBarraCarregamentoToolbar();
 });
 </script>
 """

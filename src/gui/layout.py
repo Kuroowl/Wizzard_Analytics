@@ -79,7 +79,7 @@ def montar_layout(estado):
                 # não faz sentido nenhum aqui.
                 html.Button(
                     id='aparar-dados',
-                    children=[icone_colorido('TrimData_icon.png'), html.Span('Aparar dados', className='toolbar-tooltip')],
+                    children=html.Div([icone_colorido('TrimData_icon.png'), html.Span('Aparar dados', className='toolbar-tooltip')]),
                     className='toolbar-upload', disabled=sem_grafico, n_clicks=0,
                 ),
                 dcc.Upload(
@@ -132,6 +132,13 @@ def montar_layout(estado):
                 className='toolbar-confirmacao',
                 style={'display': 'none'},
                 children=[
+                    # Barra de "algo está acontecendo" — mesmo padrão da
+                    # barra do rodapé, ver iniciarBarraCarregamentoToolbar
+                    # em scripts_js.py e '.toolbar-confirmacao-progresso'
+                    # em icon_menu.css. Fica ATRÁS do mago/texto/botões
+                    # (position:absolute + os outros filhos com z-index
+                    # implícito por cima via 'position: relative').
+                    html.Div(id='toolbar-confirmacao-progresso', className='toolbar-confirmacao-progresso'),
                     html.Span('🧙‍♂️', className='toolbar-confirmacao-mago'),
                     html.Span('Confirmar seleção?', className='toolbar-confirmacao-texto'),
                     html.Button('✓', id='corte-confirmar', className='toolbar-confirmacao-btn confirmar', n_clicks=0, title='Confirmar'),

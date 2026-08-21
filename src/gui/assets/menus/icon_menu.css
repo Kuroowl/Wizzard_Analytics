@@ -69,6 +69,23 @@
   justify-content: center;
 }
 
+/* 'aparar-dados' é um <button> de verdade (precisa de n_clicks — ver
+   layout.py), não um dcc.Upload como os outros — mas usa a MESMA
+   classe 'toolbar-upload' e a MESMA estrutura interna (uma <div> só
+   com o ícone/tooltip dentro, ver regra logo acima) pra ficar
+   visualmente idêntico. Sem este reset, o <button> nativo entra com
+   fundo/borda/padding PRÓPRIOS do navegador por cima do que a regra
+   acima já desenha na <div> interna — é o que fazia o ícone parecer
+   "errado" (fundo claro) comparado aos vizinhos. */
+.toolbar-upload:is(button) {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
+
 .toolbar-upload div:hover {
   background: rgba(47, 165, 160, 0.18);
   border-color: var(--cor-accent);
@@ -169,35 +186,48 @@
    layout.py) e some de novo assim que confirmar/cancelar é clicado.
    Fica na MESMA linha dos ícones (toolbar), não no rodapé — é sobre a
    ação da toolbar que está em andamento, não uma mensagem passageira
-   do mago. */
+   do mago. 'position: relative' ancora a barra de carregamento
+   ('.toolbar-confirmacao-progresso' logo abaixo), que fica atrás de
+   TODO o conteúdo (mago+texto+botões via z-index), não só do texto. */
 .toolbar-confirmacao {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 12px;
+  gap: 10px;
+  padding: 4px 14px;
   margin-left: 4px;
   border-left: 1px solid rgba(231, 236, 234, 0.18);
+  overflow: hidden; /* a barra de progresso não vaza pra fora do prompt */
 }
 
+/* Tamanho perto dos ícones coloridos da toolbar (48px, ver
+   '.toolbar-icone-colorido') — 'quase' porque um emoji nesse tamanho
+   exato fica com peso visual bem mais pesado que um ícone desenhado
+   (a fonte de emoji tem sua própria caixa/padding interno), 36px já
+   dá a sensação de escala parecida sem ficar caricato. */
 .toolbar-confirmacao-mago {
-  font-size: 20px;
+  position: relative; /* fica acima da barra de progresso (z-index implícito por empilhamento) */
+  font-size: 36px;
+  line-height: 1;
 }
 
 .toolbar-confirmacao-texto {
+  position: relative;
   font-family: var(--fonte-dado);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--cor-texto-claro);
   white-space: nowrap;
 }
 
 .toolbar-confirmacao-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: 4px;
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 5px;
   border: 1px solid rgba(231, 236, 234, 0.25);
   background: transparent;
   color: var(--cor-texto-claro);
-  font-size: 13px;
+  font-size: 20px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -215,11 +245,55 @@
   border-color: #D62728;
 }
 
+/* Barra de carregamento do prompt de corte — MESMO padrão visual da
+   barra do rodapé ('.rodape-progresso-central', status_menu.css),
+   reaproveitando o mesmo sinal (o atributo 'data-dash-is-loading' que
+   o dcc.Loading de 'container-grafico' já liga/desliga sozinho — ver
+   iniciarBarraCarregamentoToolbar em scripts_js.py), só que
+   posicionada aqui (mago -> botões) em vez da seção central do
+   rodapé: dá pro usuário perceber que "algo está acontecendo" bem no
+   lugar onde ele acabou de interagir (2º clique no gráfico), sem
+   precisar olhar pro rodapé. */
+.toolbar-confirmacao-progresso {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: var(--cor-accent);
+  opacity: 0;
+  z-index: 0;
+  transition: width 0.15s linear, opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.toolbar-confirmacao-progresso.rodape-carregando {
+  opacity: 0.35;
+}
+
+.toolbar-confirmacao-progresso.rodape-concluido {
+  animation: rodape-progresso-concluir 0.7s ease forwards;
+}
+
 /* Cursor em cruz sobre o gráfico enquanto o modo de seleção está
    ativo — reforça que o próximo clique ali TEM efeito (diferente do
-   cursor padrão de "só olhando"). A classe 'corte-ativo' é a mesma
-   que iniciarSelecaoCorte (scripts_js.py) já lê pra saber se deve
-   reagir a mousemove/click — um único Output controla os dois. */
-#grafico-plotly-real.corte-ativo {
+   cursor padrão de "só olhando"). A classe 'corte-ativo' fica em
+   '#container-grafico' (o wrapper estável — dcc.Graph em si não
+   reflete bem className via callback, ver iniciar_selecao_corte em
+   callbacks.py), não no próprio '#grafico-plotly-real' — por isso o
+   seletor é um DESCENDENTE, não a própria classe no elemento. */
+#container-grafico.corte-ativo #grafico-plotly-real {
   cursor: crosshair;
+}
+
+/* Esconde o indicador de hover NATIVO do Plotly (spike line + rótulo
+   de valor) enquanto o modo de seleção está ativo — ele engatinha no
+   ponto de dado mais próximo (hovermode='x unified', ver plotter.py),
+   e como a NOSSA guia (iniciarSelecaoCorte, scripts_js.py) agora lê
+   esse MESMO ponto (via evento 'plotly_hover', não mais um cálculo de
+   pixel à parte), as duas ficariam sempre coincidindo — melhor
+   esconder a do Plotly e deixar só a nossa (mais fina, sem rótulo
+   grudado, combina com a cor das guias já confirmadas) do que mostrar
+   as duas juntas. '.hoverlayer' é o grupo SVG onde o Plotly desenha
+   TANTO a spike line quanto a caixinha de valor. */
+#container-grafico.corte-ativo .hoverlayer {
+  display: none;
 }
