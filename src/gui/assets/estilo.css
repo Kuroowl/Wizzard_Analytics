@@ -20,15 +20,19 @@
   --cor-superficie-escura-2: #232F3D;
   --cor-accent: #2FA5A0;
   --cor-accent-suave: #DCEEEC;
-  /* Segundo tom de destaque, só pro par 'Division'/'Subdivision' em
-     'Ticks' (ver .painel-edicao-toggle-modo e
-     .painel-edicao-ticks-sliders.modo-subdivisao em edit_menu.css) —
-     laranja, deliberadamente longe do teal padrão, pra ficar óbvio
-     de relance que os 3 sliders (Number/Width/Length) mudaram de
-     'modo' quando o toggle vai pra 'Subdivision', sem precisar ler
-     o rótulo. */
-  --cor-accent-subdivisao: #C97A3D;
-  --cor-accent-subdivisao-suave: #F3E3D3;
+  /* Par de cores dos 3 sliders de 'Ticks' (Number/Width/Length) —
+     ver .painel-edicao-ticks-sliders(.modo-subdivisao) em
+     edit_menu.css: roxo enquanto o toggle 'Division/Subdivision' está
+     em 'Division' (mesmo tom que já é o PADRÃO de fábrica da
+     biblioteca de slider usada aqui — dash-slider-*, não rc-slider;
+     ver comentário nessas regras), verde quando muda pra
+     'Subdivision' — definido assim a pedido explícito (antes, por um
+     bug de CSS mirando classes que não existiam mais nesta versão do
+     Dash, os sliders ficavam sempre no roxo de fábrica, nunca
+     mudavam). */
+  --cor-accent-divisao: #7F4BC4;
+  --cor-accent-subdivisao: #2F9E5B;
+  --cor-accent-subdivisao-suave: #DCF3E6;
   --cor-borda: #DDE4E2;
   --cor-texto-escuro: #1B2430;
   --cor-texto-claro: #E7ECEA;

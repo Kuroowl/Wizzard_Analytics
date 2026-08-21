@@ -113,30 +113,6 @@ def resolver_eixo_x(estado, df):
     return colunas_numericas[0] if len(colunas_numericas) else df.columns[0]
 
 
-def _texto_com_espacamento(texto, espacamento):
-    """
-    Aproxima 'espaçamento entre caracteres' (kerning) INSERINDO um
-    espaço fino Unicode (U+2009, mais estreito que um espaço normal —
-    não empurra o texto tanto quanto um espaço comum repetido) entre
-    cada caractere — ver PreferenciasTexto.espacamento em
-    src/core/arquivo.py pra explicação de por que isso é necessário
-    (Plotly não tem letter-spacing nativo).
-
-    'espacamento' É 1 POR PADRÃO (mesmo valor de partida do stepper em
-    _linha_eixo, renderizadores.py) — tratado aqui como o "neutro", 0
-    espaços extra, pra um título recém-criado (usuário nunca abriu
-    'Eixos') não sair com espaçamento artificial nenhum. Só o que
-    passa de 1 vira espaço de verdade (2 -> 1 espaço fino entre cada
-    par de caracteres, 3 -> 2, ...); tudo <= 1 (inclusive os valores
-    negativos que o stepper permite) devolve o texto original.
-    """
-    extra = espacamento - 1
-    if not texto or extra <= 0:
-        return texto
-    separador = '\u2009' * extra
-    return separador.join(texto)
-
-
 def _aplicar_preferencias_grafico(fig, preferencias):
     """
     Aplica em 'fig' o que foi ajustado nas seções 'Eixos', 'Ticks' e
@@ -149,11 +125,16 @@ def _aplicar_preferencias_grafico(fig, preferencias):
     Mapeamento pros parâmetros do Plotly:
       - 'titulo'/'titulo_eixo_x'/'titulo_eixo_y' (PreferenciasTexto) ->
         fig.update_layout(title=...) e fig.update_xaxes/yaxes(
-        title=...), com 'font.size' pro tamanho e o texto passando por
-        _texto_com_espacamento pro espaçamento entre caracteres. Um
-        texto vazio ('') não é enviado (fica None) — sem isso, um
-        título vazio ainda ocuparia a margem reservada pro título no
-        layout do Plotly.
+        title=...), com 'font.size' pro tamanho. O título do gráfico
+        nasce CENTRALIZADO no topo (x=0.5, xanchor='center') — o
+        padrão do Plotly é alinhado à esquerda. 'espacamento' vira a
+        DISTÂNCIA até o gráfico (não espaçamento entre caracteres —
+        ver PreferenciasTexto em arquivo.py): 'pad.b' pro título do
+        gráfico (empurra o gráfico pra baixo, afastando da barra do
+        título) e 'standoff' pros rótulos de eixo (distância até os
+        números de tick). Um texto vazio ('') não é enviado (fica
+        None) — sem isso, um título vazio ainda ocuparia a margem
+        reservada pro título no layout do Plotly.
       - 'limite_x'/'limite_y' (PreferenciasLimiteEixo) -> range=[min,
         max] só quando os DOIS estão preenchidos (um só, sem o outro,
         não define um intervalo válido — fica ambíguo se seria só
@@ -169,10 +150,15 @@ def _aplicar_preferencias_grafico(fig, preferencias):
         minor=dict(...)), literalmente ticks secundários entre os
         principais — é o equivalente mais próximo que a lib tem de
         "subdivisão".
-      - 'ticks=\"outside\"' em ambos (principal e minor): sem isso o
-        Plotly desenha só as LINHAS de grade, nenhum traço de tick de
-        verdade — então largura/comprimento (tickwidth/ticklen) não
-        teriam efeito visual nenhum.
+      - 'direcao' ('outside'/'inside', ver 'Inward'/'Outward' no
+        painel) em ambos (principal e minor) — sem 'ticks' definido
+        (string vazia, o padrão do Plotly) o eixo desenha só as LINHAS
+        de grade, nenhum traço de tick de verdade, então largura/
+        comprimento (tickwidth/ticklen) não teriam efeito visual
+        nenhum.
+      - 'fonte_labels' -> tickfont.size (tamanho dos NÚMEROS ao lado
+        de cada tick — diferente da fonte do RÓTULO do eixo, que é
+        PreferenciasTexto.fonte).
       - 'both_sides' -> mirror='ticks' (espelha o tick pro lado oposto
         do eixo, sem espelhar rótulos).
       - 'grid' -> showgrid nos dois eixos (o painel só tem UM
@@ -182,8 +168,10 @@ def _aplicar_preferencias_grafico(fig, preferencias):
     """
     if preferencias.titulo.texto:
         fig.update_layout(title=dict(
-            text=_texto_com_espacamento(preferencias.titulo.texto, preferencias.titulo.espacamento),
+            text=preferencias.titulo.texto,
             font=dict(size=preferencias.titulo.fonte),
+            x=0.5, xanchor='center',
+            pad=dict(b=max(0, preferencias.titulo.espacamento)),
         ))
 
     for prefs_texto, atualizar_eixo, prefs_limite in (
@@ -193,8 +181,9 @@ def _aplicar_preferencias_grafico(fig, preferencias):
         kwargs = {}
         if prefs_texto.texto:
             kwargs['title'] = dict(
-                text=_texto_com_espacamento(prefs_texto.texto, prefs_texto.espacamento),
+                text=prefs_texto.texto,
                 font=dict(size=prefs_texto.fonte),
+                standoff=max(0, prefs_texto.espacamento),
             )
         if prefs_limite.minimo is not None and prefs_limite.maximo is not None:
             kwargs['range'] = [prefs_limite.minimo, prefs_limite.maximo]
@@ -209,13 +198,14 @@ def _aplicar_preferencias_grafico(fig, preferencias):
         subdivisoes = eixo_prefs.subdivisoes
         atualizar_eixo(
             showgrid=preferencias.grid,
-            ticks='outside',
+            ticks=eixo_prefs.direcao,
+            tickfont=dict(size=eixo_prefs.fonte_labels),
             nticks=divisoes.get('numero'),
             tickwidth=divisoes.get('largura'),
             ticklen=divisoes.get('comprimento'),
             mirror='ticks' if eixo_prefs.both_sides else False,
             minor=dict(
-                ticks='outside',
+                ticks=eixo_prefs.direcao,
                 nticks=subdivisoes.get('numero'),
                 tickwidth=subdivisoes.get('largura'),
                 ticklen=subdivisoes.get('comprimento'),

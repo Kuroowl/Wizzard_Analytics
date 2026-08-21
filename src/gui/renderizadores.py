@@ -826,6 +826,21 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
             ],
         ),
         _linha_toggle('Both sides', 'ticks-both-sides', ativo=ticks_x.both_sides),
+
+        html.Hr(className='painel-edicao-separador'),
+
+        # Fonte dos rótulos de tick e direção (inward/outward) — ao
+        # contrário do trio Number/Width/Length, NÃO trocam de cor nem
+        # de valor com o toggle Division/Subdivision: são propriedades
+        # do eixo inteiro, não fazem sentido "por modo" (não existe
+        # 'fonte dos labels das subdivisões' separada — os labels são
+        # sempre dos ticks principais). Por isso ficam FORA do
+        # 'edicao-ticks-sliders-wrapper'.
+        _campo_slider(
+            'Label font:', 'edicao-ticks-fonte-labels',
+            ticks_x.fonte_labels, minimo=6, maximo=24, step=1,
+        ),
+        _linha_toggle_dupla('Outward', 'Inward', 'ticks-direcao', ativo=(ticks_x.direcao == 'inside')),
     ]
 
     # 'Outros' — Grid (on/off) e a cor de fundo da área de plotagem.

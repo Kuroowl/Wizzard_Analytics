@@ -1018,6 +1018,8 @@ def registrar_callbacks(app, estado):
         # toggle 'Division/Subdivision' — nunca os dois no mesmo
         # clique.
         Output({'type': 'toggle', 'index': 'ticks-both-sides'}, 'className', allow_duplicate=True),
+        Output('edicao-ticks-fonte-labels', 'value'),
+        Output({'type': 'toggle', 'index': 'ticks-direcao'}, 'className', allow_duplicate=True),
         Input('edicao-ticks-eixo', 'value'),
         Input({'type': 'toggle', 'index': 'ticks-subdivisao'}, 'className'),
         State('aba-ativa-store', 'data'),
@@ -1038,9 +1040,12 @@ def registrar_callbacks(app, estado):
 
         TAMBÉM sincroniza o toggle 'Both sides' (reflete
         'both_sides' do eixo que passou a estar selecionado) e a
-        classe do wrapper dos sliders (cor teal/laranja conforme o
-        modo — ver .painel-edicao-ticks-sliders.modo-subdivisao em
-        edit_menu.css).
+        classe do wrapper dos sliders (cor roxo/verde conforme o modo
+        — ver .painel-edicao-ticks-sliders.modo-subdivisao em
+        edit_menu.css). 'Label font' e o toggle 'Outward/Inward' só
+        reagem à troca de EIXO (não têm um conjunto separado por modo
+        — ver comentário em conteudo_ticks, renderizadores.py), então
+        ficam de fora do 'if modo_subdivisao' que decide os 3 sliders.
         """
         if not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
@@ -1051,10 +1056,12 @@ def registrar_callbacks(app, estado):
         conjunto = prefs_eixo.subdivisoes if modo_subdivisao else prefs_eixo.divisoes
         classe_wrapper = 'painel-edicao-ticks-sliders' + (' modo-subdivisao' if modo_subdivisao else '')
         classe_both_sides = 'painel-edicao-toggle' + (' ativo' if prefs_eixo.both_sides else '')
+        classe_direcao = 'painel-edicao-toggle' + (' ativo' if prefs_eixo.direcao == 'inside' else '')
 
         return (
             conjunto.get('numero', 2), conjunto.get('largura', 1), conjunto.get('comprimento', 3),
             classe_wrapper, classe_both_sides,
+            prefs_eixo.fonte_labels, classe_direcao,
         )
 
     @app.callback(
@@ -1063,26 +1070,36 @@ def registrar_callbacks(app, estado):
         Input('edicao-ticks-largura', 'value'),
         Input('edicao-ticks-comprimento', 'value'),
         Input({'type': 'toggle', 'index': 'ticks-both-sides'}, 'className'),
+        Input('edicao-ticks-fonte-labels', 'value'),
+        Input({'type': 'toggle', 'index': 'ticks-direcao'}, 'className'),
         State('edicao-ticks-eixo', 'value'),
         State({'type': 'toggle', 'index': 'ticks-subdivisao'}, 'className'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
-    def aplicar_preferencias_ticks(numero, largura, comprimento, classe_both_sides, eixo, classe_modo, aba_ativa):
+    def aplicar_preferencias_ticks(
+        numero, largura, comprimento, classe_both_sides, fonte_labels, classe_direcao,
+        eixo, classe_modo, aba_ativa,
+    ):
         """
-        Grava os 3 sliders + 'Both sides' como preferência PERMANENTE
-        do(s) eixo(s) alvo (ver _prefs_ticks_alvos: X, Y, ou os dois se
-        'Eixo: Both' estiver selecionado) e redesenha o gráfico na
-        hora (ver _aplicar_preferencias_grafico em plotter.py) —
-        mesmo espírito de aplicar_preferencias_curva, só que pro
-        LAYOUT em vez de uma curva.
+        Grava os 3 sliders + 'Both sides' + 'Label font' + a direção
+        (Outward/Inward) como preferência PERMANENTE do(s) eixo(s)
+        alvo (ver _prefs_ticks_alvos: X, Y, ou os dois se 'Eixo: Both'
+        estiver selecionado) e redesenha o gráfico na hora (ver
+        _aplicar_preferencias_grafico em plotter.py) — mesmo espírito
+        de aplicar_preferencias_curva, só que pro LAYOUT em vez de uma
+        curva.
 
         Grava no conjunto 'divisoes' ou 'subdivisoes' conforme o
         estado ATUAL do toggle 'Division/Subdivision' (lido como
         State, não Input — este callback não deve disparar sozinho só
         porque o modo mudou; quem faz os sliders REFLETIREM a troca de
         modo é sincronizar_campos_ticks acima; este aqui só reage a
-        edição de verdade nos sliders/both-sides).
+        edição de verdade nos sliders/both-sides). 'Label font' e a
+        direção NÃO dependem do modo (são do eixo inteiro, não de
+        'divisoes' vs 'subdivisoes' — ver comentário em
+        conteudo_ticks, renderizadores.py), por isso são gravados fora
+        do 'if modo_subdivisao'.
 
         Também dispara (gravação idempotente, mesmo valor) logo depois
         de sincronizar_campos_ticks trocar os sliders de eixo/modo —
@@ -1100,11 +1117,14 @@ def registrar_callbacks(app, estado):
         modo_subdivisao = 'ativo' in (classe_modo or '').split()
         chave = 'subdivisoes' if modo_subdivisao else 'divisoes'
         both_sides = 'ativo' in (classe_both_sides or '').split()
+        direcao = 'inside' if 'ativo' in (classe_direcao or '').split() else 'outside'
         conjunto = {'numero': numero, 'largura': largura, 'comprimento': comprimento}
 
         for prefs_eixo in _prefs_ticks_alvos(arquivo, eixo):
             setattr(prefs_eixo, chave, conjunto)
             prefs_eixo.both_sides = both_sides
+            prefs_eixo.fonte_labels = fonte_labels
+            prefs_eixo.direcao = direcao
 
         fig = construir_figura_serie_temporal(estado, aba_ativa)
         arquivo.figura = fig

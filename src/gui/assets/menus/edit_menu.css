@@ -490,25 +490,32 @@
   border-color: var(--cor-accent);
 }
 
-/* Slider de espessura (rc-slider, embutido no Dash) — só uma margem
-   lateral pra a bolinha do controle não ficar cortada nas bordas do
-   card quando o valor está no mínimo/máximo. */
-.painel-edicao-campo .rc-slider {
+/* Slider de espessura ('Thickness' em Curva) e os demais do painel —
+   biblioteca por trás mudou de rc-slider pra um componente próprio
+   baseado em Radix UI (dash-slider-*): '.dash-slider-track' é o
+   TRILHO cinza completo, '.dash-slider-range' é a parte PREENCHIDA
+   (do mínimo até o valor atual) e '.dash-slider-thumb' é a bolinha
+   arrastável — SEM relação nenhuma com as antigas classes '.rc-
+   slider-*', que nunca bateram em nada aqui (bug antigo: a cor roxa
+   que aparecia sempre era só o padrão da biblioteca, nenhuma regra
+   deste arquivo chegava a se aplicar). '.dash-slider-wrapper' recebe
+   a margem lateral que antes ia no elemento raiz do rc-slider, pra
+   bolinha não ficar cortada nas bordas do card quando o valor está no
+   mínimo/máximo. */
+.painel-edicao-campo .dash-slider-wrapper {
   margin: 10px 6px 4px 6px;
 }
 
-.painel-edicao-campo .rc-slider-track {
+.painel-edicao-campo .dash-slider-range {
   background-color: var(--cor-accent);
 }
 
-.painel-edicao-campo .rc-slider-handle {
-  border-color: var(--cor-accent);
+.painel-edicao-campo .dash-slider-thumb {
+  background-color: var(--cor-accent);
 }
 
-.painel-edicao-campo .rc-slider-handle:hover,
-.painel-edicao-campo .rc-slider-handle:focus,
-.painel-edicao-campo .rc-slider-handle-dragging {
-  border-color: var(--cor-accent) !important;
+.painel-edicao-campo .dash-slider-thumb:hover,
+.painel-edicao-campo .dash-slider-thumb:focus {
   box-shadow: 0 0 0 4px rgba(47, 165, 160, 0.2) !important;
 }
 
@@ -826,21 +833,30 @@
 /* Os 3 sliders (Number/Width/Length) trocam de cor junto com o toggle
    acima (mesmo callback, sincronizar_campos_ticks em callbacks.py,
    grava a classe 'modo-subdivisao' no MESMO wrapper que troca o valor
-   dos sliders) — teal = editando 'Division', laranja = editando
-   'Subdivision'. Sobrescreve as regras genéricas de
-   '.painel-edicao-campo .rc-slider-*' (mais acima neste arquivo) só
-   dentro deste wrapper específico. */
-.painel-edicao-ticks-sliders.modo-subdivisao .rc-slider-track {
+   dos sliders) — roxo (mesma cor de --cor-accent-divisao, que também
+   é o padrão de fábrica desta biblioteca de slider, ver comentário em
+   '.painel-edicao-campo .dash-slider-*' mais acima) = editando
+   'Division', verde = editando 'Subdivision'. Sobrescreve as regras
+   genéricas de '.painel-edicao-campo .dash-slider-*' só dentro deste
+   wrapper específico — CLASSES CORRETAS desta versão do Dash (ver
+   comentário nessas regras genéricas: a biblioteca por trás não é
+   mais rc-slider, é um componente próprio baseado em Radix UI). */
+.painel-edicao-ticks-sliders .dash-slider-range,
+.painel-edicao-ticks-sliders .dash-slider-thumb {
+  background-color: var(--cor-accent-divisao);
+}
+
+.painel-edicao-ticks-sliders.modo-subdivisao .dash-slider-range,
+.painel-edicao-ticks-sliders.modo-subdivisao .dash-slider-thumb {
   background-color: var(--cor-accent-subdivisao);
 }
 
-.painel-edicao-ticks-sliders.modo-subdivisao .rc-slider-handle {
-  border-color: var(--cor-accent-subdivisao);
+.painel-edicao-ticks-sliders .dash-slider-thumb:hover,
+.painel-edicao-ticks-sliders .dash-slider-thumb:focus {
+  box-shadow: 0 0 0 4px rgba(127, 75, 196, 0.2) !important;
 }
 
-.painel-edicao-ticks-sliders.modo-subdivisao .rc-slider-handle:hover,
-.painel-edicao-ticks-sliders.modo-subdivisao .rc-slider-handle:focus,
-.painel-edicao-ticks-sliders.modo-subdivisao .rc-slider-handle-dragging {
-  border-color: var(--cor-accent-subdivisao) !important;
-  box-shadow: 0 0 0 4px rgba(201, 122, 61, 0.2) !important;
+.painel-edicao-ticks-sliders.modo-subdivisao .dash-slider-thumb:hover,
+.painel-edicao-ticks-sliders.modo-subdivisao .dash-slider-thumb:focus {
+  box-shadow: 0 0 0 4px rgba(47, 158, 91, 0.2) !important;
 }

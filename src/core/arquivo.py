@@ -107,15 +107,14 @@ class PreferenciasTexto:
     _linha_eixo em renderizadores.py: caixa de texto + stepper de
     fonte + stepper de espaçamento).
 
-    'espacamento' é espaçamento ENTRE CARACTERES (kerning), não
-    distância até o eixo — o Plotly não tem um parâmetro nativo pra
-    isso (só suporta um subconjunto de tags tipo HTML no texto:
-    <br>/<b>/<i>/<sup>/<sub>, sem letter-spacing). O jeito de aplicar
-    isso de verdade é INSERINDO espaços finos (U+2009) entre os
-    caracteres do texto na hora de montar a figura — ver
-    _texto_com_espacamento em plotter.py. É uma aproximação: só
-    produz incrementos "quantizados" (cada espaço fino é uma unidade
-    fixa), não um valor contínuo em pixels como um editor de verdade.
+    'espacamento' é a DISTÂNCIA desse texto até o gráfico — equivalente
+    ao parâmetro 'pad' de um título no matplotlib — não espaçamento
+    ENTRE CARACTERES. Pro título do gráfico vira
+    fig.update_layout(title=dict(pad=dict(b=...))) (o 'b' — bottom —
+    é o que empurra o gráfico pra baixo, afastando da barra do
+    título); pros rótulos de eixo vira xaxis/yaxis.title.standoff (a
+    distância entre o rótulo do eixo e os números de tick). Ver
+    _aplicar_preferencias_grafico em plotter.py.
     """
     texto: str = ''
     fonte: int = 12
@@ -163,14 +162,27 @@ class PreferenciasTicksEixo:
     # fig.update_xaxes/yaxes(mirror='ticks') — ver 'Both sides' no
     # painel.
     both_sides: bool = False
+    # Tamanho da fonte dos RÓTULOS de tick (os números ao lado de cada
+    # marca, ex: '0', '2', '4'...) — fig.update_xaxes/yaxes(
+    # tickfont=dict(size=...)). Diferente de PreferenciasTexto.fonte
+    # (título do eixo): aquele é o tamanho do RÓTULO "Axis x:"/"Axis
+    # y:" digitado pelo usuário; este é o tamanho dos números que o
+    # Plotly desenha sozinho em cada tick.
+    fonte_labels: int = 11
+    # 'outside' (padrão) ou 'inside' — pra que lado o traço do tick
+    # aponta a partir da linha do eixo, fig.update_xaxes/yaxes(
+    # ticks=...); aplicado igual nos ticks principais E secundários
+    # (não faz sentido visual ter um pra dentro e outro pra fora no
+    # mesmo eixo).
+    direcao: str = 'outside'
 
 
 @dataclass
 class PreferenciasGrafico:
     """Como o gráfico inteiro aparece: eixos, limites, título."""
-    titulo: PreferenciasTexto = field(default_factory=lambda: PreferenciasTexto(fonte=14))
-    titulo_eixo_x: PreferenciasTexto = field(default_factory=lambda: PreferenciasTexto(fonte=10))
-    titulo_eixo_y: PreferenciasTexto = field(default_factory=lambda: PreferenciasTexto(fonte=12))
+    titulo: PreferenciasTexto = field(default_factory=lambda: PreferenciasTexto(fonte=18))
+    titulo_eixo_x: PreferenciasTexto = field(default_factory=lambda: PreferenciasTexto(fonte=16))
+    titulo_eixo_y: PreferenciasTexto = field(default_factory=lambda: PreferenciasTexto(fonte=16))
     limite_x: PreferenciasLimiteEixo = field(default_factory=PreferenciasLimiteEixo)
     limite_y: PreferenciasLimiteEixo = field(default_factory=PreferenciasLimiteEixo)
     por_canal: dict[str, PreferenciasCanal] = field(default_factory=dict)

@@ -379,7 +379,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
         document.addEventListener('input', function (e) {
             var alvo = e.target;
-            if (!alvo || !alvo.classList || !alvo.classList.contains('painel-edicao-latex-input')) return;
+            // 'painel-edicao-latex-input' foi passada como className do
+            // dcc.Input, mas essa versão do dash-core-components desenha
+            // um <input type='text'> DENTRO de uma <div> que leva a
+            // className (mesma estrutura de '.cor-picker-input' — ver
+            // iniciarSeletorCor logo acima, e de '.painel-edicao-
+            // stepper-input' — ver alternar_stepper em callbacks.py) —
+            // então o alvo real do evento 'input' (o <input>) nunca tem
+            // essa classe; é preciso checar o PAI mais próximo com ela.
+            var wrapper = alvo && alvo.closest && alvo.closest('.painel-edicao-latex-input');
+            if (!wrapper || alvo.tagName !== 'INPUT') return;
 
             var original = alvo.value;
             var traduzido = traduzirLatexSimples(original);
