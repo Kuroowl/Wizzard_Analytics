@@ -498,13 +498,24 @@ def construir_figura_serie_temporal(estado, aba_ativa):
 COR_GUIA_CORTE = '#D62728'
 
 
-def _linha_guia_corte(x):
+def _linha_guia_corte(x, arrastavel=False):
     """Uma linha vertical sólida, ponta a ponta no eixo Y (yref='paper'
     — sempre cobre 0% a 100% da altura da área de plotagem, não importa
-    o range de Y no momento) — marca um corte já CONFIRMADO (clicado)."""
+    o range de Y no momento) — marca um corte já CONFIRMADO (clicado).
+
+    'arrastavel' liga o recurso nativo de shape editável do Plotly
+    (editable=True) — só faz sentido depois que os DOIS cortes já
+    foram clicados (ver registrar_clique_corte em callbacks.py, que
+    passa arrastavel=True só nesse momento): antes disso o usuário
+    ainda está POSICIONANDO os cortes via clique, arrastar não faria
+    sentido ainda. Como x0==x1 (linha vertical) e y0/y1 já cobrem o
+    'paper' inteiro, arrastar move só o eixo X — o Plotly trata isso
+    como uma translação da linha inteira, não um redimensionamento.
+    """
     return dict(
         type='line', xref='x', yref='paper', x0=x, x1=x, y0=0, y1=1,
         line=dict(color=COR_GUIA_CORTE, width=2),
+        editable=arrastavel,
     )
 
 
@@ -513,7 +524,11 @@ def _faixa_hachurada_corte(x0, x1):
     Área semitransparente vermelha entre x0 e x1 — indica visualmente
     'isto vai ser descartado' assim que o corte for confirmado.
     'layer=below' pra ficar ATRÁS das curvas (senão a faixa tampava o
-    próprio traço de dado dentro da região marcada).
+    próprio traço de dado dentro da região marcada). NUNCA arrastável
+    (editable fica no padrão False) — quem se move por arraste é
+    sempre a LINHA; a faixa só ACOMPANHA (sincronizada via JS, ver
+    iniciarSelecaoCorte em scripts_js.py), pra não ter duas alças de
+    arraste desencontradas na mesma região.
     """
     return dict(
         type='rect', xref='x', yref='paper', x0=x0, x1=x1, y0=0, y1=1,
@@ -521,7 +536,7 @@ def _faixa_hachurada_corte(x0, x1):
     )
 
 
-def aplicar_guias_corte(fig, primeiro=None, segundo=None):
+def aplicar_guias_corte(fig, primeiro=None, segundo=None, arrastavel=False):
     """
     Devolve uma CÓPIA de 'fig' com as guias visuais dos cortes já
     CONFIRMADOS (clicados) desenhadas por cima — usado durante o modo de
@@ -545,6 +560,18 @@ def aplicar_guias_corte(fig, primeiro=None, segundo=None):
     (_range_dos_dados, definida mais acima neste módulo), com uma
     margem de 5% pra a hachura alcançar visualmente a moldura do
     gráfico mesmo se o Plotly folgar um pouco o autorange.
+
+    'arrastavel': repassado só pras LINHAS (ver _linha_guia_corte) —
+    quando True, o usuário pode clicar e arrastar cada linha pra
+    ajustar o corte sem precisar cancelar e clicar tudo de novo (ver
+    'plotly_relayout' em iniciarSelecaoCorte, scripts_js.py, que
+    detecta o arraste, sincroniza a hachura vizinha e informa o
+    Python via arrastar_corte em callbacks.py). A ORDEM das shapes
+    aqui é significativa — scripts_js.py sabe que, com os dois cortes
+    presentes, o índice 1 é sempre a linha do 'primeiro' e o índice 3
+    é sempre a linha do 'segundo' (índices 0/2 são as respectivas
+    faixas hachuradas) — mudar essa ordem sem atualizar o JS quebra a
+    sincronização do arraste.
     """
     fig = go.Figure(fig)
     if primeiro is None and segundo is None:
@@ -561,10 +588,10 @@ def aplicar_guias_corte(fig, primeiro=None, segundo=None):
     formas = []
     if primeiro is not None:
         formas.append(_faixa_hachurada_corte(borda_esquerda, primeiro))
-        formas.append(_linha_guia_corte(primeiro))
+        formas.append(_linha_guia_corte(primeiro, arrastavel=arrastavel))
     if segundo is not None:
         formas.append(_faixa_hachurada_corte(segundo, borda_direita))
-        formas.append(_linha_guia_corte(segundo))
+        formas.append(_linha_guia_corte(segundo, arrastavel=arrastavel))
 
     fig.update_layout(shapes=formas)
     return fig

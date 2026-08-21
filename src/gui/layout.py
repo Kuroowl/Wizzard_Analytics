@@ -57,6 +57,16 @@ def montar_layout(estado):
         # Input comum. Fica escondido — não é um campo que o usuário
         # preenche à mão.
         dcc.Input(id='corte-clique-x', type='number', value=None, style={'display': 'none'}),
+        # Mesma ponte JS -> Dash de 'corte-clique-x', só que pro
+        # ARRASTE das linhas de corte já confirmadas (só liberado
+        # depois do 2º clique — ver 'arrastavel' em aplicar_guias_corte,
+        # plotter.py) — um campo pra cada linha (não dá pra reaproveitar
+        # um só: precisa saber QUAL corte moveu, e o nome do campo já
+        # resolve isso sem precisar mandar um índice à parte). Ver
+        # 'plotly_relayout' em iniciarSelecaoCorte (scripts_js.py) e
+        # arrastar_corte (callbacks.py).
+        dcc.Input(id='corte-arraste-primeiro', type='number', value=None, style={'display': 'none'}),
+        dcc.Input(id='corte-arraste-segundo', type='number', value=None, style={'display': 'none'}),
 
         html.Div(className='menubar', children=[
             html.Span('Arquivo', className='menubar-item'),

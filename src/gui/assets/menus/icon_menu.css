@@ -86,6 +86,22 @@
   color: inherit;
 }
 
+/* O reset acima ('color: inherit') cancela sem querer o cinza nativo
+   que o navegador aplicaria sozinho num <button disabled> — sem essa
+   regra, o botão ficava com a MESMA aparência ligado ou desligado
+   (só o clique de verdade continuava bloqueado, mas visualmente
+   parecia sempre "ativo"). Mesmo tratamento de '.toolbar-botao:
+   disabled', só que também baixando a opacidade da <div> interna
+   (onde o ícone de verdade mora — ver '.toolbar-upload div' acima). */
+.toolbar-upload:is(button):disabled {
+  cursor: not-allowed;
+}
+
+.toolbar-upload:is(button):disabled div {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .toolbar-upload div:hover {
   background: rgba(47, 165, 160, 0.18);
   border-color: var(--cor-accent);
@@ -284,16 +300,17 @@
   cursor: crosshair;
 }
 
-/* Esconde o indicador de hover NATIVO do Plotly (spike line + rótulo
-   de valor) enquanto o modo de seleção está ativo — ele engatinha no
-   ponto de dado mais próximo (hovermode='x unified', ver plotter.py),
-   e como a NOSSA guia (iniciarSelecaoCorte, scripts_js.py) agora lê
-   esse MESMO ponto (via evento 'plotly_hover', não mais um cálculo de
-   pixel à parte), as duas ficariam sempre coincidindo — melhor
-   esconder a do Plotly e deixar só a nossa (mais fina, sem rótulo
-   grudado, combina com a cor das guias já confirmadas) do que mostrar
-   as duas juntas. '.hoverlayer' é o grupo SVG onde o Plotly desenha
-   TANTO a spike line quanto a caixinha de valor. */
-#container-grafico.corte-ativo .hoverlayer {
+/* Esconde só a SPIKE LINE nativa do Plotly (a linha que acompanha o
+   hover) enquanto o modo de seleção está ativo — ela coincidia
+   exatamente com a nossa guia (as duas leem o mesmo ponto, via evento
+   'plotly_hover'), então mostrar as duas juntas era redundante. O
+   TOOLTIP de valores (caixinha com tempo + valor de cada curva no
+   ponto — útil pra quem está procurando uma referência visual na hora
+   de cortar) continua aparecendo normalmente: é um elemento SEPARADO
+   dentro do mesmo '.hoverlayer' (confirmado inspecionando o DOM real:
+   a spike line é '<line class="spikeline">', o tooltip é um
+   '<g class="legend">' — sem relação estrutural nenhuma entre os
+   dois), então dá pra mirar só na linha sem esconder a caixinha. */
+#container-grafico.corte-ativo .hoverlayer .spikeline {
   display: none;
 }

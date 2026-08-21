@@ -598,8 +598,66 @@ def registrar_callbacks(app, estado):
             raise PreventUpdate
 
         dados_selecao = dict(dados_selecao, primeiro=primeiro, segundo=segundo)
-        fig = aplicar_guias_corte(arquivo.figura, primeiro=primeiro, segundo=segundo)
+        fig = aplicar_guias_corte(arquivo.figura, primeiro=primeiro, segundo=segundo, arrastavel=(segundo is not None))
         return dados_selecao, fig, mensagem, estilo_prompt, classe_container
+
+    @app.callback(
+        Output('corte-selecao-store', 'data', allow_duplicate=True),
+        Output('grafico-plotly-real', 'figure', allow_duplicate=True),
+        Input('corte-arraste-primeiro', 'value'),
+        Input('corte-arraste-segundo', 'value'),
+        State('corte-selecao-store', 'data'),
+        State('aba-ativa-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def arrastar_corte(novo_primeiro, novo_segundo, dados_selecao, aba_ativa):
+        """
+        Reage ao ARRASTE de uma das duas linhas já confirmadas (só
+        possível depois do 2º clique — ver 'arrastavel' em
+        aplicar_guias_corte, plotter.py) — o valor final (já
+        sincronizado com a hachura vizinha e validado contra a OUTRA
+        linha) chega via 'corte-arraste-primeiro'/'-segundo', escritos
+        pelo JS no fim do gesto de arrastar (ver 'plotly_relayout' em
+        iniciarSelecaoCorte, scripts_js.py — só no FIM, não durante o
+        arraste inteiro, pra não inundar o servidor de requisições a
+        cada pixel).
+
+        'ctx.triggered_id' diz QUAL dos dois campos mudou — só esse
+        lado é atualizado; o outro corte permanece exatamente como
+        estava. A VALIDAÇÃO de ordem (primeiro < segundo) já aconteceu
+        no JS antes de escrever aqui (ele lê a posição da linha irmã
+        direto do gráfico) — este callback confia nisso, mas ainda
+        assim descarta silenciosamente qualquer valor client-side
+        maluco (raise PreventUpdate) como segunda camada de segurança,
+        já que nunca custa nada checar de novo no lado que manda de
+        verdade.
+        """
+        if not dados_selecao:
+            raise PreventUpdate
+        if not aba_ativa or aba_ativa not in estado.arquivos:
+            raise PreventUpdate
+
+        primeiro = dados_selecao.get('primeiro')
+        segundo = dados_selecao.get('segundo')
+        if primeiro is None or segundo is None:
+            raise PreventUpdate  # arraste só existe depois dos 2 cortes definidos
+
+        gatilho = ctx.triggered_id
+        if gatilho == 'corte-arraste-primeiro':
+            if novo_primeiro is None or novo_primeiro >= segundo:
+                raise PreventUpdate
+            primeiro = novo_primeiro
+        elif gatilho == 'corte-arraste-segundo':
+            if novo_segundo is None or novo_segundo <= primeiro:
+                raise PreventUpdate
+            segundo = novo_segundo
+        else:
+            raise PreventUpdate
+
+        arquivo = estado.arquivos[aba_ativa]
+        dados_selecao = dict(dados_selecao, primeiro=primeiro, segundo=segundo)
+        fig = aplicar_guias_corte(arquivo.figura, primeiro=primeiro, segundo=segundo, arrastavel=True)
+        return dados_selecao, fig
 
     def _restaurar_apos_selecao():
         """

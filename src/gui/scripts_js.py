@@ -508,6 +508,79 @@ document.addEventListener('DOMContentLoaded', function () {
                 setter.call(campo, ponto.x);
                 campo.dispatchEvent(new Event('input', { bubbles: true }));
             });
+
+            // Arraste das 2 linhas já confirmadas — só liberado depois
+            // do 2º clique (ver 'arrastavel' em aplicar_guias_corte,
+            // plotter.py: as linhas só nascem com editable=true nesse
+            // momento; antes disso o Plotly nem permite pegar nelas).
+            // Índices FIXOS (ver docstring de aplicar_guias_corte): 1 =
+            // linha do 'primeiro' corte, 3 = linha do 'segundo' — 0/2
+            // são as respectivas faixas hachuradas, nunca arrastáveis.
+            //
+            // 'plotly_relayout' só dispara no FIM do gesto (solta o
+            // mouse), não durante o arraste inteiro — um round-trip a
+            // cada pixel arrastado inundaria o servidor à toa; o
+            // próprio Plotly já cuida do feedback visual da linha
+            // ENQUANTO arrasta, sem precisar de nada nosso.
+            gd.on('plotly_relayout', function (dadosEvento) {
+                // Nenhuma checagem de 'corte-completo' aqui de propósito
+                // — diferente do hover/click acima, este handler só tem
+                // QUALQUER EFEITO em shapes com 'editable: true'
+                // (ver aplicar_guias_corte, plotter.py), e essas SÓ
+                // existem depois que os 2 cortes já foram confirmados
+                // (arrastavel=True só é passado nesse momento) — ou
+                // seja, um 'shapes[1].x0'/'shapes[3].x0' aparecendo
+                // aqui já PROVA por construção que a seleção está
+                // completa, sem precisar reconferir isso por fora.
+                if (!emModoSelecao()) return;
+
+                var idxLinha = null, novoX = null;
+                Object.keys(dadosEvento).forEach(function (chave) {
+                    var m = chave.match(/^shapes\[(\d+)\]\.x0$/);
+                    if (m) { idxLinha = parseInt(m[1], 10); novoX = dadosEvento[chave]; }
+                });
+                if (idxLinha !== 1 && idxLinha !== 3) return;
+
+                var idxRetangulo = idxLinha === 1 ? 0 : 2;
+                var idxLinhaIrma = idxLinha === 1 ? 3 : 1;
+                var xIrma = gd.layout.shapes[idxLinhaIrma].x0;
+
+                // Não deixa um corte passar do outro (a região 'entre
+                // os dois' deixaria de fazer sentido) — se passou,
+                // volta pra bem perto da linha irmã (uma fração
+                // minúscula do range visível do eixo, nunca um valor
+                // fixo em unidades de dado, que poderia ser enorme ou
+                // minúsculo dependendo da escala).
+                var range = gd._fullLayout.xaxis.range;
+                var margemSegura = Math.abs(range[1] - range[0]) * 0.003;
+                var invadiu = (idxLinha === 1 && novoX >= xIrma) || (idxLinha === 3 && novoX <= xIrma);
+                if (invadiu) {
+                    novoX = idxLinha === 1 ? (xIrma - margemSegura) : (xIrma + margemSegura);
+                    var ajusteLinha = {};
+                    ajusteLinha['shapes[' + idxLinha + '].x0'] = novoX;
+                    ajusteLinha['shapes[' + idxLinha + '].x1'] = novoX;
+                    Plotly.relayout(gd, ajusteLinha);
+                }
+
+                // Sincroniza a hachura vizinha com a nova posição da
+                // linha (client-side, instantâneo — sem isso a faixa
+                // vermelha ficaria "atrasada" em relação ao corte de
+                // verdade até o próximo redesenho vindo do Python).
+                var ajusteRetangulo = {};
+                ajusteRetangulo['shapes[' + idxRetangulo + '].' + (idxLinha === 1 ? 'x1' : 'x0')] = novoX;
+                Plotly.relayout(gd, ajusteRetangulo);
+
+                // Informa o Python (mesmo truque de sempre) — ele grava
+                // o novo valor em 'corte-selecao-store' e redesenha a
+                // figura oficial (arrastar_corte, callbacks.py); até
+                // essa resposta chegar, o que o usuário já vê na tela
+                // (linha + hachura) está correto de qualquer forma.
+                var campo = document.getElementById(idxLinha === 1 ? 'corte-arraste-primeiro' : 'corte-arraste-segundo');
+                if (!campo) return;
+                var setterArraste = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                setterArraste.call(campo, novoX);
+                campo.dispatchEvent(new Event('input', { bubbles: true }));
+            });
         }, true);
     }
     iniciarSelecaoCorte();
