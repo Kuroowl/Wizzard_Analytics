@@ -410,21 +410,21 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function iniciarSelecaoCorte() {
         // Modo de seleção de 'Aparar dados' (e, no futuro, 'Excluir
-        // dados' — mesma mecânica de 2 cliques): a guia vermelha
-        // TRACEJADA que acompanha o mouse é 100% client-side — mas usa
-        // os eventos NATIVOS do Plotly ('plotly_hover'/'plotly_click',
-        // disparados pela própria lib no elemento do gráfico) em vez
-        // de calcular pixel->dado na mão. Antes fazia esse cálculo
-        // manualmente (posição do mouse + range do eixo) por cima do
-        // 'hovermode' padrão do Plotly, que desenha o PRÓPRIO
-        // indicador (spike line + rótulo) — como o Plotly ENCAIXA no
-        // ponto de dado mais próximo e o cálculo manual seguia o pixel
-        // exato do mouse, as duas linhas discordavam visualmente. Usar
-        // o evento nativo elimina esse desencontro (nossa linha nasce
-        // EXATAMENTE onde o Plotly já calculou) — e o indicador nativo
-        // (spike/hover label) fica escondido via CSS só durante
-        // 'corte-ativo' (ver '#container-grafico.corte-ativo' em
-        // icon_menu.css), sobrando só a nossa.
+        // dados' — mesma mecânica de 2 cliques).
+        //
+        // A guia vermelha TRACEJADA + o "tooltip" de valores (tempo +
+        // valor de cada curva visível na posição do mouse) são 100%
+        // NOSSOS agora — calculados na mão a partir da posição do
+        // mouse (pixel -> dado, igual um eixo normal) e de
+        // 'gd.data' diretamente, SEM depender do sistema de hover do
+        // Plotly ('plotly_hover'/'plotly_click'). Isso já foi feito
+        // de outro jeito antes (usando os eventos nativos do Plotly,
+        // que ENCAIXAM no ponto de dado mais próximo) — funcionava,
+        // mas os dois sistemas de hover rodando juntos (o nosso e o
+        // do Plotly, mesmo com o visual dele escondido via CSS)
+        // deixava a resposta visivelmente mais lenta. Calcular tudo
+        // por conta própria, sem o Plotly processar hover nenhum por
+        // trás, é mais direto e mais rápido.
         //
         // O gráfico só reage quando 'container-grafico' (o wrapper
         // ESTÁVEL — ver layout.py; dcc.Graph em si não reflete bem
@@ -432,9 +432,10 @@ document.addEventListener('DOMContentLoaded', function () {
         // própria biblioteca) tem a classe 'corte-ativo', ligada/
         // desligada por iniciar_selecao_corte/confirmar_corte/
         // cancelar_corte em callbacks.py. A guia PARA de seguir o
-        // mouse assim que o segundo corte é clicado — 'corte-completo'
-        // (adicionada por registrar_clique_corte no mesmo momento que
-        // o segundo clique é aceito) é o que marca esse ponto.
+        // mouse (mas o tooltip de valores continua) assim que o
+        // segundo corte é clicado — 'corte-completo' (adicionada por
+        // registrar_clique_corte no mesmo momento que o segundo
+        // clique é aceito) é o que marca esse ponto.
 
         function emModoSelecao() {
             var container = document.getElementById('container-grafico');
@@ -446,25 +447,135 @@ document.addEventListener('DOMContentLoaded', function () {
             return !!(container && container.classList.contains('corte-completo'));
         }
 
-        // Shapes JÁ DESENHADAS pelo Python (linhas sólidas + hachura dos
-        // cortes confirmados) — filtra fora qualquer guia tracejada de
-        // um hover anterior, senão cada novo movimento empilharia mais
-        // uma linha em cima da última em vez de substituir.
+        // Shapes JÁ DESENHADAS pelo Python (linhas sólidas + hachura +
+        // manípulo dos cortes confirmados) — filtra fora qualquer guia
+        // tracejada de um hover anterior, senão cada novo movimento
+        // empilharia mais uma linha em cima da última em vez de
+        // substituir.
         function formasConfirmadas(gd) {
             return (gd.layout.shapes || []).filter(function (s) {
                 return !(s.line && s.line.dash === 'dash');
             });
         }
 
-        // Liga os listeners NATIVOS do Plotly ('gd.on(...)') uma única
-        // vez por elemento de gráfico — 'gd' muda de instância sempre
-        // que 'container-grafico.children' é substituído por inteiro
-        // (ver confirmar_corte/cancelar_corte, callbacks.py); o guard
-        // via 'dataset.corteLigado' evita ligar os mesmos listeners
-        // duas vezes numa instância que já os tem, e o 'mouseenter'
-        // (fase de captura, que ele não faz bubble normalmente) garante
-        // que uma instância NOVA seja pega assim que o mouse chega
-        // nela, sem precisar de um MutationObserver à parte.
+        // Converte a posição do mouse (pixels, relativa à JANELA) pro
+        // valor correspondente no eixo X dos DADOS — usa o range atual
+        // do eixo (gd._fullLayout.xaxis.range, que o Plotly mantém
+        // sincronizado mesmo depois de um zoom/pan manual) e a área de
+        // plotagem em pixels (gd._fullLayout._size: margens l/r/t/b e
+        // largura/altura úteis), não o tamanho do <svg> inteiro (que
+        // inclui eixos, títulos, legenda).
+        function pixelParaDadoX(gd, clientX) {
+            var rect = gd.getBoundingClientRect();
+            var tamanho = gd._fullLayout._size;
+            var range = gd._fullLayout.xaxis.range;
+            var fracao = (clientX - rect.left - tamanho.l) / tamanho.w;
+            return range[0] + fracao * (range[1] - range[0]);
+        }
+
+        // Índice do valor em 'xs' mais PRÓXIMO de 'xAlvo' — busca
+        // binária (xs vem sempre ordenado: é a coluna de tempo de uma
+        // série temporal) pra não escanear o array inteiro (pode ter
+        // até 8.000 pontos, ver MAX_PONTOS_EXIBICAO em plotter.py) a
+        // cada movimento do mouse.
+        function indiceMaisProximo(xs, xAlvo) {
+            if (!xs || !xs.length) return null;
+            var ini = 0, fim = xs.length - 1;
+            if (xAlvo <= xs[ini]) return ini;
+            if (xAlvo >= xs[fim]) return fim;
+            while (fim - ini > 1) {
+                var meio = (ini + fim) >> 1;
+                if (xs[meio] < xAlvo) { ini = meio; } else { fim = meio; }
+            }
+            return (Math.abs(xs[ini] - xAlvo) <= Math.abs(xs[fim] - xAlvo)) ? ini : fim;
+        }
+
+        function formatarNumeroTooltip(v) {
+            if (v === null || v === undefined || typeof v !== 'number' || isNaN(v)) return '—';
+            var abs = Math.abs(v);
+            var casas = abs >= 1000 ? 0 : (abs >= 10 ? 2 : 4);
+            return v.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+        }
+
+        // O tooltip é um <div> nosso, fora do SVG do Plotly (não dá
+        // pra desenhar texto arbitrário formatado como shape) — um só
+        // elemento reaproveitado (criado na primeira vez que precisa,
+        // só reposicionado/reescrito depois), preso no <body> com
+        // 'position: fixed' pra não depender de nenhum ancestral
+        // posicionado.
+        function elementoTooltip() {
+            var el = document.getElementById('corte-tooltip-custom');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'corte-tooltip-custom';
+                el.className = 'corte-tooltip-custom';
+                document.body.appendChild(el);
+            }
+            return el;
+        }
+
+        function atualizarTooltip(gd, xDado, clientX, clientY) {
+            var el = elementoTooltip();
+            var html = '<div class="corte-tooltip-x">' + formatarNumeroTooltip(xDado) + '</div>';
+            // 'gd.data' guarda os traços como o Plotly recebeu (pode
+            // vir com x/y CODIFICADOS num formato binário compacto —
+            // {dtype, bdata} — pra series longas, confirmado
+            // inspecionando o DOM real); 'gd._fullData' é a versão já
+            // TOTALMENTE resolvida/decodificada que o Plotly usa pra
+            // desenhar de verdade (array tipado de números soltos,
+            // 'length' e indexação funcionam normal) — é essa que
+            // precisa ser lida aqui, não 'gd.data'.
+            (gd._fullData || []).forEach(function (traco) {
+                var idx = indiceMaisProximo(traco.x, xDado);
+                if (idx === null || !traco.y) return;
+                var cor = (traco.line && traco.line.color) || '#333';
+                var nome = traco.name || '';
+                html += '<div class="corte-tooltip-serie">' +
+                    '<span class="corte-tooltip-cor" style="background:' + cor + '"></span>' +
+                    nome + ' : ' + formatarNumeroTooltip(traco.y[idx]) +
+                    '</div>';
+            });
+            el.innerHTML = html;
+            el.style.left = (clientX + 16) + 'px';
+            el.style.top = (clientY - 12) + 'px';
+            el.style.display = 'block';
+        }
+
+        function esconderTooltip() {
+            var el = document.getElementById('corte-tooltip-custom');
+            if (el) el.style.display = 'none';
+        }
+
+        // Liga/desliga o 'hovermode' de VERDADE do Plotly junto com o
+        // modo de seleção — não é só esconder o visual dele via CSS
+        // (o que já fazíamos antes): com 'hovermode: false' o Plotly
+        // PARA de processar hover nenhum por trás, eliminando de vez o
+        // trabalho duplicado que deixava as duas guias (a dele e a
+        // nossa) competindo e a resposta mais lenta. Guarda o modo
+        // ORIGINAL em 'dataset' pra devolver exatamente como estava
+        // ao sair do modo de seleção (confirmar/cancelar).
+        function sincronizarHovermode(gd) {
+            if (!gd || !gd.layout) return;
+            var container = document.getElementById('container-grafico');
+            var ativo = !!(container && container.classList.contains('corte-ativo'));
+            if (ativo && gd.layout.hovermode !== false) {
+                gd.dataset.corteHovermodeOriginal = gd.layout.hovermode || 'x unified';
+                Plotly.relayout(gd, { hovermode: false });
+            } else if (!ativo && gd.layout.hovermode === false) {
+                Plotly.relayout(gd, { hovermode: gd.dataset.corteHovermodeOriginal || 'x unified' });
+                esconderTooltip();
+            }
+        }
+
+        // Liga os listeners uma única vez por elemento de gráfico —
+        // 'gd' muda de instância sempre que 'container-grafico.
+        // children' é substituído por inteiro (ver confirmar_corte/
+        // cancelar_corte, callbacks.py); o guard via 'dataset.
+        // corteLigado' evita ligar os mesmos listeners duas vezes numa
+        // instância que já os tem, e o 'mouseenter' (fase de captura,
+        // que ele não faz bubble normalmente) garante que uma
+        // instância NOVA seja pega assim que o mouse chega nela, sem
+        // precisar de um MutationObserver à parte.
         document.addEventListener('mouseenter', function (e) {
             var wrapper = e.target.closest && e.target.closest('#grafico-plotly-real');
             if (!wrapper) return;
@@ -472,22 +583,54 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!gd || gd.dataset.corteLigado) return;
             gd.dataset.corteLigado = '1';
 
-            gd.on('plotly_hover', function (dadosEvento) {
-                if (!emModoSelecao() || selecaoCompleta()) return;
-                var ponto = dadosEvento.points && dadosEvento.points[0];
-                if (!ponto) return;
+            // Observa a classe de 'container-grafico' pra ligar/
+            // desligar o hovermode no MOMENTO exato em que o modo de
+            // seleção entra/sai — não dá pra fazer isso só no
+            // 'mouseenter' (o mouse pode já estar em cima do gráfico
+            // quando o usuário clica em 'aparar-dados').
+            //
+            // NÃO usa o 'gd' capturado aqui (do 'mouseenter' que
+            // ligou este observer) dentro do callback — depois de
+            // confirmar/cancelar, 'container-grafico.children' é
+            // substituído por INTEIRO (novo dcc.Graph, novo 'gd'), e
+            // esse 'gd' antigo fica órfão (removido do documento);
+            // chamar 'sincronizarHovermode' nele de novo (o observer
+            // continua vivo — só é criado uma vez, por causa do guard
+            // 'corteObservado' logo abaixo) lia '.layout' de um gráfico
+            // morto e quebrava com 'Cannot read properties of
+            // undefined'. Busca o 'gd' ATUAL do DOM a cada disparo do
+            // observer em vez de depender do fechamento.
+            var alvoObservado = document.getElementById('container-grafico');
+            if (alvoObservado && !alvoObservado.dataset.corteObservado) {
+                alvoObservado.dataset.corteObservado = '1';
+                new MutationObserver(function () {
+                    var wrapperAtual = document.getElementById('grafico-plotly-real');
+                    var gdAtual = wrapperAtual && wrapperAtual.querySelector('.js-plotly-plot');
+                    if (gdAtual) sincronizarHovermode(gdAtual);
+                }).observe(alvoObservado, { attributes: true, attributeFilter: ['class'] });
+            }
+            sincronizarHovermode(gd);
+
+            gd.addEventListener('mousemove', function (e2) {
+                if (!emModoSelecao()) return;
+                var xDado = pixelParaDadoX(gd, e2.clientX);
+                atualizarTooltip(gd, xDado, e2.clientX, e2.clientY);
+                if (selecaoCompleta()) return;
                 var formas = formasConfirmadas(gd);
                 formas.push({
                     type: 'line', xref: 'x', yref: 'paper',
-                    x0: ponto.x, x1: ponto.x, y0: 0, y1: 1,
+                    x0: xDado, x1: xDado, y0: 0, y1: 1,
                     line: { color: '#D62728', width: 2, dash: 'dash' },
                 });
                 Plotly.relayout(gd, { shapes: formas });
             });
 
-            gd.on('plotly_unhover', function () {
-                if (!emModoSelecao() || selecaoCompleta()) return;
-                Plotly.relayout(gd, { shapes: formasConfirmadas(gd) });
+            gd.addEventListener('mouseleave', function () {
+                if (!emModoSelecao()) return;
+                esconderTooltip();
+                if (!selecaoCompleta()) {
+                    Plotly.relayout(gd, { shapes: formasConfirmadas(gd) });
+                }
             });
 
             // O clique de verdade não desenha nada aqui (isso é papel
@@ -498,51 +641,83 @@ document.addEventListener('DOMContentLoaded', function () {
             // usado no seletor de cor (iniciarSeletorCor, acima) — é
             // isso que faz o Dash perceber a mudança e rodar o
             // callback Python correspondente.
-            gd.on('plotly_click', function (dadosEvento) {
+            gd.addEventListener('click', function (e2) {
                 if (!emModoSelecao() || selecaoCompleta()) return;
-                var ponto = dadosEvento.points && dadosEvento.points[0];
-                if (!ponto) return;
+                var xDado = pixelParaDadoX(gd, e2.clientX);
                 var campo = document.getElementById('corte-clique-x');
                 if (!campo) return;
                 var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                setter.call(campo, ponto.x);
+                setter.call(campo, xDado);
                 campo.dispatchEvent(new Event('input', { bubbles: true }));
             });
 
-            // Arraste das 2 linhas já confirmadas — só liberado depois
-            // do 2º clique (ver 'arrastavel' em aplicar_guias_corte,
-            // plotter.py: as linhas só nascem com editable=true nesse
-            // momento; antes disso o Plotly nem permite pegar nelas).
-            // Índices FIXOS (ver docstring de aplicar_guias_corte): 1 =
-            // linha do 'primeiro' corte, 3 = linha do 'segundo' — 0/2
-            // são as respectivas faixas hachuradas, nunca arrastáveis.
+            // Arraste dos 2 manípulos já confirmados — só liberado
+            // depois do 2º clique (ver 'arrastavel' em
+            // aplicar_guias_corte, plotter.py: os manípulos só nascem
+            // com editable=true nesse momento; antes disso nem
+            // existem). Índices FIXOS (ver docstring de
+            // aplicar_guias_corte): 4 = manípulo do corte 'primeiro',
+            // 5 = manípulo do 'segundo' (0/2 = as hachuras, 1/3 = as
+            // linhas — nem manípulo nem linha são a MESMA coisa
+            // arrastável; ver docstring de _linha_guia_corte pro
+            // motivo de ser o manípulo, não a linha, quem realmente
+            // arrasta).
             //
-            // 'plotly_relayout' só dispara no FIM do gesto (solta o
-            // mouse), não durante o arraste inteiro — um round-trip a
-            // cada pixel arrastado inundaria o servidor à toa; o
-            // próprio Plotly já cuida do feedback visual da linha
-            // ENQUANTO arrasta, sem precisar de nada nosso.
+            // 'plotly_relayout' (esse SIM continua sendo o evento
+            // NATIVO do Plotly — arrastar uma shape 'editable' é
+            // mecanismo interno da lib, não tem como reimplementar por
+            // conta própria sem reescrever o drag inteiro) só dispara
+            // no FIM do gesto (solta o mouse), não durante o arraste
+            // inteiro — um round-trip a cada pixel arrastado inundaria
+            // o servidor à toa; o próprio Plotly já cuida do feedback
+            // visual do manípulo ENQUANTO arrasta, sem precisar de
+            // nada nosso.
             gd.on('plotly_relayout', function (dadosEvento) {
                 // Nenhuma checagem de 'corte-completo' aqui de propósito
-                // — diferente do hover/click acima, este handler só tem
-                // QUALQUER EFEITO em shapes com 'editable: true'
-                // (ver aplicar_guias_corte, plotter.py), e essas SÓ
-                // existem depois que os 2 cortes já foram confirmados
-                // (arrastavel=True só é passado nesse momento) — ou
-                // seja, um 'shapes[1].x0'/'shapes[3].x0' aparecendo
-                // aqui já PROVA por construção que a seleção está
-                // completa, sem precisar reconferir isso por fora.
+                // — este handler só tem QUALQUER EFEITO em shapes com
+                // 'editable: true' (ver _pilula_arraste, plotter.py), e
+                // essas SÓ existem depois que os 2 cortes já foram
+                // confirmados (arrastavel=True só é passado nesse
+                // momento) — ou seja, um 'shapes[4].x0'/'shapes[5].x0'
+                // aparecendo aqui já PROVA por construção que a seleção
+                // está completa, sem precisar reconferir isso por fora.
                 if (!emModoSelecao()) return;
 
-                var idxLinha = null, novoX = null;
-                Object.keys(dadosEvento).forEach(function (chave) {
-                    var m = chave.match(/^shapes\[(\d+)\]\.x0$/);
-                    if (m) { idxLinha = parseInt(m[1], 10); novoX = dadosEvento[chave]; }
-                });
-                if (idxLinha !== 1 && idxLinha !== 3) return;
+                // Trava de reentrância: o PRÓPRIO 'Plotly.relayout' que
+                // este handler chama lá embaixo (pra sincronizar linha +
+                // hachura com o manípulo) também mexe em 'shapes[...]',
+                // o que dispara um NOVO evento 'plotly_relayout' — sem
+                // essa trava, esse eco reentra no mesmo handler, chama
+                // relayout de novo, dispara outro eco, e por aí vai
+                // (loop infinito de verdade — foi isso que travava o
+                // navegador inteiro num arraste real, confirmado
+                // testando: o gesto nunca terminava). Só o disparo
+                // ORIGINAL (do arraste de verdade) processa; os ecos
+                // causados por nós mesmos são ignorados.
+                if (gd.dataset.corteSincronizandoArraste === '1') return;
 
-                var idxRetangulo = idxLinha === 1 ? 0 : 2;
-                var idxLinhaIrma = idxLinha === 1 ? 3 : 1;
+                // Quem arrasta de verdade é o MANÍPULO (índice 4 ou 5
+                // — ver docstring de aplicar_guias_corte, plotter.py),
+                // não a linha em si (ver _linha_guia_corte pro motivo:
+                // um manípulo 'acima' da linha sempre intercepta o
+                // clique antes dela). Um arraste move o manípulo
+                // INTEIRO (x0 E x1 mudam juntos, mantendo a largura),
+                // então o CENTRO — não x0 sozinho — é o valor de
+                // corte de verdade.
+                var idxPilula = null, x0Novo = null, x1Novo = null;
+                Object.keys(dadosEvento).forEach(function (chave) {
+                    var m0 = chave.match(/^shapes\[(4|5)\]\.x0$/);
+                    if (m0) { idxPilula = parseInt(m0[1], 10); x0Novo = dadosEvento[chave]; }
+                    var m1 = chave.match(/^shapes\[(4|5)\]\.x1$/);
+                    if (m1) { x1Novo = dadosEvento[chave]; }
+                });
+                if (idxPilula === null || x0Novo === null || x1Novo === null) return;
+
+                var novoX = (x0Novo + x1Novo) / 2;
+                var meiaLarguraPilula = (x1Novo - x0Novo) / 2;
+                var idxLinha = idxPilula === 4 ? 1 : 3;
+                var idxRetangulo = idxPilula === 4 ? 0 : 2;
+                var idxLinhaIrma = idxPilula === 4 ? 3 : 1;
                 var xIrma = gd.layout.shapes[idxLinhaIrma].x0;
 
                 // Não deixa um corte passar do outro (a região 'entre
@@ -553,29 +728,35 @@ document.addEventListener('DOMContentLoaded', function () {
                 // minúsculo dependendo da escala).
                 var range = gd._fullLayout.xaxis.range;
                 var margemSegura = Math.abs(range[1] - range[0]) * 0.003;
-                var invadiu = (idxLinha === 1 && novoX >= xIrma) || (idxLinha === 3 && novoX <= xIrma);
+                var invadiu = (idxPilula === 4 && novoX >= xIrma) || (idxPilula === 5 && novoX <= xIrma);
                 if (invadiu) {
-                    novoX = idxLinha === 1 ? (xIrma - margemSegura) : (xIrma + margemSegura);
-                    var ajusteLinha = {};
-                    ajusteLinha['shapes[' + idxLinha + '].x0'] = novoX;
-                    ajusteLinha['shapes[' + idxLinha + '].x1'] = novoX;
-                    Plotly.relayout(gd, ajusteLinha);
+                    novoX = idxPilula === 4 ? (xIrma - margemSegura) : (xIrma + margemSegura);
                 }
 
-                // Sincroniza a hachura vizinha com a nova posição da
-                // linha (client-side, instantâneo — sem isso a faixa
-                // vermelha ficaria "atrasada" em relação ao corte de
-                // verdade até o próximo redesenho vindo do Python).
-                var ajusteRetangulo = {};
-                ajusteRetangulo['shapes[' + idxRetangulo + '].' + (idxLinha === 1 ? 'x1' : 'x0')] = novoX;
-                Plotly.relayout(gd, ajusteRetangulo);
+                // Um ÚNICO Plotly.relayout sincroniza os 3: o próprio
+                // manípulo (volta pro centro corrigido, se invadiu — ou
+                // fica exatamente onde já estava, se não), a LINHA
+                // (segue o manípulo — é ela quem representa o corte de
+                // verdade pro resto da interface) e a hachura vizinha.
+                var ajuste = {};
+                ajuste['shapes[' + idxLinha + '].x0'] = novoX;
+                ajuste['shapes[' + idxLinha + '].x1'] = novoX;
+                ajuste['shapes[' + idxRetangulo + '].' + (idxPilula === 4 ? 'x1' : 'x0')] = novoX;
+                ajuste['shapes[' + idxPilula + '].x0'] = novoX - meiaLarguraPilula;
+                ajuste['shapes[' + idxPilula + '].x1'] = novoX + meiaLarguraPilula;
+
+                gd.dataset.corteSincronizandoArraste = '1';
+                Plotly.relayout(gd, ajuste).then(function () {
+                    gd.dataset.corteSincronizandoArraste = '';
+                });
 
                 // Informa o Python (mesmo truque de sempre) — ele grava
                 // o novo valor em 'corte-selecao-store' e redesenha a
                 // figura oficial (arrastar_corte, callbacks.py); até
                 // essa resposta chegar, o que o usuário já vê na tela
-                // (linha + hachura) está correto de qualquer forma.
-                var campo = document.getElementById(idxLinha === 1 ? 'corte-arraste-primeiro' : 'corte-arraste-segundo');
+                // (linha + hachura + manípulo) está correto de
+                // qualquer forma.
+                var campo = document.getElementById(idxPilula === 4 ? 'corte-arraste-primeiro' : 'corte-arraste-segundo');
                 if (!campo) return;
                 var setterArraste = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
                 setterArraste.call(campo, novoX);

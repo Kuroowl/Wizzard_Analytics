@@ -92,14 +92,41 @@
    (só o clique de verdade continuava bloqueado, mas visualmente
    parecia sempre "ativo"). Mesmo tratamento de '.toolbar-botao:
    disabled', só que também baixando a opacidade da <div> interna
-   (onde o ícone de verdade mora — ver '.toolbar-upload div' acima). */
-.toolbar-upload:is(button):disabled {
+   (onde o ícone de verdade mora — ver '.toolbar-upload div' acima).
+
+   'aparar-dados' é um <button disabled> de VERDADE (atributo HTML
+   nativo, ':disabled' bate certinho) — mas os OUTROS ícones da
+   toolbar são dcc.Upload, que quando 'disabled=True' NÃO usa o
+   atributo 'disabled' nativo (é uma <div>, não dá); em vez disso
+   marca 'aria-disabled="true"' e JÁ aplica 'opacity: 0.5' sozinho
+   via inline style — confirmado inspecionando o DOM real. Ou seja: a
+   opacidade dos dcc.Upload desabilitados já ficava certa por conta
+   própria, só o CURSOR nunca mudava (ficava 'auto' — o mesmo de um
+   botão habilitado), diferente do <button> que eu tinha corrigido só
+   pra ele. A regra abaixo cobre os DOIS formatos (':disabled' pro
+   <button>, '[aria-disabled="true"]' pro <div> do Upload) com o MESMO
+   resultado — cursor 'not-allowed' e sem o realce de hover, pra
+   qualquer ícone da toolbar que esteja desabilitado, não só um. */
+.toolbar-upload:disabled,
+.toolbar-upload[aria-disabled='true'] {
   cursor: not-allowed;
 }
 
-.toolbar-upload:is(button):disabled div {
+.toolbar-upload:disabled div,
+.toolbar-upload[aria-disabled='true'] div {
+  /* 'opacity: 0.4' aqui só tem efeito de verdade pro <button>
+     ('aparar-dados'): o dcc.Upload desabilitado já vem com
+     'opacity: 0.5' inline (aplicado pela própria lib — ver comentário
+     acima), e estilo INLINE sempre ganha de uma regra de classe como
+     esta, então esta linha não briga com aquele valor, só preenche a
+     lacuna que faltava pro <button>. */
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.toolbar-upload:disabled div:hover,
+.toolbar-upload[aria-disabled='true'] div:hover {
+  background: none;
 }
 
 .toolbar-upload div:hover {
@@ -300,17 +327,82 @@
   cursor: crosshair;
 }
 
-/* Esconde só a SPIKE LINE nativa do Plotly (a linha que acompanha o
-   hover) enquanto o modo de seleção está ativo — ela coincidia
-   exatamente com a nossa guia (as duas leem o mesmo ponto, via evento
-   'plotly_hover'), então mostrar as duas juntas era redundante. O
-   TOOLTIP de valores (caixinha com tempo + valor de cada curva no
-   ponto — útil pra quem está procurando uma referência visual na hora
-   de cortar) continua aparecendo normalmente: é um elemento SEPARADO
-   dentro do mesmo '.hoverlayer' (confirmado inspecionando o DOM real:
-   a spike line é '<line class="spikeline">', o tooltip é um
-   '<g class="legend">' — sem relação estrutural nenhuma entre os
-   dois), então dá pra mirar só na linha sem esconder a caixinha. */
-#container-grafico.corte-ativo .hoverlayer .spikeline {
+/* Em cima de um dos 2 MANÍPULOS de arraste (círculos decorativos —
+   são eles que arrastam de verdade, não as linhas por trás; ver
+   docstring de _linha_guia_corte, plotter.py; só existem depois do
+   2º clique — ver 'corte-completo', a mesma classe que o JS usa pra
+   saber quando parar a guia viva; aqui é só cosmético, uma leitura
+   errada no pior caso mostraria o cursor errado por uma fração de
+   segundo, não quebra nada funcionalmente), o cursor troca de cruz
+   pra "mão de agarrar" — combina melhor com "isto aqui se arrasta",
+   a cruz sozinha sugeria só "clique pra marcar", que deixa de ser
+   verdade nesse manípulo específico. Um seletor batendo DIRETO no
+   elemento (não herdado) sempre GANHA de uma regra herdada como a de
+   cima, não importa a ordem no arquivo — não precisa de
+   '!important'. 'path[data-index]' é como o Plotly desenha shapes
+   editáveis (confirmado inspecionando o DOM real, mesmo os do tipo
+   'circle' viram <path>); 4/5 são sempre os 2 manípulos (ver
+   docstring de aplicar_guias_corte, plotter.py). */
+#container-grafico.corte-ativo.corte-completo #grafico-plotly-real .shapelayer path[data-index='4'],
+#container-grafico.corte-ativo.corte-completo #grafico-plotly-real .shapelayer path[data-index='5'] {
+  cursor: grab;
+}
+
+#container-grafico.corte-ativo.corte-completo #grafico-plotly-real .shapelayer path[data-index='4']:active,
+#container-grafico.corte-ativo.corte-completo #grafico-plotly-real .shapelayer path[data-index='5']:active {
+  cursor: grabbing;
+}
+
+/* Esconde o hover NATIVO do Plotly inteiro (spike line + caixinha de
+   valores) enquanto o modo de seleção está ativo — desde que
+   iniciarSelecaoCorte (scripts_js.py) passou a calcular guia +
+   tooltip por conta própria (sem depender de 'plotly_hover'/
+   'plotly_click' nem do 'hovermode' do Plotly, que fica DESLIGADO de
+   verdade nesse momento — não só escondido), não sobra hover nativo
+   nenhum rodando aqui; esta regra é só uma segunda camada de
+   segurança pro caso de algum resquício visual escapar. O tooltip de
+   valores de verdade agora é nosso — ver '.corte-tooltip-custom'
+   logo abaixo. */
+#container-grafico.corte-ativo .hoverlayer {
   display: none;
+}
+
+/* Tooltip PRÓPRIO (não é do Plotly) que segue o mouse durante a
+   seleção de corte — tempo + valor de cada curva visível na posição
+   horizontal do mouse (ver atualizarTooltip em scripts_js.py). Vive
+   fora do gráfico (preso no <body>, 'position: fixed'), reposicionado
+   a cada movimento do mouse via JS, não via CSS. */
+.corte-tooltip-custom {
+  position: fixed;
+  z-index: 2000;
+  display: none;
+  background: #FFFFFF;
+  border: 1px solid rgba(42, 63, 95, 0.35);
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-family: var(--fonte-dado);
+  font-size: 12px;
+  color: #2A3F5F;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.corte-tooltip-x {
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.corte-tooltip-serie {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.5;
+}
+
+.corte-tooltip-cor {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
 }
