@@ -236,7 +236,18 @@ document.addEventListener('DOMContentLoaded', function () {
             wrapper.dataset.sat = s;
             wrapper.dataset.val = v;
 
-            var campos = wrapper.querySelectorAll('.cor-picker-input');
+            // '.cor-picker-input' é a DIV que embrulha o <input> de
+            // verdade (+ os botões de stepper +/- que essa versão do
+            // dash-core-components desenha em volta de todo
+            // dcc.Input(type='number')) — setar '.value' diretamente
+            // nessa DIV lança 'Illegal invocation' (não é um
+            // HTMLInputElement) e aborta a função pela metade, silen-
+            // ciosamente: o clique/arraste na área/matiz parava de
+            // fazer efeito nenhum, mas digitar direto no campo
+            // continuava funcionando (isso não passa por aqui, é
+            // digitação nativa do navegador). Por isso o 'input' de
+            // verdade, dentro dela.
+            var campos = wrapper.querySelectorAll('.cor-picker-input input');
             if (campos[0]) definirCampoRgb(campos[0], rgb.r);
             if (campos[1]) definirCampoRgb(campos[1], rgb.g);
             if (campos[2]) definirCampoRgb(campos[2], rgb.b);

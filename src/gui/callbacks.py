@@ -811,10 +811,12 @@ def registrar_callbacks(app, estado):
     def alternar_cadeado_limite(n_clicks, classe_atual):
         """
         Alterna o ícone/estado visual do cadeado de 'Limits' (Eixos) —
-        🔓 (destravado, padrão) <-> 🔒 (travado). Só o visual muda por
-        enquanto; travar de verdade o range do eixo no gráfico (impedir
-        que autoscale/zoom mexa nesse min/max) é a próxima etapa,
-        quando 'estado' ganhar um campo pra isso.
+        🔓 (destravado, padrão) <-> 🔒 (travado). Quem GRAVA esse
+        estado em 'estado' (PreferenciasLimiteEixo.travado, ver
+        src/core/arquivo.py) é aplicar_preferencias_eixos logo abaixo,
+        que lê a className deste botão como Input — travar de verdade
+        o range no gráfico já acontece hoje (min/max preenchidos), o
+        cadeado é só o lembrete visual desse estado.
         """
         if not n_clicks:
             raise PreventUpdate
@@ -822,6 +824,124 @@ def registrar_callbacks(app, estado):
         if travado:
             return '🔓', 'painel-edicao-limite-btn'
         return '🔒', 'painel-edicao-limite-btn travado'
+
+    @app.callback(
+        Output('container-grafico', 'children', allow_duplicate=True),
+        Input('edicao-eixo-titulo-texto', 'value'),
+        Input({'type': 'stepper-valor', 'index': 'edicao-eixo-titulo-fonte'}, 'value'),
+        Input({'type': 'stepper-valor', 'index': 'edicao-eixo-titulo-espacamento'}, 'value'),
+        Input('edicao-eixo-x-texto', 'value'),
+        Input({'type': 'stepper-valor', 'index': 'edicao-eixo-x-fonte'}, 'value'),
+        Input({'type': 'stepper-valor', 'index': 'edicao-eixo-x-espacamento'}, 'value'),
+        Input('edicao-eixo-y-texto', 'value'),
+        Input({'type': 'stepper-valor', 'index': 'edicao-eixo-y-fonte'}, 'value'),
+        Input({'type': 'stepper-valor', 'index': 'edicao-eixo-y-espacamento'}, 'value'),
+        Input('edicao-eixo-x-limite-min', 'value'),
+        Input('edicao-eixo-x-limite-max', 'value'),
+        Input('edicao-eixo-y-limite-min', 'value'),
+        Input('edicao-eixo-y-limite-max', 'value'),
+        Input({'type': 'limite-cadeado', 'index': 'x'}, 'className'),
+        Input({'type': 'limite-cadeado', 'index': 'y'}, 'className'),
+        State('aba-ativa-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def aplicar_preferencias_eixos(
+        titulo_texto, titulo_fonte, titulo_espacamento,
+        x_texto, x_fonte, x_espacamento,
+        y_texto, y_fonte, y_espacamento,
+        x_min, x_max, y_min, y_max,
+        classe_cadeado_x, classe_cadeado_y,
+        aba_ativa,
+    ):
+        """
+        Grava TODA a seção 'Eixos' (título do gráfico, rótulo+fonte+
+        espaçamento de cada eixo, limites min/max, estado do cadeado)
+        em 'arquivo.preferencias' (PreferenciasTexto/
+        PreferenciasLimiteEixo — src/core/arquivo.py) e redesenha o
+        gráfico — mesmo padrão de aplicar_preferencias_ticks/outros:
+        um callback só cobre a seção inteira em vez de um por campo,
+        porque toda edição aqui acaba caindo no mesmo redesenho de
+        figura de qualquer forma.
+
+        Os 6 campos de fonte/espaçamento são _stepper (renderizadores.
+        py) — o valor de verdade não fica no id simples que aparece no
+        rótulo (ex: 'edicao-eixo-titulo-fonte'), e sim num dcc.Input
+        interno com id em padrão {'type': 'stepper-valor', 'index':
+        'edicao-eixo-titulo-fonte'} (MATCH em alternar_stepper) — usar
+        o id simples aqui apontaria pra um componente que não existe
+        no layout, e o Dash recusa rodar o callback (erro só visível
+        no console do navegador, silencioso pro usuário).
+
+        Os valores de min/max chegam como None quando o campo está
+        vazio (inclusive logo depois de um clique em 'Autoscale', que
+        limpa os dois — ver autoscale_limite abaixo) — None é
+        justamente o que _aplicar_preferencias_grafico (plotter.py)
+        interpreta como "deixa o Plotly decidir o range sozinho".
+        """
+        if not aba_ativa or aba_ativa not in estado.arquivos:
+            raise PreventUpdate
+
+        arquivo = estado.arquivos[aba_ativa]
+        if not arquivo.grafico_gerado:
+            raise PreventUpdate
+
+        prefs = arquivo.preferencias
+
+        prefs.titulo.texto = titulo_texto or ''
+        prefs.titulo.fonte = titulo_fonte if titulo_fonte is not None else prefs.titulo.fonte
+        prefs.titulo.espacamento = titulo_espacamento if titulo_espacamento is not None else prefs.titulo.espacamento
+
+        prefs.titulo_eixo_x.texto = x_texto or ''
+        prefs.titulo_eixo_x.fonte = x_fonte if x_fonte is not None else prefs.titulo_eixo_x.fonte
+        prefs.titulo_eixo_x.espacamento = x_espacamento if x_espacamento is not None else prefs.titulo_eixo_x.espacamento
+
+        prefs.titulo_eixo_y.texto = y_texto or ''
+        prefs.titulo_eixo_y.fonte = y_fonte if y_fonte is not None else prefs.titulo_eixo_y.fonte
+        prefs.titulo_eixo_y.espacamento = y_espacamento if y_espacamento is not None else prefs.titulo_eixo_y.espacamento
+
+        prefs.limite_x.minimo = x_min
+        prefs.limite_x.maximo = x_max
+        prefs.limite_x.travado = 'travado' in (classe_cadeado_x or '').split()
+
+        prefs.limite_y.minimo = y_min
+        prefs.limite_y.maximo = y_max
+        prefs.limite_y.travado = 'travado' in (classe_cadeado_y or '').split()
+
+        fig = construir_figura_serie_temporal(estado, aba_ativa)
+        arquivo.figura = fig
+        return renderizar_grafico_com_fechar(fig)
+
+    def _registrar_autoscale(letra_eixo):
+        """
+        Fábrica do callback de 'Autoscale' (🔄) de UM eixo — gerada em
+        função, não um único callback com MATCH, porque o alvo (campos
+        'edicao-eixo-x/y-limite-min/max', ids simples, não em padrão
+        {'type':...}) já é fixo por eixo há mais tempo que os padrões
+        MATCH mais recentes do painel; só duas instâncias (x/y) não
+        justificam converter esses ids agora.
+
+        Limpa os dois campos (volta a None — 'sem limite definido',
+        ver aplicar_preferencias_eixos acima) e destrava o cadeado: não
+        faz sentido continuar 'travado' num intervalo que acabou de
+        ser apagado.
+        """
+        @app.callback(
+            Output(f'edicao-eixo-{letra_eixo}-limite-min', 'value'),
+            Output(f'edicao-eixo-{letra_eixo}-limite-max', 'value'),
+            Output({'type': 'limite-cadeado', 'index': letra_eixo}, 'children', allow_duplicate=True),
+            Output({'type': 'limite-cadeado', 'index': letra_eixo}, 'className', allow_duplicate=True),
+            Input({'type': 'limite-autoscale', 'index': letra_eixo}, 'n_clicks'),
+            prevent_initial_call=True,
+        )
+        def autoscale_limite(n_clicks):
+            if not n_clicks:
+                raise PreventUpdate
+            return None, None, '🔓', 'painel-edicao-limite-btn'
+
+        return autoscale_limite
+
+    _registrar_autoscale('x')
+    _registrar_autoscale('y')
 
     def _prefs_ticks_eixo(arquivo, eixo):
         """

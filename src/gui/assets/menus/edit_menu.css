@@ -7,17 +7,17 @@
    não precisa saber se está mostrando o placeholder ou o formulário. */
 .painel-direito {
   flex: 0 0 auto;
-  width: 320px;
-  /* 320px / min-width 300px (eram 260px/260px) — a linha 'Limits'
-     ([min] < x < [max] + botão autoscale + botão cadeado, ver
-     _linha_limite_eixo em renderizadores.py) tem mais elementos lado a
-     lado que a linha 'cor/Style/Marker' da seção 'Curva' e não cabia
-     confortavelmente nos 260px antigos. O '300' espelhado em
-     habilitarDivisor('divisor-resize-edit', ...) em scripts_js.py
-     precisa bater com este min-width pra travar o arraste no mesmo
-     ponto — os dois valores não têm uma fonte única compartilhada
-     entre CSS e JS neste projeto, então qualquer mudança aqui precisa
-     ser replicada lá também. */
+  width: 400px;
+  /* 400px de largura INICIAL (era 320px) — min-width (300px) e
+     max-width (560px) não mudam, 400 cabe folgado entre os dois, e
+     são eles (não a largura inicial) que ditam até onde o divisor
+     ('divisor-resize-edit' — ver logo abaixo) deixa arrastar. O '300'
+     espelhado em habilitarDivisor('divisor-resize-edit', ...) em
+     scripts_js.py precisa bater com este min-width pra travar o
+     arraste no mesmo ponto — os dois valores não têm uma fonte única
+     compartilhada entre CSS e JS neste projeto, então qualquer
+     mudança NO MIN/MAX (não na largura inicial) precisa ser
+     replicada lá também. */
   min-width: 300px;
   max-width: 560px;
   height: 100%;

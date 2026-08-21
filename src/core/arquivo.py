@@ -99,6 +99,50 @@ class PreferenciasCanal:
 
 
 @dataclass
+class PreferenciasTexto:
+    """
+    Um texto editável do gráfico (título do gráfico, rótulo do eixo X,
+    rótulo do eixo Y) + como ele aparece — ver a linha 'Title'/'Axis x'
+    /'Axis y' da seção 'Eixos' no painel de edição (cada uma é um
+    _linha_eixo em renderizadores.py: caixa de texto + stepper de
+    fonte + stepper de espaçamento).
+
+    'espacamento' é espaçamento ENTRE CARACTERES (kerning), não
+    distância até o eixo — o Plotly não tem um parâmetro nativo pra
+    isso (só suporta um subconjunto de tags tipo HTML no texto:
+    <br>/<b>/<i>/<sup>/<sub>, sem letter-spacing). O jeito de aplicar
+    isso de verdade é INSERINDO espaços finos (U+2009) entre os
+    caracteres do texto na hora de montar a figura — ver
+    _texto_com_espacamento em plotter.py. É uma aproximação: só
+    produz incrementos "quantizados" (cada espaço fino é uma unidade
+    fixa), não um valor contínuo em pixels como um editor de verdade.
+    """
+    texto: str = ''
+    fonte: int = 12
+    espacamento: int = 1
+
+
+@dataclass
+class PreferenciasLimiteEixo:
+    """
+    Limites (min/max) de UM eixo — sub-seção 'Limits' dentro de
+    'Eixos' no painel (_linha_limite_eixo em renderizadores.py).
+
+    'minimo'/'maximo' ficam None enquanto o usuário não digitou nada
+    (ou clicou 'autoscale') — nesse estado o Plotly decide sozinho o
+    range, olhando os dados (comportamento padrão, sem
+    fig.update_xaxes(range=...) nenhum). 'travado' reflete o cadeado
+    🔓/🔒: server-side ele não muda NADA sozinho (min/max já fixos
+    fazem o eixo não mexer, trava ou não) — é só o que fica gravado pra
+    a caixinha nascer com o ícone certo da próxima vez que a edição for
+    reaberta.
+    """
+    minimo: float | None = None
+    maximo: float | None = None
+    travado: bool = False
+
+
+@dataclass
 class PreferenciasTicksEixo:
     """
     Como os ticks de UM eixo (x ou y) aparecem no gráfico — ver seção
@@ -124,11 +168,11 @@ class PreferenciasTicksEixo:
 @dataclass
 class PreferenciasGrafico:
     """Como o gráfico inteiro aparece: eixos, limites, título."""
-    titulo: str | None = None
-    titulo_eixo_x: str | None = None
-    titulo_eixo_y: str | None = None
-    limite_x: tuple | None = None
-    limite_y: tuple | None = None
+    titulo: PreferenciasTexto = field(default_factory=lambda: PreferenciasTexto(fonte=14))
+    titulo_eixo_x: PreferenciasTexto = field(default_factory=lambda: PreferenciasTexto(fonte=10))
+    titulo_eixo_y: PreferenciasTexto = field(default_factory=lambda: PreferenciasTexto(fonte=12))
+    limite_x: PreferenciasLimiteEixo = field(default_factory=PreferenciasLimiteEixo)
+    limite_y: PreferenciasLimiteEixo = field(default_factory=PreferenciasLimiteEixo)
     por_canal: dict[str, PreferenciasCanal] = field(default_factory=dict)
     # Ticks de cada eixo — independentes entre si (ver
     # PreferenciasTicksEixo). Quando o painel edita com 'Eixo: Both'

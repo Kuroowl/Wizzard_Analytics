@@ -113,15 +113,52 @@ def resolver_eixo_x(estado, df):
     return colunas_numericas[0] if len(colunas_numericas) else df.columns[0]
 
 
+def _texto_com_espacamento(texto, espacamento):
+    """
+    Aproxima 'espaçamento entre caracteres' (kerning) INSERINDO um
+    espaço fino Unicode (U+2009, mais estreito que um espaço normal —
+    não empurra o texto tanto quanto um espaço comum repetido) entre
+    cada caractere — ver PreferenciasTexto.espacamento em
+    src/core/arquivo.py pra explicação de por que isso é necessário
+    (Plotly não tem letter-spacing nativo).
+
+    'espacamento' É 1 POR PADRÃO (mesmo valor de partida do stepper em
+    _linha_eixo, renderizadores.py) — tratado aqui como o "neutro", 0
+    espaços extra, pra um título recém-criado (usuário nunca abriu
+    'Eixos') não sair com espaçamento artificial nenhum. Só o que
+    passa de 1 vira espaço de verdade (2 -> 1 espaço fino entre cada
+    par de caracteres, 3 -> 2, ...); tudo <= 1 (inclusive os valores
+    negativos que o stepper permite) devolve o texto original.
+    """
+    extra = espacamento - 1
+    if not texto or extra <= 0:
+        return texto
+    separador = '\u2009' * extra
+    return separador.join(texto)
+
+
 def _aplicar_preferencias_grafico(fig, preferencias):
     """
-    Aplica em 'fig' o que foi ajustado nas seções 'Ticks' e 'Outros' do
-    painel de edição (ver PreferenciasGrafico em src/core/arquivo.py) —
-    chamado no fim de construir_figura_serie_temporal, depois que as
-    curvas já foram desenhadas, porque essas propriedades são do
-    LAYOUT (eixos/fundo), não de uma curva específica.
+    Aplica em 'fig' o que foi ajustado nas seções 'Eixos', 'Ticks' e
+    'Outros' do painel de edição (ver PreferenciasGrafico em
+    src/core/arquivo.py) — chamado no fim de
+    construir_figura_serie_temporal, depois que as curvas já foram
+    desenhadas, porque essas propriedades são do LAYOUT (eixos/fundo),
+    não de uma curva específica.
 
     Mapeamento pros parâmetros do Plotly:
+      - 'titulo'/'titulo_eixo_x'/'titulo_eixo_y' (PreferenciasTexto) ->
+        fig.update_layout(title=...) e fig.update_xaxes/yaxes(
+        title=...), com 'font.size' pro tamanho e o texto passando por
+        _texto_com_espacamento pro espaçamento entre caracteres. Um
+        texto vazio ('') não é enviado (fica None) — sem isso, um
+        título vazio ainda ocuparia a margem reservada pro título no
+        layout do Plotly.
+      - 'limite_x'/'limite_y' (PreferenciasLimiteEixo) -> range=[min,
+        max] só quando os DOIS estão preenchidos (um só, sem o outro,
+        não define um intervalo válido — fica ambíguo se seria só
+        limite inferior/superior aberto, então nesse caso o Plotly
+        continua decidindo sozinho, como se nada tivesse sido digitado).
       - 'divisoes' (ticks principais) -> nticks/tickwidth/ticklen do
         próprio eixo. 'nticks' é uma contagem APROXIMADA (o Plotly
         ainda escolhe posições "redondas" pros ticks) — não existe um
@@ -143,6 +180,27 @@ def _aplicar_preferencias_grafico(fig, preferencias):
       - 'cor_fundo' -> plot_bgcolor (a ÁREA de plotagem; 'paper_bgcolor',
         a moldura ao redor, continua a cargo do template).
     """
+    if preferencias.titulo.texto:
+        fig.update_layout(title=dict(
+            text=_texto_com_espacamento(preferencias.titulo.texto, preferencias.titulo.espacamento),
+            font=dict(size=preferencias.titulo.fonte),
+        ))
+
+    for prefs_texto, atualizar_eixo, prefs_limite in (
+        (preferencias.titulo_eixo_x, fig.update_xaxes, preferencias.limite_x),
+        (preferencias.titulo_eixo_y, fig.update_yaxes, preferencias.limite_y),
+    ):
+        kwargs = {}
+        if prefs_texto.texto:
+            kwargs['title'] = dict(
+                text=_texto_com_espacamento(prefs_texto.texto, prefs_texto.espacamento),
+                font=dict(size=prefs_texto.fonte),
+            )
+        if prefs_limite.minimo is not None and prefs_limite.maximo is not None:
+            kwargs['range'] = [prefs_limite.minimo, prefs_limite.maximo]
+        if kwargs:
+            atualizar_eixo(**kwargs)
+
     for eixo_prefs, atualizar_eixo in (
         (preferencias.ticks_x, fig.update_xaxes),
         (preferencias.ticks_y, fig.update_yaxes),

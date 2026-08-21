@@ -562,30 +562,30 @@ def _linha_eixo(rotulo, id_texto, valor_texto, id_fonte, valor_fonte, id_espacam
     ])
 
 
-def _linha_limite_eixo(letra_eixo, id_min, id_max, index_cadeado):
+def _linha_limite_eixo(letra_eixo, id_min, id_max, index_cadeado, valor_min=None, valor_max=None, travado=False):
     """
     Uma linha da sub-seção 'Limits' dentro de 'Eixos': [min] < x <
-    [max] + botão de autoscale (recalcula os limites automaticamente
-    a partir dos dados — ainda só visual, ver comentário no fim de
-    renderizar_painel_edicao) + botão de cadeado (trava/destrava o
-    eixo nesse min/max fixo; TEM callback já funcionando, ver
-    alternar_cadeado_limite em callbacks.py, MATCH — só a troca do
-    ícone/estado, a aplicação de verdade no gráfico vem na etapa de
-    conexão com 'estado').
+    [max] + botão de autoscale (limpa min/max — volta o eixo a decidir
+    sozinho o range a partir dos dados, ver aplicar_preferencias_eixos
+    em callbacks.py) + botão de cadeado (só reflete visualmente
+    'travado' — ver PreferenciasLimiteEixo.travado em
+    src/core/arquivo.py; o que realmente TRAVA o eixo nesse
+    intervalo é min/max estarem os dois preenchidos, o cadeado é só
+    pra lembrar visualmente desse estado entre uma edição e outra).
 
     'index_cadeado' é o 'index' do par {'type': 'limite-cadeado',
     'index': ...} — precisa ser único (aqui: 'x' / 'y').
     """
     return html.Div(className='painel-edicao-linha-limite', children=[
         dcc.Input(
-            id=id_min, type='number', placeholder='min',
+            id=id_min, type='number', placeholder='min', value=valor_min,
             className='painel-edicao-limite-input',
         ),
         html.Span('<', className='painel-edicao-limite-simbolo'),
         html.Span(letra_eixo, className='painel-edicao-limite-eixo-letra'),
         html.Span('<', className='painel-edicao-limite-simbolo'),
         dcc.Input(
-            id=id_max, type='number', placeholder='max',
+            id=id_max, type='number', placeholder='max', value=valor_max,
             className='painel-edicao-limite-input',
         ),
         html.Button(
@@ -594,8 +594,9 @@ def _linha_limite_eixo(letra_eixo, id_min, id_max, index_cadeado):
             n_clicks=0,
         ),
         html.Button(
-            '🔓', id={'type': 'limite-cadeado', 'index': index_cadeado},
-            className='painel-edicao-limite-btn', title='Travar eixo neste intervalo',
+            '🔒' if travado else '🔓', id={'type': 'limite-cadeado', 'index': index_cadeado},
+            className='painel-edicao-limite-btn travado' if travado else 'painel-edicao-limite-btn',
+            title='Travar eixo neste intervalo',
             n_clicks=0,
         ),
     ])
@@ -709,12 +710,19 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
         ]),
     ]
 
-    # Valores 'de fábrica' das linhas de Eixos — ainda não vêm de
-    # 'estado' (não existe campo de preferências de eixo no dataclass
-    # hoje, só por-curva: cor/espessura/estilo/marcador). Os campos já
-    # funcionam de ponta a ponta (digitar, +/-, tradução de LaTeX
-    # simples) — falta só a parte de LER/GRAVAR esses valores em
-    # 'estado' e aplicar no plotter quando isso for definido.
+    # 'Eixos' — igual a 'Ticks'/'Outros' (comentário nessas seções
+    # logo abaixo): valores de partida vêm de 'arquivo.preferencias'
+    # (titulo/titulo_eixo_x/titulo_eixo_y — PreferenciasTexto; limite_x/
+    # limite_y — PreferenciasLimiteEixo, ver src/core/arquivo.py), não
+    # mais fixos/vazios — e cada edição grava de volta e redesenha o
+    # gráfico (ver aplicar_preferencias_eixos/alternar_cadeado_limite/
+    # limpar_limite_eixo em callbacks.py).
+    titulo_prefs = arquivo.preferencias.titulo
+    eixo_x_prefs = arquivo.preferencias.titulo_eixo_x
+    eixo_y_prefs = arquivo.preferencias.titulo_eixo_y
+    limite_x_prefs = arquivo.preferencias.limite_x
+    limite_y_prefs = arquivo.preferencias.limite_y
+
     conteudo_eixos = [
         html.Div(className='painel-edicao-eixos-cabecalho', children=[
             html.Div(className='painel-edicao-eixos-cabecalho-rotulo'),
@@ -722,26 +730,34 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
             html.Span('↔', className='painel-edicao-eixos-cabecalho-coluna'),
         ]),
         _linha_eixo(
-            'Title:', 'edicao-eixo-titulo-texto', '',
-            'edicao-eixo-titulo-fonte', 14,
-            'edicao-eixo-titulo-espacamento', 1,
+            'Title:', 'edicao-eixo-titulo-texto', titulo_prefs.texto,
+            'edicao-eixo-titulo-fonte', titulo_prefs.fonte,
+            'edicao-eixo-titulo-espacamento', titulo_prefs.espacamento,
         ),
         _linha_eixo(
-            'Axis x:', 'edicao-eixo-x-texto', '',
-            'edicao-eixo-x-fonte', 10,
-            'edicao-eixo-x-espacamento', 1,
+            'Axis x:', 'edicao-eixo-x-texto', eixo_x_prefs.texto,
+            'edicao-eixo-x-fonte', eixo_x_prefs.fonte,
+            'edicao-eixo-x-espacamento', eixo_x_prefs.espacamento,
         ),
         _linha_eixo(
-            'Axis y:', 'edicao-eixo-y-texto', '',
-            'edicao-eixo-y-fonte', 12,
-            'edicao-eixo-y-espacamento', 1,
+            'Axis y:', 'edicao-eixo-y-texto', eixo_y_prefs.texto,
+            'edicao-eixo-y-fonte', eixo_y_prefs.fonte,
+            'edicao-eixo-y-espacamento', eixo_y_prefs.espacamento,
         ),
 
         html.Hr(className='painel-edicao-separador'),
 
         html.Div('Limits:', className='painel-edicao-limite-titulo'),
-        _linha_limite_eixo('x', 'edicao-eixo-x-limite-min', 'edicao-eixo-x-limite-max', 'x'),
-        _linha_limite_eixo('y', 'edicao-eixo-y-limite-min', 'edicao-eixo-y-limite-max', 'y'),
+        _linha_limite_eixo(
+            'x', 'edicao-eixo-x-limite-min', 'edicao-eixo-x-limite-max', 'x',
+            valor_min=limite_x_prefs.minimo, valor_max=limite_x_prefs.maximo,
+            travado=limite_x_prefs.travado,
+        ),
+        _linha_limite_eixo(
+            'y', 'edicao-eixo-y-limite-min', 'edicao-eixo-y-limite-max', 'y',
+            valor_min=limite_y_prefs.minimo, valor_max=limite_y_prefs.maximo,
+            travado=limite_y_prefs.travado,
+        ),
     ]
 
     # 'Ticks' — ao contrário de 'Eixos' (ainda placeholder de valores),
