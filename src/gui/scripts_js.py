@@ -408,6 +408,104 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     iniciarTraducaoLatex();
 
+    function iniciarSelecaoCorte() {
+        // Modo de seleção de 'Aparar dados' (e, no futuro, 'Excluir
+        // dados' — mesma mecânica de 2 cliques): a guia vermelha
+        // TRACEJADA que acompanha o mouse é 100% client-side (desenhada
+        // via Plotly.relayout direto no gráfico já renderizado) — um
+        // round-trip com o servidor a cada pixel de movimento do mouse
+        // deixaria a linha visivelmente "atrasada". As guias SÓLIDAS
+        // (cortes já clicados) e a hachura continuam vindo do Python
+        // (aplicar_guias_corte, plotter.py) — só a linha viva é daqui.
+        //
+        // O gráfico só reage a isso quando tem a classe 'corte-ativo'
+        // (ligada/desligada por iniciar_selecao_corte/confirmar_corte/
+        // cancelar_corte em callbacks.py, via Output no className do
+        // dcc.Graph) — sem essa classe, mousemove/click no gráfico não
+        // fazem nada aqui, comportamento normal do Plotly.
+
+        // O gráfico só reage a isso quando 'container-grafico' (o
+        // wrapper ESTÁVEL — ver layout.py; dcc.Graph em si não
+        // reflete bem atualizações de className via callback, é uma
+        // peculiaridade da própria biblioteca, então a classe
+        // 'corte-ativo' fica num ancestral comum em vez do gráfico) tem
+        // a classe 'corte-ativo', ligada/desligada por
+        // iniciar_selecao_corte/confirmar_corte/cancelar_corte em
+        // callbacks.py — sem essa classe, mousemove/click no gráfico
+        // não fazem nada aqui, comportamento normal do Plotly.
+
+        function elementoGrafico() {
+            var container = document.getElementById('container-grafico');
+            if (!container || !container.classList.contains('corte-ativo')) return null;
+            var wrapper = document.getElementById('grafico-plotly-real');
+            var gd = wrapper && wrapper.querySelector('.js-plotly-plot');
+            // '_fullLayout' só existe depois que o Plotly termina de
+            // desenhar o gráfico pela primeira vez — sem essa checagem,
+            // um mousemove bem no instante da abertura do modo de
+            // seleção poderia cair aqui antes do gráfico estar pronto.
+            if (!gd || !gd._fullLayout) return null;
+            return gd;
+        }
+
+        // Converte a posição do mouse (pixels, relativa à JANELA) pro
+        // valor correspondente no eixo X dos DADOS — usa o range atual
+        // do eixo (gd._fullLayout.xaxis.range, que o Plotly mantém
+        // sincronizado mesmo depois de um zoom/pan manual) e a área de
+        // plotagem em pixels (gd._fullLayout._size: margens l/r/t/b e
+        // largura/altura úteis), não o tamanho do <svg> inteiro (que
+        // inclui eixos, títulos, legenda).
+        function pixelParaDadoX(gd, clientX) {
+            var rect = gd.getBoundingClientRect();
+            var tamanho = gd._fullLayout._size;
+            var range = gd._fullLayout.xaxis.range;
+            var fracao = (clientX - rect.left - tamanho.l) / tamanho.w;
+            return range[0] + fracao * (range[1] - range[0]);
+        }
+
+        // Shapes JÁ DESENHADAS pelo Python (linhas sólidas + hachura dos
+        // cortes confirmados) — filtra fora qualquer guia tracejada de
+        // um movimento de mouse anterior, senão cada novo mousemove
+        // empilharia mais uma linha em cima da última em vez de
+        // substituir.
+        function formasConfirmadas(gd) {
+            return (gd.layout.shapes || []).filter(function (s) {
+                return !(s.line && s.line.dash === 'dash');
+            });
+        }
+
+        document.addEventListener('mousemove', function (e) {
+            var gd = elementoGrafico();
+            if (!gd) return;
+            var xDado = pixelParaDadoX(gd, e.clientX);
+            var formas = formasConfirmadas(gd);
+            formas.push({
+                type: 'line', xref: 'x', yref: 'paper',
+                x0: xDado, x1: xDado, y0: 0, y1: 1,
+                line: { color: '#D62728', width: 2, dash: 'dash' },
+            });
+            Plotly.relayout(gd, { shapes: formas });
+        });
+
+        // O clique de verdade não desenha nada aqui (isso é papel do
+        // Python, depois que o valor for confirmado como um corte —
+        // ver registrar_clique_corte em callbacks.py) — só ESCREVE o
+        // valor no campo escondido 'corte-clique-x', pelo mesmo truque
+        // de setter nativo + evento 'input' já usado no seletor de cor
+        // (iniciarSeletorCor, acima) — é isso que faz o Dash perceber a
+        // mudança e rodar o callback Python correspondente.
+        document.addEventListener('click', function (e) {
+            var gd = elementoGrafico();
+            if (!gd || !gd.contains(e.target)) return;
+            var xDado = pixelParaDadoX(gd, e.clientX);
+            var campo = document.getElementById('corte-clique-x');
+            if (!campo) return;
+            var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+            setter.call(campo, xDado);
+            campo.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    }
+    iniciarSelecaoCorte();
+
     function iniciarBarraCarregamentoRodape() {
         // Liga o preenchimento verde do '#rodape-status' ao estado REAL de
         // carregamento do Dash: o dcc.Loading que envolve 'container-grafico'

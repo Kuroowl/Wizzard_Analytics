@@ -9,6 +9,16 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* Wrapper só dos ícones (separado do prompt de confirmação de corte,
+   que é o outro filho direto de '.toolbar') — carrega o MESMO layout
+   em linha que '.toolbar' tinha sozinha antes de precisar acomodar
+   esse segundo filho. */
+.toolbar-icones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .toolbar-botao {
   position: relative; /* âncora pro tooltip posicionado por baixo */
   font-family: var(--fonte-dado);
@@ -125,4 +135,91 @@
 .toolbar-botao:hover .toolbar-tooltip,
 .toolbar-upload div:hover .toolbar-tooltip {
   opacity: 1;
+}
+
+/* ==========================================================================
+   Modo de seleção de corte ('Aparar dados' / futuramente 'Excluir
+   dados') — ver iniciar_selecao_corte/registrar_clique_corte/
+   confirmar_corte/cancelar_corte em callbacks.py.
+   ========================================================================== */
+
+/* Todos os ícones da toolbar ficam "desligados" enquanto a seleção
+   está em andamento — 'pointer-events: none' desliga os cliques de
+   verdade (não só visual), então não precisa desabilitar cada botão
+   individualmente (a maioria é dcc.Upload, que nem tem um jeito limpo
+   de refletir 'disabled' no CSS). Mesmo espírito de
+   '.area-inativa-selecao' (estilo.css), só sem o blur — os ícones
+   continuam legíveis, só claramente "não clicáveis" agora. */
+.toolbar-icones.inativo {
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+/* Botão que INICIOU a seleção ('aparar-dados' por enquanto) continua
+   se destacando mesmo com o resto apagado — um contorno vermelho (a
+   mesma cor das guias de corte no gráfico, COR_GUIA_CORTE em
+   plotter.py) deixa claro qual ferramenta está ativa agora. */
+.toolbar-icones.inativo #aparar-dados {
+  opacity: 1;
+  border-color: #D62728;
+}
+
+/* Prompt 'Confirmar seleção?' — nasce escondido (style inline em
+   layout.py) e some de novo assim que confirmar/cancelar é clicado.
+   Fica na MESMA linha dos ícones (toolbar), não no rodapé — é sobre a
+   ação da toolbar que está em andamento, não uma mensagem passageira
+   do mago. */
+.toolbar-confirmacao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  margin-left: 4px;
+  border-left: 1px solid rgba(231, 236, 234, 0.18);
+}
+
+.toolbar-confirmacao-mago {
+  font-size: 20px;
+}
+
+.toolbar-confirmacao-texto {
+  font-family: var(--fonte-dado);
+  font-size: 11px;
+  color: var(--cor-texto-claro);
+  white-space: nowrap;
+}
+
+.toolbar-confirmacao-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  border: 1px solid rgba(231, 236, 234, 0.25);
+  background: transparent;
+  color: var(--cor-texto-claro);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.toolbar-confirmacao-btn.confirmar:hover {
+  background: rgba(47, 165, 160, 0.25);
+  border-color: var(--cor-accent);
+}
+
+.toolbar-confirmacao-btn.cancelar:hover {
+  background: rgba(214, 39, 40, 0.2);
+  border-color: #D62728;
+}
+
+/* Cursor em cruz sobre o gráfico enquanto o modo de seleção está
+   ativo — reforça que o próximo clique ali TEM efeito (diferente do
+   cursor padrão de "só olhando"). A classe 'corte-ativo' é a mesma
+   que iniciarSelecaoCorte (scripts_js.py) já lê pra saber se deve
+   reagir a mousemove/click — um único Output controla os dois. */
+#grafico-plotly-real.corte-ativo {
+  cursor: crosshair;
 }

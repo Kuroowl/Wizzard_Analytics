@@ -488,3 +488,83 @@ def construir_figura_serie_temporal(estado, aba_ativa):
         arquivo.adicionar_aviso(mensagem)
 
     return fig
+
+
+# Cor das guias de corte (linha + hachura) — vermelho, deliberadamente
+# fora da paleta de curvas (PALETA_CORES acima) pra nunca ser confundida
+# com um traço de dado de verdade. Compartilhada entre 'Aparar dados' e,
+# no futuro, 'Excluir dados' (mesma mecânica de 2 cliques — ver
+# aparar_dados/excluir_dados em src/core/operations/sampling.py).
+COR_GUIA_CORTE = '#D62728'
+
+
+def _linha_guia_corte(x):
+    """Uma linha vertical sólida, ponta a ponta no eixo Y (yref='paper'
+    — sempre cobre 0% a 100% da altura da área de plotagem, não importa
+    o range de Y no momento) — marca um corte já CONFIRMADO (clicado)."""
+    return dict(
+        type='line', xref='x', yref='paper', x0=x, x1=x, y0=0, y1=1,
+        line=dict(color=COR_GUIA_CORTE, width=2),
+    )
+
+
+def _faixa_hachurada_corte(x0, x1):
+    """
+    Área semitransparente vermelha entre x0 e x1 — indica visualmente
+    'isto vai ser descartado' assim que o corte for confirmado.
+    'layer=below' pra ficar ATRÁS das curvas (senão a faixa tampava o
+    próprio traço de dado dentro da região marcada).
+    """
+    return dict(
+        type='rect', xref='x', yref='paper', x0=x0, x1=x1, y0=0, y1=1,
+        fillcolor='rgba(214, 39, 40, 0.15)', line=dict(width=0), layer='below',
+    )
+
+
+def aplicar_guias_corte(fig, primeiro=None, segundo=None):
+    """
+    Devolve uma CÓPIA de 'fig' com as guias visuais dos cortes já
+    CONFIRMADOS (clicados) desenhadas por cima — usado durante o modo de
+    seleção de 'Aparar dados' (ver registrar_clique_corte em
+    callbacks.py), enquanto o usuário ainda não confirmou a ação de
+    verdade. NUNCA modifica 'fig' original nem toca em 'arquivo.figura'
+    — só o que aparece na tela nesse meio-tempo; cancelar a seleção
+    (cancelar_corte, callbacks.py) simplesmente reexibe a figura
+    original, intocada.
+
+    A guia de arraste "ao vivo" (acompanhando o mouse antes do clique)
+    NÃO é desenhada aqui — é 100% client-side (ver iniciarSelecaoCorte
+    em scripts_js.py, que desenha/apaga essa linha tracejada direto via
+    Plotly.relayout, sem round-trip com o servidor a cada movimento do
+    mouse). Esta função só cuida das linhas SÓLIDAS (já clicadas).
+
+    'primeiro'/'segundo' (float ou None): os dois cortes. 'aparar_dados'
+    MANTÉM o que fica ENTRE eles — por isso a hachura cobre FORA desse
+    intervalo (da borda esquerda até 'primeiro', e de 'segundo' até a
+    borda direita). As bordas vêm do range REAL dos dados já plotados
+    (_range_dos_dados, definida mais acima neste módulo), com uma
+    margem de 5% pra a hachura alcançar visualmente a moldura do
+    gráfico mesmo se o Plotly folgar um pouco o autorange.
+    """
+    fig = go.Figure(fig)
+    if primeiro is None and segundo is None:
+        return fig
+
+    x_min, x_max = _range_dos_dados(fig, 'x')
+    if x_min is None:
+        return fig
+
+    span = x_max - x_min
+    margem = span * 0.05 if span > 0 else 1
+    borda_esquerda, borda_direita = x_min - margem, x_max + margem
+
+    formas = []
+    if primeiro is not None:
+        formas.append(_faixa_hachurada_corte(borda_esquerda, primeiro))
+        formas.append(_linha_guia_corte(primeiro))
+    if segundo is not None:
+        formas.append(_faixa_hachurada_corte(segundo, borda_direita))
+        formas.append(_linha_guia_corte(segundo))
+
+    fig.update_layout(shapes=formas)
+    return fig

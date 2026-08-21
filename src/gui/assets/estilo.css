@@ -141,3 +141,19 @@ body, html {
 .divisor-resize.arrastando::after {
   width: 8px;                 /* Leve expandida na largura quando passa o mouse */
 }
+
+/* Utilitário genérico: área "desligada" enquanto uma ação exclusiva
+   está em andamento em outro lugar da tela — hoje usado na sidebar
+   (arquivo) e no painel de edição durante o modo de seleção de
+   'Aparar dados' (ver iniciar_selecao_corte/confirmar_corte/
+   cancelar_corte em callbacks.py), pra deixar claro que cliques ali
+   não fazem nada até a seleção terminar. 'pointer-events: none'
+   desliga os cliques de verdade (não é só visual); 'filter: blur'
+   é o que dá o efeito "levemente borrado" pedido — sutil (2px) pra
+   ainda dar pra reconhecer o que tem embaixo. */
+.area-inativa-selecao {
+  filter: blur(2px);
+  opacity: 0.7;
+  pointer-events: none;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}

@@ -38,6 +38,26 @@ def montar_layout(estado):
         # "A nonexistent object was used in an State of a Dash callback".
         dcc.Store(id='edicao-curva-dado-atual', data=None),
 
+        # 'corte-selecao-store': None enquanto nenhuma seleção de corte
+        # está em andamento; durante 'Aparar dados' (e, no futuro,
+        # 'Excluir dados' — mesma mecânica, ver aparar_dados/excluir_dados
+        # em src/core/operations/sampling.py), guarda
+        # {'tipo': 'aparar', 'aba': <arquivo>, 'primeiro': <x ou None>,
+        # 'segundo': <x ou None>} — ver iniciar_selecao_corte/
+        # registrar_clique_corte/confirmar_corte/cancelar_corte em
+        # callbacks.py.
+        dcc.Store(id='corte-selecao-store', data=None),
+        # Ponte entre o clique real do usuário NO GRÁFICO (capturado via
+        # JS puro — iniciarSelecaoCorte em scripts_js.py, que já resolve
+        # pixel -> valor de dado usando o range atual do eixo, sem
+        # round-trip nenhum pro servidor só pra isso) e um callback Dash
+        # de verdade: o JS escreve o valor aqui (mesmo truque de setter
+        # nativo + evento 'input' usado no seletor de cor) e
+        # registrar_clique_corte (callbacks.py) reage a isso como um
+        # Input comum. Fica escondido — não é um campo que o usuário
+        # preenche à mão.
+        dcc.Input(id='corte-clique-x', type='number', value=None, style={'display': 'none'}),
+
         html.Div(className='menubar', children=[
             html.Span('Arquivo', className='menubar-item'),
             html.Span('Editar', className='menubar-item'),
@@ -45,59 +65,84 @@ def montar_layout(estado):
         ]),
 
         html.Div(className='toolbar', children=[
-            dcc.Upload(
-                id='upload-arquivo',
-                children=html.Div([icone_colorido('AddFile_icon.png'), html.Span('Carregar arquivo', className='toolbar-tooltip')]),
-                className='toolbar-upload',
-                multiple=False,
-            ),
-            dcc.Upload(
-                id='aparar-dados',
-                children=html.Div([icone_colorido('TrimData_icon.png'), html.Span('Aparar dados', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled=sem_grafico,
-                multiple=False,
-            ),
-            dcc.Upload(
-                id='excluir-dados',
-                children=html.Div([icone_colorido('CutData_icon.png'), html.Span('Excluir dados', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled=sem_grafico,
-                multiple=False,
-            ),
-            dcc.Upload(
-                id='nova-analise',
-                children=html.Div([icone_colorido('NewAnalysis_icon.png'), html.Span('Nova análise', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled=sem_arquivo,
-                multiple=False,
-            ),
-            dcc.Upload(
-                id='nova-amostra',
-                children=html.Div([icone_colorido('SampleData_icon.png'), html.Span('Nova Amostragem', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled=sem_arquivo,
-                multiple=False,
-            ),
-            dcc.Upload(
-                id='fundir-arquivos',
-                children=html.Div([icone_colorido('MergeData_icon.png'), html.Span('Fundir arquivos', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled=menos_de_2_arquivos,
-                multiple=False,
-            ),
-            dcc.Upload(
-                id='exportar-grafico',
-                children=html.Div([icone_colorido('ExportGraph_icon.png'), html.Span('Salvar gráfico', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled=sem_grafico,
-                multiple=False,
-            ),
-            dcc.Upload(
-                id='exportar-dados',
-                children=html.Div([icone_colorido('ExportData_icon.png'), html.Span('Exportar dados', className='toolbar-tooltip')]),
-                className='toolbar-upload', disabled=sem_arquivo,
-                multiple=False,
+            html.Div(id='toolbar-icones', className='toolbar-icones', children=[
+                dcc.Upload(
+                    id='upload-arquivo',
+                    children=html.Div([icone_colorido('AddFile_icon.png'), html.Span('Carregar arquivo', className='toolbar-tooltip')]),
+                    className='toolbar-upload',
+                    multiple=False,
+                ),
+                # 'aparar-dados' é um html.Button (não dcc.Upload como os
+                # outros) — precisa de um clique DE VERDADE (n_clicks) pra
+                # entrar no modo de seleção no gráfico; um dcc.Upload
+                # abriria o seletor de arquivo nativo do sistema, o que
+                # não faz sentido nenhum aqui.
+                html.Button(
+                    id='aparar-dados',
+                    children=[icone_colorido('TrimData_icon.png'), html.Span('Aparar dados', className='toolbar-tooltip')],
+                    className='toolbar-upload', disabled=sem_grafico, n_clicks=0,
+                ),
+                dcc.Upload(
+                    id='excluir-dados',
+                    children=html.Div([icone_colorido('CutData_icon.png'), html.Span('Excluir dados', className='toolbar-tooltip')]),
+                    className='toolbar-upload', disabled=sem_grafico,
+                    multiple=False,
+                ),
+                dcc.Upload(
+                    id='nova-analise',
+                    children=html.Div([icone_colorido('NewAnalysis_icon.png'), html.Span('Nova análise', className='toolbar-tooltip')]),
+                    className='toolbar-upload', disabled=sem_arquivo,
+                    multiple=False,
+                ),
+                dcc.Upload(
+                    id='nova-amostra',
+                    children=html.Div([icone_colorido('SampleData_icon.png'), html.Span('Nova Amostragem', className='toolbar-tooltip')]),
+                    className='toolbar-upload', disabled=sem_arquivo,
+                    multiple=False,
+                ),
+                dcc.Upload(
+                    id='fundir-arquivos',
+                    children=html.Div([icone_colorido('MergeData_icon.png'), html.Span('Fundir arquivos', className='toolbar-tooltip')]),
+                    className='toolbar-upload', disabled=menos_de_2_arquivos,
+                    multiple=False,
+                ),
+                dcc.Upload(
+                    id='exportar-grafico',
+                    children=html.Div([icone_colorido('ExportGraph_icon.png'), html.Span('Salvar gráfico', className='toolbar-tooltip')]),
+                    className='toolbar-upload', disabled=sem_grafico,
+                    multiple=False,
+                ),
+                dcc.Upload(
+                    id='exportar-dados',
+                    children=html.Div([icone_colorido('ExportData_icon.png'), html.Span('Exportar dados', className='toolbar-tooltip')]),
+                    className='toolbar-upload', disabled=sem_arquivo,
+                    multiple=False,
+                ),
+            ]),
+
+            # Prompt 'Confirmar seleção?' — nasce escondido
+            # (style display:none; ver iniciar_selecao_corte/
+            # registrar_clique_corte em callbacks.py, que só o revela
+            # depois do SEGUNDO clique no gráfico, quando os dois cortes
+            # já estão marcados). Fica ao lado dos ícones (não no
+            # rodapé) porque é uma decisão sobre a AÇÃO da toolbar que
+            # está em andamento, não uma mensagem passageira do mago.
+            html.Div(
+                id='toolbar-confirmacao-corte',
+                className='toolbar-confirmacao',
+                style={'display': 'none'},
+                children=[
+                    html.Span('🧙‍♂️', className='toolbar-confirmacao-mago'),
+                    html.Span('Confirmar seleção?', className='toolbar-confirmacao-texto'),
+                    html.Button('✓', id='corte-confirmar', className='toolbar-confirmacao-btn confirmar', n_clicks=0, title='Confirmar'),
+                    html.Button('✕', id='corte-cancelar', className='toolbar-confirmacao-btn cancelar', n_clicks=0, title='Cancelar'),
+                ],
             ),
         ]),
 
         html.Div(className='corpo', children=[
 
-            html.Div(className='sidebar', children=[
+            html.Div(id='sidebar-principal', className='sidebar', children=[
                 html.Div(className='abas-wrapper', children=[
                     html.Button('‹', id='aba-nav-esquerda', className='aba-nav-btn', n_clicks=0),
                     html.Div(id='container-abas-chrome', className='tabs-chrome-container'),
