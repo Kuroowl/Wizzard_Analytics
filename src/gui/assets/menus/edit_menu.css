@@ -42,6 +42,24 @@
   border-left: 1px solid var(--cor-borda);
   padding: 16px;
   overflow-y: auto;
+  /* 'overflow-x: hidden' EXPLÍCITO — mesmo ajuste já feito em .sidebar
+     (file_menu.css) pro mesmo cenário. Pela spec de CSS, quando um dos
+     dois eixos (aqui 'overflow-y') não é 'visible' e o outro é deixado
+     no padrão 'visible', o navegador troca o 'visible' por 'auto'
+     também — ou seja, sem esta linha o painel JÁ nascia com
+     'overflow-x' se comportando como 'auto', só que escondido: bastava
+     o conteúdo ficar mais alto que o painel (abrindo a seção 'Curva',
+     que sozinha já é mais alta que o resto) pra aparecer a barra de
+     rolagem VERTICAL — e a de rolagem vertical toma um pouco da
+     largura útil do painel (o 'scrollbar gutter'), o que é o
+     suficiente pra empurrar o conteúdo 1-2px além da largura
+     disponível e disparar TAMBÉM a horizontal, mesmo sem existir nada
+     de fato mais à direita pra rolar até (por isso ela sumia ao
+     recolher 'Curva' de volta: menos altura -> sem scroll vertical ->
+     sem esse aperto de largura -> sem gatilho pra horizontal também).
+     'hidden' aqui é seguro porque nenhum controle do painel foi
+     desenhado pra precisar rolar de lado. */
+  overflow-x: hidden;
 }
 
 /* Conteúdo em si — nasce centralizado (título + placeholder + botão

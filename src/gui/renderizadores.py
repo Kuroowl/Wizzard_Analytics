@@ -896,7 +896,12 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
                 title='Fechar edição', n_clicks=0,
             ),
         ]),
-        _secao_colapsavel('curva', 'Curva', conteudo_curva, aberta=True),
+        # 'aberta=False': o painel de edição nasce com TODAS as seções
+        # recolhidas (igual 'Eixos'/'Ticks'/'Outros' logo abaixo, que
+        # já não passavam 'aberta' nenhum = usam o padrão False de
+        # _secao_colapsavel) — 'Curva' não tem mais tratamento especial
+        # de vir aberta por padrão.
+        _secao_colapsavel('curva', 'Curva', conteudo_curva),
         _secao_colapsavel('eixos', 'Eixos', conteudo_eixos),
         _secao_colapsavel('ticks', 'Ticks', conteudo_ticks),
         _secao_colapsavel('outros', 'Outros', conteudo_outros),
