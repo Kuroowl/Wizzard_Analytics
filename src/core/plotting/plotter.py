@@ -263,6 +263,23 @@ def _aplicar_preferencias_grafico(fig, preferencias):
         interruptor 'Grid' em 'Outros', não um por eixo).
       - 'cor_fundo' -> plot_bgcolor (a ÁREA de plotagem; 'paper_bgcolor',
         a moldura ao redor, continua a cargo do template).
+
+    MARGENS ADAPTATIVAS (título do gráfico e título dos eixos):
+      construir_figura_serie_temporal fixa margem BASE pequena
+      (margin=dict(l=50, r=20, t=20, b=40)) pensada pra um gráfico SEM
+      título nenhum. Quando o usuário digita um título (do gráfico ou
+      de um eixo) e/ou aumenta o tamanho da fonte dele, esse texto
+      pode precisar de mais espaço do que essa margem fixa reserva —
+      sem nenhum ajuste, o texto simplesmente é desenhado por cima da
+      borda e fica cortado visualmente.
+      'automargin=True' resolve isso sem a gente ter que estimar
+      largura/altura de texto na mão (o que exigiria conhecer a fonte
+      exata do navegador, o que não dá pra saber no lado do Python):
+      é o próprio Plotly, já no navegador, que mede o texto renderizado
+      e EXPANDE a margem correspondente (reduzindo a área de plotagem)
+      até que o título — do gráfico ou de um eixo — caiba inteiro,
+      SEM precisar mexer nos valores fixos de 'margin' acima (eles
+      continuam servindo de mínimo pro caso comum, sem título nenhum).
     """
     if preferencias.titulo.texto:
         fig.update_layout(title=dict(
@@ -270,6 +287,11 @@ def _aplicar_preferencias_grafico(fig, preferencias):
             font=dict(size=preferencias.titulo.fonte),
             x=0.5, xanchor='center',
             pad=dict(b=max(0, preferencias.titulo.espacamento)),
+            # Deixa o título do gráfico empurrar 'margin.t' quando a
+            # fonte escolhida for grande demais pra margem base de 20px
+            # — sem isso, um título com fonte grande fica com o topo
+            # cortado pela borda do container do gráfico.
+            automargin=True,
         ))
 
     for prefs_texto, atualizar_eixo, prefs_limite in (
@@ -336,6 +358,15 @@ def _aplicar_preferencias_grafico(fig, preferencias):
             tickfont=dict(size=eixo_prefs.fonte_labels),
             tickwidth=divisoes.get('largura'),
             ticklen=divisoes.get('comprimento'),
+            # Mesma ideia do 'automargin' do título do gráfico (ver
+            # docstring acima): quando o usuário digita um título de
+            # eixo (X ou Y) e/ou aumenta a fonte dele (título ou dos
+            # números de tick), esse texto some sob a margem fixa base
+            # (l=50/b=40) se não couber nela. Aplicado aqui — não no
+            # loop de cima que só roda quando há texto de título — pra
+            # também cobrir o caso de rótulos de TICK grandes demais,
+            # mesmo sem título de eixo nenhum definido.
+            automargin=True,
         )
         if dtick:
             kwargs_eixo['tick0'] = tick0
