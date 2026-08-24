@@ -851,29 +851,53 @@ document.addEventListener('DOMContentLoaded', function () {
     iniciarBarraCarregamentoRodape();
 
     function iniciarBarraCarregamentoToolbar() {
-        // MESMO padrão da barra do rodapé (iniciarBarraCarregamentoRodape,
+        // MESMO padrão VISUAL da barra do rodapé (iniciarBarraCarregamentoRodape,
         // logo acima — reaproveita literalmente as classes 'rodape-
         // carregando'/'rodape-concluido' e a keyframe 'rodape-progresso-
-        // concluir', já que o efeito visual é idêntico, só muda ONDE
-        // aparece), só que na barra do PROMPT de corte ('Confirmar
-        // seleção?' — ver toolbar-confirmacao-progresso em layout.py),
-        // não na seção central do rodapé. Único sinal novo: só ativa se
-        // o prompt estiver VISÍVEL no momento (senão qualquer outro
-        // carregamento de 'container-grafico' — trocar de aba, marcar
-        // canal — faria essa barra picar sem sentido nenhum, já que o
-        // prompt nem aparece nesses casos).
+        // concluir'), mas o GATILHO é diferente por pedido explícito:
+        // ANTES essa barra reagia ao 'data-dash-is-loading' de
+        // 'container-grafico' (mesmo sinal do rodapé) — só que o
+        // callback que desenha a guia do 2º clique
+        // (registrar_clique_corte, callbacks.py) processa tão rápido
+        // que, na prática, esse atributo virava true/false quase no
+        // mesmo instante em que o prompt passava de 'display:none' pra
+        // 'display:flex' (registrar_clique_corte muda os dois no MESMO
+        // callback), então o observer quase nunca pegava as duas
+        // condições ao mesmo tempo — a barra praticamente nunca
+        // aparecia no momento certo, e o que se via (ou nem isso) era
+        // só o reflexo do carregamento do clique de CONFIRMAR/CANCELAR,
+        // que é um momento tardio demais.
+        //
+        // AGORA a barra observa o PRÓPRIO 'style.display' do prompt
+        // ('#toolbar-confirmacao-corte', alternado por
+        // iniciar_selecao_corte/registrar_clique_corte/confirmar_corte/
+        // cancelar_corte em callbacks.py) — dispara exatamente quando o
+        // prompt passa a existir na tela (o 2º clique, tanto em
+        // 'Aparar dados' quanto em 'Excluir dados'), não quando um
+        // callback específico termina de processar. E o grupo
+        // mago/texto/botões ('.toolbar-confirmacao-conteudo', ver
+        // layout.py/icon_menu.css) fica com opacity:0 enquanto a barra
+        // "carrega" — só é revelado DEPOIS dela terminar, de propósito:
+        // a barra puxa o olhar do usuário pra cima ANTES dele ler a
+        // pergunta, não ao mesmo tempo.
         function tentar() {
-            var alvo = document.getElementById('container-grafico');
             var prompt = document.getElementById('toolbar-confirmacao-corte');
             var barra = document.getElementById('toolbar-confirmacao-progresso');
-            if (!alvo || !prompt || !barra) {
+            var conteudo = prompt && prompt.querySelector('.toolbar-confirmacao-conteudo');
+            if (!prompt || !barra || !conteudo) {
                 setTimeout(tentar, 300);
                 return;
             }
 
-            var progresso = 0;
             var intervalo = null;
-            var estavaCarregando = false;
+            var promptEstavaVisivel = false;
+
+            // Duração fixa da "carga" antes de revelar mago/texto/
+            // botões — não depende mais de nenhum callback do Dash (ver
+            // comentário acima), então um valor fixo é suficiente: só
+            // precisa dar tempo do olho notar o brilho crescendo antes
+            // do texto/botões aparecerem.
+            var DURACAO_CARGA_MS = 500;
 
             function promptVisivel() {
                 return prompt.style.display !== 'none';
@@ -883,39 +907,56 @@ document.addEventListener('DOMContentLoaded', function () {
                 barra.style.width = pct + '%';
             }
 
-            function iniciarProgresso() {
+            function tocarBarra() {
                 clearInterval(intervalo);
                 barra.classList.remove('rodape-concluido');
                 barra.classList.add('rodape-carregando');
-                progresso = 0;
+                conteudo.classList.add('toolbar-confirmacao-conteudo-escondido');
                 definirLargura(0);
+
+                var inicio = Date.now();
                 intervalo = setInterval(function () {
-                    var passo = (90 - progresso) * 0.08;
-                    progresso = Math.min(90, progresso + Math.max(passo, 0.4));
-                    definirLargura(progresso);
-                }, 120);
+                    var decorrido = Date.now() - inicio;
+                    definirLargura(Math.min(100, (decorrido / DURACAO_CARGA_MS) * 100));
+                    if (decorrido >= DURACAO_CARGA_MS) {
+                        clearInterval(intervalo);
+                        barra.classList.remove('rodape-carregando');
+                        barra.classList.add('rodape-concluido');
+                        conteudo.classList.remove('toolbar-confirmacao-conteudo-escondido');
+                        // Mesmo padrão do rodapé: a barra fica cheia e
+                        // some por transparência (keyframe
+                        // 'rodape-progresso-concluir'), nunca encolhendo
+                        // de volta — só depois que a animação termina é
+                        // que a largura é resetada pra 0 (já com
+                        // opacity 0, então o reset não aparece).
+                        setTimeout(function () {
+                            barra.classList.remove('rodape-concluido');
+                            definirLargura(0);
+                        }, 700);
+                    }
+                }, 30);
             }
 
-            function concluirProgresso() {
+            function resetar() {
+                // Prompt sumiu (confirmou/cancelou) antes da barra
+                // terminar de "carregar" (seleção bem rápida) — limpa
+                // tudo sem deixar a barra/observação presa num estado
+                // parcial, pronta pra tocar do zero na próxima seleção.
                 clearInterval(intervalo);
-                barra.classList.remove('rodape-carregando');
-                definirLargura(100);
-                barra.classList.add('rodape-concluido');
-                setTimeout(function () {
-                    barra.classList.remove('rodape-concluido');
-                    definirLargura(0);
-                }, 700);
+                barra.classList.remove('rodape-carregando', 'rodape-concluido');
+                definirLargura(0);
+                conteudo.classList.remove('toolbar-confirmacao-conteudo-escondido');
             }
 
             new MutationObserver(function () {
-                var carregando = alvo.getAttribute('data-dash-is-loading') === 'true' && promptVisivel();
-                if (carregando && !estavaCarregando) {
-                    iniciarProgresso();
-                } else if (!carregando && estavaCarregando) {
-                    concluirProgresso();
+                var visivel = promptVisivel();
+                if (visivel && !promptEstavaVisivel) {
+                    tocarBarra();
+                } else if (!visivel && promptEstavaVisivel) {
+                    resetar();
                 }
-                estavaCarregando = carregando;
-            }).observe(alvo, { attributes: true, attributeFilter: ['data-dash-is-loading'] });
+                promptEstavaVisivel = visivel;
+            }).observe(prompt, { attributes: true, attributeFilter: ['style'] });
         }
         tentar();
     }

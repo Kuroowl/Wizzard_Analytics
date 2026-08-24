@@ -243,11 +243,42 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
   padding: 4px 14px;
   margin-left: 4px;
   border-left: 1px solid rgba(231, 236, 234, 0.18);
+  /* 'border-right' simétrico ao 'border-left' acima — fecha o prompt
+     inteiro (mago + texto + botões) entre dois limitadores "|...|",
+     igual ao pedido original ("igual ao que tem no início dela"): o
+     traço da esquerda já separava o prompt dos ícones da toolbar, mas
+     faltava o da direita depois do botão 'Cancelar', deixando o prompt
+     "aberto" só de um lado. */
+  border-right: 1px solid rgba(231, 236, 234, 0.18);
   overflow: hidden; /* a barra de progresso não vaza pra fora do prompt */
+}
+
+/* Grupo mago+texto+botões — 'gap'/'align-items' que antes viviam em
+   '.toolbar-confirmacao' foram pra cá (o pai passou a ter só 2 filhos
+   em fluxo: este wrapper e a barra de progresso, que é
+   position:absolute e não entra no fluxo). É este wrapper (não cada
+   filho individualmente) que iniciarBarraCarregamentoToolbar
+   (scripts_js.py) esconde por um instante assim que o prompt aparece
+   — ver '.toolbar-confirmacao-conteudo-escondido' logo abaixo — pra a
+   barra de progresso (por trás, ver '.toolbar-confirmacao-progresso')
+   chamar atenção PRIMEIRO, antes do usuário ler a pergunta. A
+   transição de opacidade some SEM mudar o tamanho do prompt (o
+   wrapper continua ocupando o mesmo espaço, só fica invisível), então
+   nada pula de lugar quando o conteúdo é revelado. */
+.toolbar-confirmacao-conteudo {
+  position: relative; /* fica acima da barra de progresso (z-index implícito por empilhamento) */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+
+.toolbar-confirmacao-conteudo.toolbar-confirmacao-conteudo-escondido {
+  opacity: 0;
 }
 
 /* Tamanho perto dos ícones coloridos da toolbar (48px, ver
@@ -296,14 +327,19 @@
 }
 
 /* Barra de carregamento do prompt de corte — MESMO padrão visual da
-   barra do rodapé ('.rodape-progresso-central', status_menu.css),
-   reaproveitando o mesmo sinal (o atributo 'data-dash-is-loading' que
-   o dcc.Loading de 'container-grafico' já liga/desliga sozinho — ver
-   iniciarBarraCarregamentoToolbar em scripts_js.py), só que
-   posicionada aqui (mago -> botões) em vez da seção central do
-   rodapé: dá pro usuário perceber que "algo está acontecendo" bem no
-   lugar onde ele acabou de interagir (2º clique no gráfico), sem
-   precisar olhar pro rodapé. */
+   barra do rodapé ('.rodape-progresso-central', status_menu.css:
+   reaproveita literalmente as classes 'rodape-carregando'/
+   'rodape-concluido' e a keyframe 'rodape-progresso-concluir'), mas o
+   GATILHO é diferente: não é mais o carregamento do Dash
+   ('data-dash-is-loading'), e sim a própria transição de
+   'style.display' do prompt pra 'flex' (ver
+   iniciarBarraCarregamentoToolbar em scripts_js.py) — ou seja, ela
+   toca exatamente no instante em que o prompt aparece na tela (logo
+   após o 2º clique que marca o fim do recorte), não quando um
+   callback específico termina de processar. Posicionada aqui (mago ->
+   botões) em vez da seção central do rodapé: dá pro usuário perceber
+   que "algo está acontecendo" bem no lugar onde ele acabou de
+   interagir (2º clique no gráfico), sem precisar olhar pro rodapé. */
 .toolbar-confirmacao-progresso {
   position: absolute;
   inset: 0;

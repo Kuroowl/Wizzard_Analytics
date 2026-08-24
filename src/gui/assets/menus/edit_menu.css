@@ -77,23 +77,34 @@
 }
 
 /* --- estado "ativo" (usuário clicou em 'Iniciar edição') ---
-   IMPORTANTE: isto NÃO troca a cor de fundo do painel (a cor continua
-   sendo var(--cor-fundo-grafico) o tempo todo) — só remove o watermark
-   de pintura.svg, porque ele fica poluído por baixo de dropdown/slider/
-   color-picker. O que muda de verdade ao clicar em 'Iniciar edição' é o
-   CONTEÚDO: painel-direito-conteudo passa a mostrar o card 'Curva' de
-   verdade (ver abrir_painel_edicao em callbacks.py), não um efeito
-   visual solto. Fechar o gráfico, trocar de aba ou clicar no '✕' do
-   próprio card volta tudo ao estado normal (ver fechar_grafico /
-   gerenciar_abas / fechar_edicao_curva). */
-.painel-direito.ativa {
-  background-image: none;
-}
+   O watermark de pintura.svg (herdado de '.painel-direito', ver acima)
+   agora fica ligado em TODAS as situações — repouso, editando e
+   também logo depois de confirmar/cancelar 'Aparar dados'/'Excluir
+   dados' — a pedido explícito: uma versão anterior desligava o
+   watermark aqui (background-image: none) achando que ele ficava
+   "poluído" por baixo de dropdown/slider/color-picker, mas a decisão
+   foi manter o fundo sempre visível, os controles simplesmente ficam
+   POR CIMA dele (mesmo espírito visual do card 'Curva' — ver
+   .painel-edicao-secao logo abaixo, que já tem fundo opaco próprio
+   pra não brigar com o watermark por trás). O que muda de verdade ao
+   clicar em 'Iniciar edição' é só o CONTEÚDO: painel-direito-conteudo
+   passa a mostrar o card 'Curva' de verdade (ver abrir_painel_edicao
+   em callbacks.py), não um efeito visual de fundo. Fechar o gráfico,
+   trocar de aba ou clicar no '✕' do próprio card volta tudo ao estado
+   normal (ver fechar_grafico / gerenciar_abas / fechar_edicao_curva).
 
-/* 'iniciar-edicao' agora é um elemento FIXO de .painel-direito (ver
-   layout.py) — sempre existe no DOM, então nunca quebra os callbacks
-   que setam seu 'disabled'. A visibilidade dele (some quando o card
-   'Curva' está aberto) é só isto: display:none via CSS. */
+   IMPORTANTE — os dois "modos" do painel (repouso: watermark + botão
+   'Iniciar edição' / ativo: watermark + guias recolhíveis) são
+   MUTUAMENTE EXCLUSIVOS por design: toda dupla de Outputs que muda
+   'painel-direito-conteudo' (children) também muda 'painel-direito'
+   (className) NO MESMO callback (abrir_painel_edicao,
+   fechar_edicao_curva, e o ciclo de 'Aparar dados'/'Excluir dados' —
+   ver iniciar_selecao_corte/confirmar_corte/cancelar_corte em
+   callbacks.py, que agora preservam o 'ativo' de antes da seleção em
+   vez de forçar False). Se algum dia aparecer botão E guias juntos na
+   tela ao mesmo tempo, é sinal de que algum callback novo desalinhou
+   esse par — nunca dá pra corrigir só no CSS, os dois Outputs
+   precisam viajar juntos. */
 .painel-direito.ativa .botao-iniciar-edicao {
   display: none;
 }

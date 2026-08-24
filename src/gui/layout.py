@@ -147,17 +147,33 @@ def montar_layout(estado):
                 className='toolbar-confirmacao',
                 style={'display': 'none'},
                 children=[
-                    # Barra de "algo está acontecendo" — mesmo padrão da
-                    # barra do rodapé, ver iniciarBarraCarregamentoToolbar
-                    # em scripts_js.py e '.toolbar-confirmacao-progresso'
-                    # em icon_menu.css. Fica ATRÁS do mago/texto/botões
-                    # (position:absolute + os outros filhos com z-index
-                    # implícito por cima via 'position: relative').
+                    # Barra de "algo está acontecendo" — mesmo padrão
+                    # visual da barra do rodapé (reaproveita as classes
+                    # 'rodape-carregando'/'rodape-concluido'), mas quem
+                    # dispara ela agora é a PRÓPRIA transição deste
+                    # 'style.display' pra 'flex' (ver
+                    # iniciarBarraCarregamentoToolbar em scripts_js.py) —
+                    # não mais o carregamento do Dash. Fica ATRÁS do
+                    # grupo mago/texto/botões (position:absolute + o
+                    # grupo com z-index implícito por cima via
+                    # 'position: relative').
                     html.Div(id='toolbar-confirmacao-progresso', className='toolbar-confirmacao-progresso'),
-                    html.Span('🧙‍♂️', className='toolbar-confirmacao-mago'),
-                    html.Span('Confirmar seleção?', className='toolbar-confirmacao-texto'),
-                    html.Button('✓', id='corte-confirmar', className='toolbar-confirmacao-btn confirmar', n_clicks=0, title='Confirmar'),
-                    html.Button('✕', id='corte-cancelar', className='toolbar-confirmacao-btn cancelar', n_clicks=0, title='Cancelar'),
+                    # Mago + texto + botões agrupados num wrapper só —
+                    # é ELE (não cada filho individualmente) que o JS
+                    # esconde por um instante assim que o prompt aparece
+                    # e revela só depois da barra "carregar" (ver
+                    # '.toolbar-confirmacao-conteudo' em icon_menu.css),
+                    # pra a barra chamar atenção PRIMEIRO, antes do
+                    # usuário ler a pergunta.
+                    html.Div(
+                        className='toolbar-confirmacao-conteudo',
+                        children=[
+                            html.Span('🧙‍♂️', className='toolbar-confirmacao-mago'),
+                            html.Span('Confirmar seleção?', className='toolbar-confirmacao-texto'),
+                            html.Button('✓', id='corte-confirmar', className='toolbar-confirmacao-btn confirmar', n_clicks=0, title='Confirmar'),
+                            html.Button('✕', id='corte-cancelar', className='toolbar-confirmacao-btn cancelar', n_clicks=0, title='Cancelar'),
+                        ],
+                    ),
                 ],
             ),
         ]),

@@ -61,9 +61,38 @@ def _estados_toolbar(estado, aba_ativa):
     return sem_arquivo, sem_2_arquivos, sem_grafico_da_aba
 
 
-def _classe_painel_direito(ativo):
-    """Classe do painel de edição: 'ativa' só quando o usuário clica em 'Iniciar edição'."""
-    return 'painel-direito ativa' if ativo else 'painel-direito'
+def _classe_painel_direito(ativo=False, selecionando=False):
+    """
+    Classe do painel de edição: combina os DOIS estados independentes
+    que ele pode ter ao mesmo tempo:
+      - 'ativa' -> o formulário de edição está aberto (ligado só por
+        'Iniciar edição'/'✕', ver abrir_painel_edicao/fechar_edicao_curva).
+      - 'area-inativa-selecao' -> borrado/bloqueado durante uma seleção
+        de corte em andamento ('Aparar dados'/'Excluir dados').
+
+    Os dois toggles são INDEPENDENTES: uma seleção de corte pode
+    começar com o painel de edição aberto OU fechado, e nos dois casos
+    ela precisa voltar EXATAMENTE pro mesmo estado de antes ao
+    terminar (confirmar ou cancelar a seleção) — nunca forçando
+    'ativo=False' de propósito. Antes, iniciar_selecao_corte e
+    _restaurar_apos_selecao (mais abaixo) escreviam a className do
+    painel na mão ('painel-direito area-inativa-selecao' /
+    'painel-direito'), descartando a classe 'ativa' sempre que ela
+    estivesse presente — por isso o botão 'Iniciar edição' reaparecia
+    (some só via '.painel-direito.ativa .botao-iniciar-edicao') e o
+    título 'Opções do gráfico' + as guias recolhíveis, que continuavam
+    no DOM (painel-direito-conteudo não é reconstruído nesse fluxo),
+    voltavam a ficar centralizados (a regra de esticar/alinhar à
+    esquerda também só vale sob '.ativa') assim que o usuário
+    completava a seleção de 'Aparar dados' com o painel de edição
+    aberto.
+    """
+    classes = ['painel-direito']
+    if ativo:
+        classes.append('ativa')
+    if selecionando:
+        classes.append('area-inativa-selecao')
+    return ' '.join(classes)
 
 
 def _valores_rodape(estado, aba_ativa):
@@ -506,9 +535,10 @@ def registrar_callbacks(app, estado):
         Input('aparar-dados', 'n_clicks'),
         Input('excluir-dados', 'n_clicks'),
         State('aba-ativa-store', 'data'),
+        State('painel-direito', 'className'),
         prevent_initial_call=True,
     )
-    def iniciar_selecao_corte(n_clicks_aparar, n_clicks_excluir, aba_ativa):
+    def iniciar_selecao_corte(n_clicks_aparar, n_clicks_excluir, aba_ativa, classe_painel_atual):
         """
         Liga o modo de seleção — de 'Aparar dados' OU 'Excluir dados'
         (mesmo mecanismo de 2 cliques pros dois; 'ctx.triggered_id' diz
@@ -542,8 +572,19 @@ def registrar_callbacks(app, estado):
         if not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
 
+        # Preserva se o painel de edição JÁ estava aberto antes de
+        # começar a seleção — 'painel_ativo' viaja dentro de
+        # 'corte-selecao-store' até confirmar_corte/cancelar_corte
+        # (mais abaixo), pra devolver o painel exatamente a este mesmo
+        # estado ao terminar, em vez de forçar fechado (ver docstring
+        # de _classe_painel_direito).
+        painel_ativo = bool(classe_painel_atual) and 'ativa' in classe_painel_atual.split()
+
         tipo = 'aparar' if gatilho == 'aparar-dados' else 'excluir'
-        dados_selecao = {'tipo': tipo, 'aba': aba_ativa, 'primeiro': None, 'segundo': None}
+        dados_selecao = {
+            'tipo': tipo, 'aba': aba_ativa, 'primeiro': None, 'segundo': None,
+            'painel_ativo': painel_ativo,
+        }
         if tipo == 'aparar':
             mensagem = '🧙‍♂️: " Clique no gráfico para marcar o INÍCIO do recorte. "'
         else:
@@ -552,7 +593,7 @@ def registrar_callbacks(app, estado):
         return (
             dados_selecao,
             'sidebar area-inativa-selecao',
-            'painel-direito area-inativa-selecao',
+            _classe_painel_direito(ativo=painel_ativo, selecionando=True),
             'toolbar-icones inativo ferramenta-' + tipo,
             'area-grafico-container corte-ativo',
             mensagem,
@@ -677,16 +718,22 @@ def registrar_callbacks(app, estado):
     #     fig = aplicar_guias_corte(arquivo.figura, primeiro=primeiro, segundo=segundo, arrastavel=True, modo=tipo)
     #     return dados_selecao, fig
 
-    def _restaurar_apos_selecao():
+    def _restaurar_apos_selecao(painel_ativo=False):
         """
         Devolve os 5 valores que desligam o modo de seleção — comuns a
         confirmar_corte e cancelar_corte (só a figura final e a
         mensagem mudam entre os dois, ver cada callback abaixo).
+
+        'painel_ativo' precisa vir de 'dados_selecao.get("painel_ativo")'
+        (gravado lá atrás em iniciar_selecao_corte) — NUNCA fixo em
+        False aqui, senão o painel de edição sempre fecha ao
+        confirmar/cancelar um corte, mesmo quando estava aberto antes
+        de a seleção começar (ver docstring de _classe_painel_direito).
         """
         return (
             None,
             'sidebar',
-            _classe_painel_direito(ativo=False),
+            _classe_painel_direito(ativo=painel_ativo),
             'toolbar-icones',
             'area-grafico-container',
             {'display': 'none'},
@@ -742,7 +789,8 @@ def registrar_callbacks(app, estado):
         arquivo.figura = fig
         container_grafico = renderizar_grafico_com_fechar(fig)
 
-        _, sidebar, painel, icones, grafico_classe, prompt_estilo = _restaurar_apos_selecao()
+        _, sidebar, painel, icones, grafico_classe, prompt_estilo = _restaurar_apos_selecao(
+            painel_ativo=dados_selecao.get('painel_ativo', False))
         return None, sidebar, painel, icones, grafico_classe, prompt_estilo, container_grafico, mensagem
 
     @app.callback(
@@ -775,7 +823,8 @@ def registrar_callbacks(app, estado):
         fig = arquivo.figura if arquivo and arquivo.grafico_gerado else no_update
         mensagem = '🧙‍♂️: " Seleção cancelada. Nada foi alterado. "'
 
-        _, sidebar, painel, icones, grafico_classe, prompt_estilo = _restaurar_apos_selecao()
+        _, sidebar, painel, icones, grafico_classe, prompt_estilo = _restaurar_apos_selecao(
+            painel_ativo=dados_selecao.get('painel_ativo', False))
         return None, sidebar, painel, icones, grafico_classe, prompt_estilo, fig, mensagem
 
     @app.callback(
