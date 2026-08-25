@@ -498,13 +498,32 @@ def registrar_callbacks(app, estado):
                 True, painel_edicao, novo_mapa)
 
     # ------------------------------------------------------------------
-    # Renomear canal (lápis ✏️ na lista de canais) — 2 callbacks: um
-    # LIGA o modo de edição (troca o rótulo estático por um <input>,
-    # ver alternar_edicao_canal), outro CONFIRMA (Enter ou clicar fora,
-    # ver confirmar_edicao_canal). 'canal-em-edicao-store' (layout.py)
-    # é quem guarda qual linha está em edição agora — só uma por vez,
-    # já que a lista inteira (lista-canais-aba) é reconstruída a cada
-    # passo (mesmo padrão de gerenciar_selecao_canais acima).
+    # Renomear canal (lápis ✏️ na lista de canais) — UM callback só,
+    # 'gerenciar_edicao_canal', cobre os 3 jeitos de entrar/sair do modo
+    # de edição:
+    #   1) clicar no lápis de uma linha PARADA -> abre a edição nela
+    #      (salvando antes qualquer edição pendente de OUTRA linha, se
+    #      houver — só uma linha em edição por vez).
+    #   2) clicar no lápis da MESMA linha que já está em edição -> fecha
+    #      e salva (é o "toggle": pressionado = aberto).
+    #   3) apertar Enter dentro do campo -> confirma e fecha.
+    #
+    # ANTES existia um 2º callback separado reagindo também a 'n_blur'
+    # (perder o foco/clicar fora) pra fechar a edição — foi removido de
+    # propósito: o Dash dispara 'n_blur' (e qualquer prop observada por
+    # um Input de padrão coringa) como "mudança" assim que o PRÓPRIO
+    # <input> nasce pela primeira vez (mesmo mecanismo de "disparo
+    # fantasma" de n_clicks em componentes recém-criados, ver
+    # _processar_cliques_padrao acima) — então bastava clicar no lápis
+    # pra abrir a edição que ela imediatamente "fechava sozinha" de
+    # novo, como se um clique-fora tivesse acontecido na hora. Tirando
+    # 'n_blur' da equação (só lápis de novo ou Enter fecham agora), esse
+    # vetor de disparo fantasma nem existe mais pra esse fluxo.
+    #
+    # 'canal-em-edicao-store' (layout.py) guarda qual linha está em
+    # edição agora — só uma por vez, já que a lista inteira
+    # (lista-canais-aba) é reconstruída a cada passo (mesmo padrão de
+    # gerenciar_selecao_canais acima).
     #
     # O rótulo gravado por Arquivo.renomear_canal (src/core/arquivo.py)
     # é o mesmo lido em TODO lugar que hoje já chama 'arquivo.rotulo(
@@ -513,43 +532,21 @@ def registrar_callbacks(app, estado):
     # painel de edição da curva (ver opcoes_dado em
     # renderizar_painel_edicao) — então renomear aqui já é a fonte
     # única de verdade pros dois lugares, sem precisar duplicar o nome
-    # em nenhum Store à parte. Só precisamos redesenhar os dois depois
-    # de renomear, o que os dois callbacks abaixo já fazem.
+    # em nenhum Store à parte.
     # ------------------------------------------------------------------
 
-    @app.callback(
-        Output('lista-canais-aba', 'children', allow_duplicate=True),
-        Output('canal-em-edicao-store', 'data', allow_duplicate=True),
-        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
-        Input({'type': 'botao-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
-        State('aba-ativa-store', 'data'),
-        State('nclicks-padrao-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def alternar_edicao_canal(_n_clicks_list, aba_ativa, nclicks_anteriores):
+    def _valor_por_id(grupo_lista, alvo_id):
         """
-        Clique no lápis de UMA linha específica: grava {'arquivo',
-        'coluna'} em 'canal-em-edicao-store' e reconstrói a lista com
-        essa linha (e só essa) nascendo com o <input> editável — ver
-        'canal_em_edicao' em renderizar_colunas_da_aba_ativa
-        (renderizadores.py).
-
-        Mesmo cuidado de gerenciar_selecao_canais: 'lista-canais-aba'
-        pode ser reconstruída por OUTRO callback (gerar/fechar gráfico,
-        trocar de aba, upload), remontando o lápis com 'n_clicks=0' —
-        sem comparar contra o último valor visto (ver
-        _processar_cliques_padrao), isso entraria em modo de edição
-        sozinho no primeiro canal, sem clique nenhum do usuário.
+        Acha, dentro de UM grupo de 'ctx.states_list' (a lista de
+        {'id','property','value'} correspondente a UM State de padrão
+        coringa), o valor do componente cujo id bate com 'alvo_id'.
+        Devolve None se não achar (linha já não existe mais na tela).
         """
-        if not aba_ativa:
-            raise PreventUpdate
-
-        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
-        if not gatilho_id or gatilho_id.get('type') != 'botao-editar-canal':
-            raise PreventUpdate
-
-        canal_em_edicao = {'arquivo': gatilho_id.get('arquivo'), 'coluna': gatilho_id.get('coluna')}
-        return renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao), canal_em_edicao, novo_mapa
+        chave_alvo = json.dumps(alvo_id, sort_keys=True)
+        for item in (grupo_lista or []):
+            if json.dumps(item.get('id'), sort_keys=True) == chave_alvo:
+                return item.get('value')
+        return None
 
     @app.callback(
         Output('lista-canais-aba', 'children', allow_duplicate=True),
@@ -557,53 +554,60 @@ def registrar_callbacks(app, estado):
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
         Output('painel-direito-conteudo', 'children', allow_duplicate=True),
+        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
+        Input({'type': 'botao-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         Input({'type': 'input-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_submit'),
-        Input({'type': 'input-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_blur'),
         State({'type': 'input-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'value'),
         State('aba-ativa-store', 'data'),
         State('canal-em-edicao-store', 'data'),
         State('painel-direito', 'className'),
         State('edicao-curva-dado-atual', 'data'),
+        State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
-    def confirmar_edicao_canal(_n_submit_list, _n_blur_list, valores, aba_ativa,
-                                canal_em_edicao, classe_painel_direito, coluna_em_edicao_painel):
-        """
-        Sai do modo de edição — tanto por Enter ('n_submit') quanto por
-        clicar fora do campo ('n_blur', dispara ao perder o foco) — os
-        dois caem aqui, então SALVAR ao clicar fora é intencional (não
-        um efeito colateral): não tem um jeito de "cancelar" digitando
-        e clicando fora sem salvar, dá pra desfazer só digitando o nome
-        de volta.
-
-        Como só existe UM <input> desse tipo na tela por vez (a lista
-        inteira nasce com no máximo uma linha em edição, ver
-        'canal_em_edicao' em renderizar_colunas_da_aba_ativa), a lista
-        pattern-matched 'valores' (State com ALL) tem no máximo 1 item
-        — é ele que vira o novo nome.
-
-        'canal_em_edicao' (State, não Input) é o guia de verdade sobre
-        QUAL canal está sendo editado — depois que este callback roda
-        uma vez e zera esse Store pra None, uma 2ª notificação
-        (blur nativo do navegador quando o <input> é removido do DOM
-        na troca pra Span, por exemplo) já bate nesse guard e sai sem
-        fazer nada de novo.
-        """
-        if not ctx.triggered or not canal_em_edicao:
+    def gerenciar_edicao_canal(_n_clicks_lapis, _n_submit_input, _valores_input_bruto, aba_ativa,
+                                canal_em_edicao, classe_painel_direito, coluna_em_edicao_painel,
+                                nclicks_anteriores):
+        if not aba_ativa:
             raise PreventUpdate
 
-        arquivo_alvo = canal_em_edicao.get('arquivo')
-        coluna = canal_em_edicao.get('coluna')
-        arquivo = estado.arquivos.get(arquivo_alvo)
-        if not arquivo:
+        # Mesmo cuidado de gerenciar_selecao_canais: tanto o lápis
+        # quanto o <input> são padrão coringa, e 'lista-canais-aba'
+        # pode ser reconstruída por OUTRO callback (gerar/fechar
+        # gráfico, trocar de aba, upload, marcar canal) — sem comparar
+        # contra o último valor visto, uma reconstrução alheia abriria
+        # ou "confirmaria" a edição sozinha, sem clique/Enter nenhum do
+        # usuário.
+        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        if gatilho_id is None:
             raise PreventUpdate
 
-        novo_nome = valores[0] if valores else None
+        # 'ctx.states_list[0]' — não o parâmetro '_valores_input_bruto'
+        # (que o Dash entrega como lista de VALORES soltos, sem id
+        # nenhum junto, pra um State de padrão coringa) — é onde mora o
+        # par {'id', 'value'} de cada campo de renomear atualmente na
+        # tela; é isso que '_valor_por_id' precisa pra achar o valor do
+        # campo certo por arquivo+coluna.
+        grupo_valores_input = ctx.states_list[0] if ctx.states_list else []
+
+        tipo = gatilho_id.get('type')
         mensagem = no_update
         area_grafico = no_update
+        novo_canal_em_edicao = canal_em_edicao
 
-        if novo_nome and novo_nome.strip() and novo_nome.strip() != arquivo.rotulo(coluna):
-            arquivo.renomear_canal(coluna, novo_nome.strip())
+        def _salvar_se_mudou(arquivo_alvo, coluna, novo_nome):
+            """Renomeia só se houver arquivo, texto não-vazio, e o nome
+            for DIFERENTE do rótulo atual — silenciosamente ignora
+            texto vazio/só espaço ou digitar o mesmo nome de novo (sem
+            popup de erro pra um caso tão menor)."""
+            nonlocal mensagem, area_grafico
+            arquivo = estado.arquivos.get(arquivo_alvo)
+            if not arquivo or not novo_nome:
+                return
+            novo_nome = novo_nome.strip()
+            if not novo_nome or novo_nome == arquivo.rotulo(coluna):
+                return
+            arquivo.renomear_canal(coluna, novo_nome)
             mensagem = f'🧙‍♂️: " Canal renomeado para \'{arquivo.rotulo(coluna)}\'. "'
             if arquivo.grafico_gerado:
                 # A legenda do gráfico lê 'arquivo.rotulo(coluna)' na
@@ -614,21 +618,61 @@ def registrar_callbacks(app, estado):
                 fig = construir_figura_serie_temporal(estado, arquivo_alvo)
                 arquivo.figura = fig
                 area_grafico = renderizar_grafico_com_fechar(fig)
-        # nome vazio (só espaço) ou igual ao atual: ignora silenciosamente,
-        # mantém o rótulo antigo — sem popup de erro pra um caso tão
-        # menor quanto "apagou tudo sem querer e clicou fora".
+
+        if tipo == 'input-editar-canal':
+            # Enter dentro do campo -> confirma e fecha. 'canal_em_edicao'
+            # (State) já diz qual linha é essa (só existe um <input>
+            # desse tipo na tela por vez).
+            if not canal_em_edicao:
+                raise PreventUpdate
+            arquivo_alvo, coluna = canal_em_edicao.get('arquivo'), canal_em_edicao.get('coluna')
+            valor = _valor_por_id(grupo_valores_input, gatilho_id)
+            _salvar_se_mudou(arquivo_alvo, coluna, valor)
+            novo_canal_em_edicao = None
+
+        elif tipo == 'botao-editar-canal':
+            arquivo_alvo, coluna = gatilho_id.get('arquivo'), gatilho_id.get('coluna')
+            mesma_linha = (
+                canal_em_edicao
+                and canal_em_edicao.get('arquivo') == arquivo_alvo
+                and canal_em_edicao.get('coluna') == coluna
+            )
+            if mesma_linha:
+                # Lápis clicado de novo NA MESMA linha que já está
+                # aberta -> fecha e salva (o "toggle": pressionado =
+                # aberto). O valor atual do campo está em
+                # 'grupo_valores_input', pelo MESMO id do lápis
+                # (arquivo/coluna iguais, só o 'type' difere).
+                valor = _valor_por_id(
+                    grupo_valores_input, {'type': 'input-editar-canal', 'arquivo': arquivo_alvo, 'coluna': coluna})
+                _salvar_se_mudou(arquivo_alvo, coluna, valor)
+                novo_canal_em_edicao = None
+            else:
+                # Abrindo uma linha nova (ou trocando de linha) — se
+                # havia OUTRA em edição, salva o que estava digitado
+                # nela antes de trocar (mesmo espírito de "clicar fora
+                # salva", só que agora é uma ação EXPLÍCITA do usuário —
+                # clicar em outro lápis — não um blur fantasma).
+                if canal_em_edicao:
+                    valor_anterior = _valor_por_id(grupo_valores_input, {
+                        'type': 'input-editar-canal',
+                        'arquivo': canal_em_edicao.get('arquivo'),
+                        'coluna': canal_em_edicao.get('coluna'),
+                    })
+                    _salvar_se_mudou(canal_em_edicao.get('arquivo'), canal_em_edicao.get('coluna'), valor_anterior)
+                novo_canal_em_edicao = {'arquivo': arquivo_alvo, 'coluna': coluna}
 
         painel_edicao = no_update
         em_edicao_painel = classe_painel_direito and 'ativa' in classe_painel_direito.split()
-        if em_edicao_painel and arquivo_alvo == aba_ativa:
+        if em_edicao_painel and aba_ativa in estado.arquivos:
             # Mesmo raciocínio do gráfico: a caixa 'Dado' do card
             # 'Curva' lê 'arquivo.rotulo(coluna)' pra montar as opções
             # (ver opcoes_dado em renderizar_painel_edicao) — recarrega
             # o card pra essa lista de opções refletir o novo nome.
             painel_edicao = renderizar_painel_edicao(estado, aba_ativa, coluna_em_edicao_painel)
 
-        return (renderizar_colunas_da_aba_ativa(estado, aba_ativa), None,
-                area_grafico, mensagem, painel_edicao)
+        return (renderizar_colunas_da_aba_ativa(estado, aba_ativa, novo_canal_em_edicao),
+                novo_canal_em_edicao, area_grafico, mensagem, painel_edicao, novo_mapa)
 
     @app.callback(
         Output('container-abas-chrome', 'children', allow_duplicate=True),
