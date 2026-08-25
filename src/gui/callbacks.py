@@ -1,3 +1,5 @@
+import json
+
 from dash import Input, Output, State, ctx, ALL, MATCH, no_update
 from dash.exceptions import PreventUpdate
 
@@ -29,8 +31,88 @@ def _clique_real(ctx_triggered):
     verdade serem descartados como fantasma. Bastar existir um gatilho já
     é suficiente aqui, porque cada callback que usa isso confere também o
     `type` do gatilho (`ctx.triggered_id.get('type')`) antes de agir.
+
+    LIMITAÇÃO CONHECIDA: isto NÃO filtra o caso em que a LISTA INTEIRA de
+    componentes casados é reconstruída do zero por OUTRO callback (ex:
+    upload de arquivo reconstrói 'lista-canais-aba', trocar de aba
+    reconstrói 'container-abas-chrome') — nesse caso 'ctx.triggered' vem
+    não-vazio mesmo sem clique nenhum, porque os componentes recém-criados
+    entram no padrão coringa com o valor inicial do Python (n_clicks=0).
+    Pros callbacks expostos a essa reconstrução por TERCEIROS (não só por
+    si mesmos) — gerenciar_abas, gerenciar_selecao_canais,
+    alternar_edicao_canal — use '_processar_cliques_padrao' abaixo, que
+    resolve isso rastreando o ÚLTIMO valor visto por componente.
     """
     return bool(ctx_triggered)
+
+
+def _processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
+    """
+    Alternativa a '_clique_real' pros callbacks de padrão coringa
+    ({'type': ..., 'chave': ALL}) cuja LISTA de componentes casados pode
+    ser reconstruída do zero por OUTRO callback (não só por si mesmo) —
+    ex: 'gerenciar_abas' (a lista de abas é reconstruída ao fazer
+    upload de um arquivo novo) e 'gerenciar_selecao_canais'/
+    'alternar_edicao_canal' (a lista de canais é reconstruída ao gerar/
+    fechar o gráfico, trocar de aba, ou marcar/desmarcar OUTRO canal).
+
+    Nesses casos, um simples 'bool(ctx.triggered)' (_clique_real) NÃO
+    basta: sempre que a lista-mãe é reconstruída, TODOS os botões dela
+    nascem de novo no Python com 'n_clicks=0' (são componentes NOVOS,
+    não os mesmos de antes, mesmo com o MESMO id) — e o Dash trata esse
+    reaparecimento de um id já observado por um Input de padrão coringa
+    como um disparo válido do callback, item que aparece em
+    'ctx.triggered' exatamente como um clique de verdade apareceria.
+    Foi isso que causava o bug relatado: sempre que a lista de canais
+    era reconstruída por OUTRO motivo (upload, gerar/fechar gráfico,
+    marcar canal), 'gerenciar_selecao_canais' disparava sozinho tratando
+    o primeiro botão da lista como se tivesse sido clicado de verdade.
+
+    A única forma confiável de diferenciar os dois casos é comparar o
+    valor ATUAL de CADA componente casado contra o ÚLTIMO valor já
+    processado (guardado num dcc.Store, ver 'nclicks-padrao-store' em
+    layout.py) — só conta como clique de VERDADE quando o valor sobe
+    (0->1, 1->2...). Numa reconstrução "fantasma", o valor volta pra 0
+    (o padrão do Python), que nunca é MAIOR que um valor já visto antes
+    (seja 0 — nunca clicado — ou qualquer coisa maior — já clicado
+    alguma vez), então nunca dispara ação nenhuma; só um clique físico
+    de verdade faz o navegador reportar um valor MAIOR que o anterior.
+
+    'grupos_inputs_list' são as entradas de 'ctx.inputs_list'
+    correspondentes aos Inputs de padrão coringa deste callback (cada
+    uma é uma LISTA de {'id', 'property', 'value'}, um item por
+    componente casado — é assim que o Dash formata pattern-matching
+    Inputs). 'nclicks_anteriores' é o 'data' atual do Store (dict, ou
+    None/vazio na primeira chamada).
+
+    Devolve (gatilho_id, novo_mapa):
+      - gatilho_id: o id (dict) do componente com clique de VERDADE
+        nesta chamada, ou None se nada disparou de verdade (só
+        fantasma) — quem chama deve tratar None como PreventUpdate.
+      - novo_mapa: o dict atualizado com o valor ATUAL de cada
+        componente casado — sempre devolver isso como o novo 'data' do
+        Store, mesmo quando gatilho_id vier None, senão a próxima
+        reconstrução "esquece" a linha de base e volta a comparar
+        contra um valor desatualizado.
+    """
+    nclicks_anteriores = nclicks_anteriores or {}
+    novo_mapa = dict(nclicks_anteriores)
+    gatilho_id = None
+
+    for grupo in grupos_inputs_list:
+        itens = grupo if isinstance(grupo, list) else [grupo]
+        for item in itens:
+            id_item = item.get('id')
+            if not isinstance(id_item, dict):
+                continue
+            chave = json.dumps(id_item, sort_keys=True)
+            valor_novo = item.get('value') or 0
+            valor_antigo = novo_mapa.get(chave, 0)
+            if valor_novo > valor_antigo:
+                gatilho_id = id_item
+            novo_mapa[chave] = valor_novo
+
+    return gatilho_id, novo_mapa
 
 
 def _estados_toolbar(estado, aba_ativa):
@@ -229,17 +311,27 @@ def registrar_callbacks(app, estado):
         Output('rodape-alerta-badge', 'className', allow_duplicate=True),
         Output('rodape-alerta-popup', 'children', allow_duplicate=True),
         Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
+        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input({'type': 'aba-item', 'arquivo': ALL}, 'n_clicks'),
         Input({'type': 'botao-fechar-aba', 'arquivo': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
+        State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
-    def gerenciar_abas(_c_item, _c_fechar, aba_ativa):
-        if not _clique_real(ctx.triggered):
+    def gerenciar_abas(_c_item, _c_fechar, aba_ativa, nclicks_anteriores):
+        # '_clique_real' sozinho não basta aqui: fazer upload de um
+        # arquivo NOVO reconstrói 'container-abas-chrome' inteiro (uma
+        # aba a mais), e os botões das abas JÁ EXISTENTES nascem de
+        # novo com 'n_clicks=0' — o que o Dash relata como disparo
+        # deste callback mesmo sem clique nenhum (ver
+        # _processar_cliques_padrao, no topo do arquivo, que explica o
+        # mecanismo). Só um valor MAIOR que o último visto conta como
+        # clique de verdade.
+        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        if gatilho_id is None:
             raise PreventUpdate
 
         aba_ativa_anterior = aba_ativa
-        gatilho_id = ctx.triggered_id
         tipo = gatilho_id.get('type')
         arquivo_alvo = gatilho_id.get('arquivo')
 
@@ -296,7 +388,7 @@ def registrar_callbacks(app, estado):
                 # e popup do rodapé precisam refletir a NOVA aba, e qualquer
                 # mensagem temporária pendente da aba anterior é cancelada.
                 *_valores_rodape(estado, aba_ativa),
-                True)
+                True, novo_mapa)
 
     @app.callback(
         Output('lista-canais-aba', 'children', allow_duplicate=True),
@@ -307,18 +399,33 @@ def registrar_callbacks(app, estado):
         Output('rodape-alerta-popup', 'children', allow_duplicate=True),
         Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
         Output('painel-direito-conteudo', 'children', allow_duplicate=True),
+        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input({'type': 'linha-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         Input({'type': 'botao-excluir-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('painel-direito', 'className'),
         State('edicao-curva-dado-atual', 'data'),
+        State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
-    def gerenciar_selecao_canais(n_clicks_list, _n_clicks_excluir, aba_ativa, classe_painel_direito, coluna_em_edicao):
-        if not _clique_real(ctx.triggered) or not aba_ativa:
+    def gerenciar_selecao_canais(n_clicks_list, _n_clicks_excluir, aba_ativa, classe_painel_direito,
+                                  coluna_em_edicao, nclicks_anteriores):
+        if not aba_ativa:
             raise PreventUpdate
 
-        gatilho_id = ctx.triggered_id
+        # '_clique_real' sozinho não basta aqui: gerar/fechar o gráfico,
+        # trocar de aba ou fazer upload de outro arquivo reconstrói
+        # 'lista-canais-aba' inteira, e os botões (caixinha/lixeira)
+        # nascem de novo com 'n_clicks=0' — o Dash relata isso como
+        # disparo deste callback mesmo sem clique nenhum do usuário (ver
+        # _processar_cliques_padrao, no topo do arquivo). Era essa
+        # reconstrução por TERCEIROS que fazia o primeiro botão da lista
+        # "disparar sozinho" toda vez que o gráfico era gerado, um
+        # arquivo era carregado, ou outro canal era clicado.
+        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        if gatilho_id is None:
+            raise PreventUpdate
+
         mensagem = no_update
         area_grafico = no_update
         # Se o painel de edição estiver aberto ('ativa'), (des)marcar ou
@@ -388,7 +495,7 @@ def registrar_callbacks(app, estado):
         _, badge_texto, badge_classe, popup_children = _valores_rodape(estado, aba_ativa)
         return (renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem, area_grafico,
                 badge_texto, badge_classe, popup_children,
-                True, painel_edicao)
+                True, painel_edicao, novo_mapa)
 
     # ------------------------------------------------------------------
     # Renomear canal (lápis ✏️ na lista de canais) — 2 callbacks: um
@@ -413,27 +520,36 @@ def registrar_callbacks(app, estado):
     @app.callback(
         Output('lista-canais-aba', 'children', allow_duplicate=True),
         Output('canal-em-edicao-store', 'data', allow_duplicate=True),
+        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input({'type': 'botao-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
+        State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
-    def alternar_edicao_canal(_n_clicks_list, aba_ativa):
+    def alternar_edicao_canal(_n_clicks_list, aba_ativa, nclicks_anteriores):
         """
         Clique no lápis de UMA linha específica: grava {'arquivo',
         'coluna'} em 'canal-em-edicao-store' e reconstrói a lista com
         essa linha (e só essa) nascendo com o <input> editável — ver
         'canal_em_edicao' em renderizar_colunas_da_aba_ativa
         (renderizadores.py).
+
+        Mesmo cuidado de gerenciar_selecao_canais: 'lista-canais-aba'
+        pode ser reconstruída por OUTRO callback (gerar/fechar gráfico,
+        trocar de aba, upload), remontando o lápis com 'n_clicks=0' —
+        sem comparar contra o último valor visto (ver
+        _processar_cliques_padrao), isso entraria em modo de edição
+        sozinho no primeiro canal, sem clique nenhum do usuário.
         """
-        if not _clique_real(ctx.triggered) or not aba_ativa:
+        if not aba_ativa:
             raise PreventUpdate
 
-        gatilho_id = ctx.triggered_id
+        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
         if not gatilho_id or gatilho_id.get('type') != 'botao-editar-canal':
             raise PreventUpdate
 
         canal_em_edicao = {'arquivo': gatilho_id.get('arquivo'), 'coluna': gatilho_id.get('coluna')}
-        return renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao), canal_em_edicao
+        return renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao), canal_em_edicao, novo_mapa
 
     @app.callback(
         Output('lista-canais-aba', 'children', allow_duplicate=True),

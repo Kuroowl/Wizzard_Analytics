@@ -49,6 +49,35 @@ def montar_layout(estado):
         # lista inteira num modo "tudo editável".
         dcc.Store(id='canal-em-edicao-store', data=None),
 
+        # 'nclicks-padrao-store': {} inicialmente, depois um dict
+        # {chave_do_id_json: último_n_clicks_processado} — rastreio
+        # compartilhado por TODOS os callbacks que escutam cliques em
+        # componentes de padrão coringa ({'type':..., ALL}) cuja LISTA
+        # de componentes casados é reconstruída do zero por outro
+        # callback (abas — 'aba-item'/'botao-fechar-aba' — e canais —
+        # 'linha-canal'/'botao-excluir-canal'/'botao-editar-canal', ver
+        # gerenciar_abas/gerenciar_selecao_canais/alternar_edicao_canal
+        # em callbacks.py).
+        #
+        # Toda vez que a lista-mãe (abas ou canais) é reconstruída
+        # (upload de arquivo, gerar/fechar gráfico, trocar de aba,
+        # marcar/desmarcar canal — qualquer callback com Output nessas
+        # listas), os botões daquela linha nascem de novo com
+        # 'n_clicks=0' no Python (são componentes NOVOS, não os mesmos
+        # de antes) — e o Dash trata esse reaparecimento de um id que
+        # já casava um Input de padrão coringa como um "disparo" válido
+        # do callback, MESMO sem clique nenhum do usuário (é assim que
+        # o Dash lida com componentes novos entrando num padrão
+        # coringa). Sem rastrear o ÚLTIMO valor já visto de cada botão
+        # (é isso que este Store guarda), não dá pra distinguir esse
+        # "disparo fantasma" de um clique de verdade só olhando
+        # 'ctx.triggered' — os dois aparecem lá igualzinho. Os
+        # callbacks acima só tratam como clique de VERDADE quando o
+        # valor reportado for MAIOR que o último valor guardado aqui
+        # (nunca só "diferente de None/vazio") — ver
+        # _processar_cliques_padrao em callbacks.py.
+        dcc.Store(id='nclicks-padrao-store', data={}),
+
         # 'corte-selecao-store': None enquanto nenhuma seleção de corte
         # está em andamento; durante 'Aparar dados' (e, no futuro,
         # 'Excluir dados' — mesma mecânica, ver aparar_dados/excluir_dados
