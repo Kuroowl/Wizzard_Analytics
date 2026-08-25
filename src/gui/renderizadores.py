@@ -2,6 +2,7 @@ from dash import dcc, html
 
 from src.gui.components import icone_colorido
 from src.core.plotting.plotter import cor_da_coluna, colunas_plotadas, PALETA_CORES
+from src.core.operations.calculadora import OPERADORES_BASICOS, FUNCOES, OPERACOES_RAPIDAS
 
 
 def renderizar_info_rodape(estado, aba_ativa):
@@ -147,7 +148,20 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao=None):
         # de novo pra fechar/salvar (ver gerenciar_edicao_canal,
         # callbacks.py) assim que tirava o mouse de cima da linha
         # depois de abrir a edição.
-        classe_canal = 'coluna-item' + (' selecionada' if selecionado else '') + (' editando' if em_edicao else '')
+        #
+        # 'calculado' distingue visualmente um canal criado pela
+        # calculadora do modo 'Nova Análise' (ver
+        # avaliar_expressao_calculadora, callbacks.py) de um canal
+        # ORIGINAL do arquivo só renomeado — os dois têm rótulo livre
+        # igual, então sem uma marca visual não dava pra saber "esse
+        # dado eu inventei" só olhando a lista (ver 'canal.origem' em
+        # src/core/arquivo.py, que já existia pronto pra isso — nunca
+        # tinha UI nenhuma lendo ele até agora).
+        calculado = arquivo.canais.get(coluna) and arquivo.canais[coluna].origem == 'calculado'
+        classe_canal = ('coluna-item'
+                         + (' selecionada' if selecionado else '')
+                         + (' editando' if em_edicao else '')
+                         + (' calculado' if calculado else ''))
         marcador_check = '✓' if selecionado else '☐'
 
         if em_edicao:
@@ -167,6 +181,19 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao=None):
                 className='canal-rotulo-input',
                 maxLength=80,
             )
+        elif calculado:
+            # 'ƒ' na frente do rótulo — junto com a borda esquerda
+            # colorida (ver '.coluna-item.calculado' em file_menu.css),
+            # é a segunda metade do sinal visual "isto foi gerado, não
+            # é um dado bruto do arquivo original". 'title' expõe a
+            # fórmula de verdade (canal.formula, já guardada por
+            # criar_canal_calculado/avaliar_expressao_calculadora) no
+            # tooltip, pra quem quiser conferir como o valor foi
+            # calculado sem precisar abrir a calculadora de novo.
+            campo_rotulo = html.Span([
+                html.Span('ƒ', className='canal-calculado-marcador'),
+                rotulo,
+            ], className="canal-rotulo", title=f"Calculado: {arquivo.canais[coluna].formula or ''}")
         else:
             campo_rotulo = html.Span(rotulo, className="canal-rotulo")
 
@@ -994,4 +1021,87 @@ def renderizar_grafico_com_fechar(fig):
         # consistência com o resto da pausa.
         # config={'edits': {'shapePosition': True}},
         dcc.Graph(id='grafico-plotly-real', figure=fig, className='grafico-plotly'),
+    ])
+
+
+def _botao_token_calculadora(display, codigo, classe_extra=''):
+    """
+    Um botão da calculadora — todos (operadores, funções, atalhos e
+    colunas) usam o MESMO padrão de id, {'type': 'calc-token',
+    'display':..., 'codigo':...}: o próprio id já carrega o que
+    precisa ser anexado à expressão, então UM único callback (ver
+    registrar_token_calculadora, callbacks.py) cobre os 4 grupos sem
+    precisar de uma tabela de consulta à parte no servidor.
+    """
+    return html.Button(
+        display,
+        id={'type': 'calc-token', 'display': display, 'codigo': codigo},
+        className='calculadora-token ' + classe_extra,
+        n_clicks=0,
+    )
+
+
+def _grupo_calculadora(titulo, pares_display_codigo, classe_extra=''):
+    return html.Div(className='calculadora-grupo', children=[
+        html.Div(titulo, className='calculadora-grupo-titulo'),
+        html.Div(className='calculadora-grupo-botoes', children=[
+            _botao_token_calculadora(display, codigo, classe_extra) for display, codigo in pares_display_codigo
+        ]),
+    ])
+
+
+def renderizar_calculadora(estado, aba_ativa, tokens_expressao=None):
+    """
+    UI inteira do modo 'Nova Análise' (ver '#area-modo-nova-analise',
+    layout.py/callbacks.py): a barra de expressão + nome + Criar/
+    Limpar, e os 4 grupos de botões (operadores, funções, atalhos,
+    colunas). Reconstruída inteira a cada clique de token (mesmo
+    padrão de 'renderizar_colunas_da_aba_ativa': é mais simples manter
+    UM template server-side sempre coerente do que sincronizar pedaços
+    soltos no cliente).
+
+    'tokens_expressao' é a lista guardada em 'calc-expressao-store'
+    (layout.py) — None/vazia quando a expressão ainda não tem nada
+    clicado. Os botões de COLUNA são gerados aqui (não em
+    calculadora.py) porque dependem de QUAL arquivo está ativo agora.
+    """
+    tokens_expressao = tokens_expressao or []
+    texto_expressao = ''.join(t['display'] for t in tokens_expressao) or ' '
+
+    arquivo = estado.arquivos.get(aba_ativa) if aba_ativa else None
+    colunas_pares = []
+    if arquivo:
+        for nome_interno in arquivo.colunas_visiveis():
+            rotulo = arquivo.rotulo(nome_interno)
+            colunas_pares.append((rotulo, f'col[{nome_interno!r}]'))
+
+    return html.Div(className='calculadora', children=[
+        html.Div(className='calculadora-barra', children=[
+            html.Div(texto_expressao, id='calc-expressao-display', className='calculadora-expressao'),
+            dcc.Input(
+                id='calc-nome-input', type='text', placeholder='nova análise',
+                className='calculadora-nome-input', maxLength=80,
+            ),
+            html.Button('Criar', id='calc-criar', className='calculadora-btn-criar', n_clicks=0),
+            # '⌫' remove só o ÚLTIMO token inteiro (não um caractere —
+            # ver docstring de 'calc-expressao-store', layout.py) —
+            # separado de 'Limpar' (que zera tudo de uma vez), pra
+            # corrigir um clique errado sem perder a expressão inteira.
+            html.Button('⌫', id='calc-apagar', className='calculadora-btn-apagar', n_clicks=0, title='Apagar último'),
+            html.Button('Limpar', id='calc-limpar', className='calculadora-btn-limpar', n_clicks=0),
+        ]),
+        html.Div(className='calculadora-grupos', children=[
+            _grupo_calculadora('Operações básicas', OPERADORES_BASICOS, classe_extra='calculadora-token-basico'),
+            _grupo_calculadora('Funções', FUNCOES, classe_extra='calculadora-token-funcao'),
+            _grupo_calculadora('Operações rápidas', OPERACOES_RAPIDAS, classe_extra='calculadora-token-rapido'),
+            html.Div(className='calculadora-grupo calculadora-grupo-colunas', children=[
+                html.Div('Colunas', className='calculadora-grupo-titulo'),
+                html.Div(className='calculadora-grupo-botoes', children=(
+                    [_botao_token_calculadora(display, codigo, 'calculadora-token-coluna')
+                     for display, codigo in colunas_pares]
+                    if colunas_pares else
+                    [html.Div('Abra um arquivo pra ver as colunas aqui.', className='calculadora-colunas-vazio')]
+                )),
+            ]),
+        ]),
     ])

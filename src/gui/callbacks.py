@@ -4,15 +4,17 @@ from dash import Input, Output, State, ctx, ALL, MATCH, no_update
 from dash.exceptions import PreventUpdate
 
 from src.core.operations.sampling import aparar_dados, excluir_dados
+from src.core.operations.calculadora import avaliar_expressao_calculadora
 from src.core.plotting.plotter import (
     construir_figura_serie_temporal, resolver_eixo_x, colunas_plotadas, cor_da_coluna,
     aplicar_guias_corte,
 )
+from src.core.rotulos import sanitizar_rotulo_para_nome_coluna
 from src.gui.renderizadores import (
     truncar_nome_arquivo, renderizar_abas_estilo_chrome, renderizar_colunas_da_aba_ativa,
     renderizar_area_grafico, renderizar_grafico_com_fechar,
     renderizar_info_rodape, renderizar_badge_alerta, classe_badge_alerta, renderizar_popup_alerta,
-    renderizar_painel_direito_padrao, renderizar_painel_edicao, _hex_para_rgb,
+    renderizar_painel_direito_padrao, renderizar_painel_edicao, renderizar_calculadora, _hex_para_rgb,
 )
 from src.utils.helpers import carregar_dados_de_upload
 
@@ -320,11 +322,13 @@ def registrar_callbacks(app, estado):
         Output('nova-analise', 'className'),
         Output('area-modo-nova-analise', 'style'),
         Output('area-modo-nova-analise-edicao', 'style'),
+        Output('area-modo-nova-analise', 'children'),
         Input('nova-analise', 'n_clicks'),
         State('modo-nova-analise-store', 'data'),
+        State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
-    def alternar_modo_nova_analise(n_clicks, modo_ativo_atual):
+    def alternar_modo_nova_analise(n_clicks, modo_ativo_atual, aba_ativa):
         if not n_clicks:
             raise PreventUpdate
 
@@ -332,7 +336,163 @@ def registrar_callbacks(app, estado):
         classe_botao = 'toolbar-upload' + (' ativo' if novo_ativo else '')
         estilo_area = {'display': 'flex'} if novo_ativo else {'display': 'none'}
 
-        return novo_ativo, classe_botao, estilo_area, estilo_area
+        # A calculadora só precisa existir de verdade (com os botões de
+        # coluna do arquivo CERTO) quando o modo está LIGANDO — ao
+        # desligar, 'no_update' preserva o que já estava montado (não
+        # precisa reconstruir só pra esconder, o 'style' acima já
+        # cuida disso) e a expressão em andamento ('calc-expressao-
+        # store') fica intocada, pra continuar de onde parou se o
+        # usuário ligar de novo. Zerar a expressão só acontece de
+        # propósito (ver 'Limpar'/'Criar' abaixo), nunca como efeito
+        # colateral de ligar/desligar.
+        conteudo_calculadora = renderizar_calculadora(estado, aba_ativa) if novo_ativo else no_update
+
+        return novo_ativo, classe_botao, estilo_area, estilo_area, conteudo_calculadora
+
+    # ------------------------------------------------------------------
+    # Calculadora do modo "Nova Análise" — 4 callbacks:
+    #   1) registrar_token_calculadora: clique em QUALQUER botão de
+    #      token (operador/função/atalho/coluna — todos usam o MESMO
+    #      padrão de id, ver _botao_token_calculadora em
+    #      renderizadores.py) anexa esse token na expressão.
+    #   2) apagar_ultimo_token_calculadora: '⌫' remove só o ÚLTIMO
+    #      token inteiro.
+    #   3) limpar_expressao_calculadora: 'Limpar' zera tudo.
+    #   4) criar_canal_calculado_calculadora: 'Criar' avalia a
+    #      expressão de verdade (ver avaliar_expressao_calculadora,
+    #      src/core/operations/calculadora.py) e grava o resultado como
+    #      um Canal novo com origem='calculado' (ver
+    #      Arquivo.registrar_canal, src/core/arquivo.py) — é o mesmo
+    #      campo que já existia pronto, só nunca tinha UI nenhuma
+    #      escrevendo nele até agora.
+    #
+    # As 4 reconstroem 'area-modo-nova-analise' inteira via
+    # renderizar_calculadora (mesmo espírito de renderizar_colunas_da_
+    # aba_ativa: um template server-side só, sempre coerente, em vez de
+    # sincronizar pedaços soltos no cliente).
+    # ------------------------------------------------------------------
+
+    @app.callback(
+        Output('area-modo-nova-analise', 'children', allow_duplicate=True),
+        Output('calc-expressao-store', 'data', allow_duplicate=True),
+        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
+        Input({'type': 'calc-token', 'display': ALL, 'codigo': ALL}, 'n_clicks'),
+        State('aba-ativa-store', 'data'),
+        State('calc-expressao-store', 'data'),
+        State('nclicks-padrao-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def registrar_token_calculadora(_n_clicks_list, aba_ativa, tokens_atuais, nclicks_anteriores):
+        # Mesmo cuidado de gerenciar_selecao_canais/gerenciar_abas: os
+        # botões de token são padrão coringa, e 'area-modo-nova-
+        # analise' É reconstruída por outros callbacks (o próprio
+        # alternar_modo_nova_analise, ao ligar) — sem comparar contra o
+        # último valor visto, uma reconstrução alheia adicionaria um
+        # token sozinho, sem clique nenhum do usuário (ver
+        # _processar_cliques_padrao, topo deste arquivo).
+        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        if gatilho_id is None:
+            raise PreventUpdate
+
+        novo_token = {'display': gatilho_id.get('display'), 'codigo': gatilho_id.get('codigo')}
+        novos_tokens = (tokens_atuais or []) + [novo_token]
+
+        return renderizar_calculadora(estado, aba_ativa, novos_tokens), novos_tokens, novo_mapa
+
+    @app.callback(
+        Output('area-modo-nova-analise', 'children', allow_duplicate=True),
+        Output('calc-expressao-store', 'data', allow_duplicate=True),
+        Input('calc-apagar', 'n_clicks'),
+        State('aba-ativa-store', 'data'),
+        State('calc-expressao-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def apagar_ultimo_token_calculadora(n_clicks, aba_ativa, tokens_atuais):
+        if not n_clicks or not tokens_atuais:
+            raise PreventUpdate
+        novos_tokens = tokens_atuais[:-1]
+        return renderizar_calculadora(estado, aba_ativa, novos_tokens), novos_tokens
+
+    @app.callback(
+        Output('area-modo-nova-analise', 'children', allow_duplicate=True),
+        Output('calc-expressao-store', 'data', allow_duplicate=True),
+        Input('calc-limpar', 'n_clicks'),
+        State('aba-ativa-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def limpar_expressao_calculadora(n_clicks, aba_ativa):
+        if not n_clicks:
+            raise PreventUpdate
+        return renderizar_calculadora(estado, aba_ativa, []), []
+
+    @app.callback(
+        Output('area-modo-nova-analise', 'children', allow_duplicate=True),
+        Output('calc-expressao-store', 'data', allow_duplicate=True),
+        Output('lista-canais-aba', 'children', allow_duplicate=True),
+        Output('container-grafico', 'children', allow_duplicate=True),
+        Output('rodape-status', 'children', allow_duplicate=True),
+        Input('calc-criar', 'n_clicks'),
+        State('aba-ativa-store', 'data'),
+        State('calc-expressao-store', 'data'),
+        State('calc-nome-input', 'value'),
+        prevent_initial_call=True,
+    )
+    def criar_canal_calculado_calculadora(n_clicks, aba_ativa, tokens_atuais, nome_novo_canal):
+        if not n_clicks:
+            raise PreventUpdate
+
+        arquivo = estado.arquivos.get(aba_ativa)
+        if not arquivo:
+            raise PreventUpdate
+
+        mensagem = no_update
+        area_grafico = no_update
+
+        nome_novo_canal = (nome_novo_canal or '').strip()
+        if not nome_novo_canal:
+            mensagem = '🧙‍♂️: " Dê um nome pra essa análise antes de criar. "'
+            return no_update, no_update, no_update, no_update, mensagem
+
+        codigo = ''.join(t['codigo'] for t in (tokens_atuais or []))
+        try:
+            resultado = avaliar_expressao_calculadora(codigo, arquivo)
+        except ValueError as e:
+            mensagem = f'🧙‍♂️: " Não deu pra criar: {e} "'
+            return no_update, no_update, no_update, no_update, mensagem
+
+        # Nome interno sanitizado (sem espaço/acento/símbolo) pra virar
+        # coluna de verdade no df_editado — o RÓTULO exibido continua
+        # sendo o texto livre que o usuário digitou (mesma separação
+        # nome_interno/rótulo usada em todo canal, ver Canal em
+        # src/core/arquivo.py). 'sanitizar_rotulo_para_nome_coluna' já
+        # existia pronta (src/core/rotulos.py) — cobre acento, espaço,
+        # e evita colidir com uma coluna já existente.
+        nome_interno = sanitizar_rotulo_para_nome_coluna(nome_novo_canal)
+        sufixo = 1
+        nome_interno_final = nome_interno
+        while nome_interno_final in arquivo.df_editado.columns:
+            sufixo += 1
+            nome_interno_final = f'{nome_interno}_{sufixo}'
+
+        arquivo.df_editado[nome_interno_final] = resultado
+        # SEM 'arquivo.invalidar_grafico()' aqui de propósito — o novo
+        # canal nasce OCULTO da seleção (como qualquer canal recém-
+        # registrado, ver Arquivo.registrar_canal), então não afeta
+        # nenhuma curva já desenhada; invalidar o cache reverteria um
+        # gráfico já aberto pra grade de opções vazia sem necessidade,
+        # só porque um canal SEM RELAÇÃO com o que está plotado foi
+        # criado.
+        arquivo.registrar_canal(nome_interno_final, rotulo=nome_novo_canal, origem='calculado', formula=codigo)
+
+        mensagem = f'🧙‍♂️: " Canal \'{nome_novo_canal}\' criado a partir da expressão. "'
+
+        # Limpa a expressão depois de criar (mesmo espírito de um
+        # formulário que reseta após salvar) — o canal novo já está
+        # gravado no arquivo, não tem motivo pra manter a expressão
+        # velha ocupando a barra.
+        return (renderizar_calculadora(estado, aba_ativa, []), [],
+                renderizar_colunas_da_aba_ativa(estado, aba_ativa),
+                area_grafico, mensagem)
 
     @app.callback(
         Output('aba-ativa-store', 'data', allow_duplicate=True),

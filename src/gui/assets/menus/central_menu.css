@@ -177,8 +177,14 @@
   inset: 0;
   z-index: 5;
   display: none;
-  align-items: center;
-  justify-content: center;
+  /* Antes era um bloco vazio só decorativo (align/justify:center pra
+     centralizar um texto curto) — agora hospeda a calculadora inteira
+     (ver '.calculadora' logo abaixo), que precisa da altura toda pra
+     empilhar barra + grupos de botões, não só centralizar algo
+     pequeno. */
+  flex-direction: column;
+  padding: 16px;
+  overflow-y: auto;
   background-color: var(--cor-fundo-grafico);
   background-image:
     linear-gradient(rgba(253, 246, 227, 0.88), rgba(253, 246, 227, 0.88)),
@@ -186,5 +192,204 @@
   background-repeat: no-repeat, no-repeat;
   background-position: center center, center center;
   background-size: cover, 40% auto;
+}
+
+/* ==========================================================================
+   Calculadora do modo "Nova Análise" — barra de expressão + botões
+   agrupados (Operações básicas / Funções / Operações rápidas /
+   Colunas). Ver renderizar_calculadora (renderizadores.py) e
+   registrar_token_calculadora/limpar_expressao_calculadora/
+   apagar_ultimo_token_calculadora/criar_canal_calculado_calculadora
+   (callbacks.py).
+   ========================================================================== */
+
+.calculadora {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+  min-height: 0; /* sem isso o flex filho '.calculadora-grupos' não consegue rolar (ver overflow-y abaixo) */
+}
+
+/* --- Barra: expressão sendo construída + nome + Criar/Apagar/Limpar --- */
+.calculadora-barra {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #FFFFFF;
+  border: 1px solid var(--cor-borda);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.calculadora-expressao {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--fonte-dado);
+  font-size: 14px;
+  color: var(--cor-texto-escuro);
+  background-color: var(--cor-fundo);
+  border: 1px solid var(--cor-borda);
+  border-radius: 5px;
+  padding: 8px 10px;
+  height: 34px;
+  line-height: 18px;
+  /* Expressão pode crescer bastante (várias colunas + funções
+     aninhadas) — rola de lado em vez de quebrar linha e destruir o
+     alinhamento da barra. */
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.calculadora-nome-input {
+  flex: 0 0 180px;
+  font-family: var(--fonte-ui);
+  font-size: 13px;
+  color: var(--cor-texto-escuro);
+  background-color: #FFFFFF;
+  border: 1px solid var(--cor-borda);
+  border-radius: 5px;
+  padding: 8px 10px;
+  height: 34px;
+}
+
+.calculadora-nome-input:focus {
+  outline: none;
+  border-color: var(--cor-accent);
+  box-shadow: 0 0 0 2px rgba(47, 165, 160, 0.18);
+}
+
+.calculadora-btn-criar,
+.calculadora-btn-apagar,
+.calculadora-btn-limpar {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 5px;
+  border: 1px solid var(--cor-borda);
+  font-family: var(--fonte-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+/* 'Criar' é a única ação DESTRUTIVA-positiva da barra (grava uma
+   coluna nova de verdade) — cor de accent sólida, se destacando dos
+   outros dois botões (que só mexem na expressão em construção, ainda
+   reversível). */
+.calculadora-btn-criar {
+  background-color: var(--cor-accent);
+  border-color: var(--cor-accent);
+  color: #FFFFFF;
+}
+
+.calculadora-btn-criar:hover {
+  background-color: #268F8A;
+}
+
+.calculadora-btn-apagar,
+.calculadora-btn-limpar {
+  background-color: #FFFFFF;
+  color: var(--cor-texto-escuro);
+}
+
+.calculadora-btn-apagar:hover,
+.calculadora-btn-limpar:hover {
+  background-color: rgba(0, 0, 0, 0.045);
+}
+
+/* --- Grupos de botões (Operações básicas / Funções / Operações
+   rápidas / Colunas) --- */
+.calculadora-grupos {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.calculadora-grupo {
+  flex: 0 0 auto;
+  background-color: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--cor-borda);
+  border-radius: 8px;
+  padding: 10px;
+  min-width: 180px;
+}
+
+/* Colunas é o único grupo de largura VARIÁVEL de propósito — a
+   quantidade de canais muda por arquivo, então trava largura fixa
+   igual aos outros 3 (que têm um vocabulário fixo, sempre do mesmo
+   tamanho) ficaria ou apertado demais com muitos canais ou com
+   espaço vazio sobrando com poucos. */
+.calculadora-grupo-colunas {
+  flex: 1 1 240px;
+}
+
+.calculadora-grupo-titulo {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cor-texto-mudo);
+  margin-bottom: 8px;
+}
+
+.calculadora-grupo-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.calculadora-token {
+  font-family: var(--fonte-dado);
+  font-size: 13px;
+  color: var(--cor-texto-escuro);
+  background-color: #FFFFFF;
+  border: 1px solid var(--cor-borda);
+  border-radius: 5px;
+  padding: 6px 10px;
+  min-width: 34px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, transform 0.05s;
+}
+
+.calculadora-token:hover {
+  background-color: rgba(47, 165, 160, 0.14);
+  border-color: var(--cor-accent);
+}
+
+.calculadora-token:active {
+  transform: scale(0.94);
+}
+
+/* Colunas usam a fonte de UI (não a monoespaçada dos operadores) —
+   são rótulos livres do usuário (podem ter acento, espaço, qualquer
+   texto), não símbolos matemáticos, então a fonte de dado
+   (--fonte-dado) não faz sentido semântico aqui. Cor de fundo lilás
+   suave (o mesmo tom de '--cor-accent-divisao', mas bem diluído — MESMA
+   cor usada pro marcador 'ƒ' de canal calculado, ver file_menu.css)
+   deixa claro visualmente "isto vem do arquivo", diferente dos
+   operadores/funções fixos. */
+.calculadora-token-coluna {
+  font-family: var(--fonte-ui);
+  background-color: rgba(127, 75, 196, 0.08);
+  border-color: rgba(127, 75, 196, 0.3);
+}
+
+.calculadora-token-coluna:hover {
+  background-color: rgba(127, 75, 196, 0.18);
+  border-color: var(--cor-accent-divisao);
+}
+
+.calculadora-colunas-vazio {
+  font-family: var(--fonte-ui);
+  font-size: 12px;
+  color: var(--cor-texto-mudo);
+  padding: 6px 2px;
 }
 

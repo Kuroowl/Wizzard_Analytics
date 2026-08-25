@@ -94,6 +94,23 @@ def montar_layout(estado):
         # callbacks.py.
         dcc.Store(id='modo-nova-analise-store', data=False),
 
+        # 'calc-expressao-store': lista de TOKENS da calculadora do modo
+        # 'Nova Análise' (ver renderizar_calculadora, renderizadores.py,
+        # e a barra de cálculo dentro de 'area-modo-nova-analise').
+        # Cada token é {'display': <texto mostrado na barra>, 'codigo':
+        # <fragmento de expressão Python de verdade, usado só na hora
+        # de avaliar>} — os dois SEPARADOS de propósito: um botão de
+        # coluna mostra o RÓTULO (ex: 'Vazão de entrada') mas o código
+        # de verdade referencia a coluna por 'nome_interno' via um
+        # dicionário seguro ('col["Vazao_s"]', nunca o nome bruto
+        # solto na expressão — ver _avaliar_expressao_calculadora em
+        # callbacks.py), então rótulos com espaço/acento/caractere
+        # especial nunca quebram a avaliação. Uma LISTA (não uma string
+        # só) também permite 'Apagar' (⌫) remover só o ÚLTIMO token
+        # inteiro (um nome de coluna inteiro, uma função inteira como
+        # 'sin(') em vez de um caractere por vez.
+        dcc.Store(id='calc-expressao-store', data=[]),
+
         # 'corte-selecao-store': None enquanto nenhuma seleção de corte
         # está em andamento; durante 'Aparar dados' (e, no futuro,
         # 'Excluir dados' — mesma mecânica, ver aparar_dados/excluir_dados

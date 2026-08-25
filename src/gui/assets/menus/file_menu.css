@@ -234,6 +234,31 @@
 
 .coluna-item.selecionada { background: rgba(47, 165, 160, 0.2); }
 
+/* Canal CALCULADO (ver 'canal.origem' em src/core/arquivo.py e
+   'calculado' em renderizar_colunas_da_aba_ativa, renderizadores.py)
+   — distingue visualmente de um canal ORIGINAL só renomeado, os dois
+   têm rótulo livre igual e sem essa marca não dava pra saber "esse
+   dado eu inventei" só olhando a lista. Borda esquerda + o 'ƒ' antes
+   do rótulo (ver '.canal-calculado-marcador' logo abaixo) são as DUAS
+   metades do mesmo sinal — cor sozinha falha pra quem tem
+   daltonismo, o símbolo sozinho é discreto demais pra notar de
+   relance; juntos cobrem os dois casos. Roxo (--cor-accent-divisao)
+   por já ser a cor de "cálculo/fórmula" em outro canto do app (os
+   sliders de 'Division' no painel de edição), não o teal de seleção
+   nem o vermelho de corte — sem overlap de significado com o resto
+   da paleta. */
+.coluna-item.calculado {
+  border-left: 3px solid var(--cor-accent-divisao);
+  padding-left: 5px; /* 8px do padding normal - 3px da borda, pra não empurrar o conteúdo */
+}
+
+.canal-calculado-marcador {
+  color: var(--cor-accent-divisao);
+  font-style: italic;
+  font-weight: 700;
+  margin-right: 4px;
+}
+
 /* Caixinha de seleção (☐/✓) — ÚNICO alvo de clique que (des)marca o
    canal (ver 'id={"type": "linha-canal", ...}' em
    renderizar_colunas_da_aba_ativa, renderizadores.py, e
