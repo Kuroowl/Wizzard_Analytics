@@ -155,3 +155,36 @@
   overflow-y: auto;
 }
 
+/* ==========================================================================
+   Modo "Nova Análise" — camada que cobre '.centro' inteiro (o
+   container do gráfico, gerado ou não) enquanto o botão 'nova-analise'
+   da toolbar está pressionado (ver alternar_modo_nova_analise,
+   callbacks.py). MESMA técnica de '.area-grafico-container' logo
+   acima ('position:absolute; inset:0;', ancorado em '.centro {
+   position: relative }' no topo deste arquivo) — ignora quantos
+   wrappers o dcc.Loading insere no meio, sempre preenche '.centro'
+   inteiro.
+
+   'display: none' aqui é só o padrão CSS de repouso — quem liga/
+   desliga de verdade é o 'style' inline (layout.py + callbacks.py).
+   Cobre a área SEM remover '#container-grafico' do DOM — o gráfico
+   (ou a grade de opções, se ainda não gerado) continua existindo e
+   intocado por baixo, só fica coberto/inacessível enquanto este modo
+   está ligado; desligar não precisa "restaurar" nada, porque nada foi
+   destruído. */
+.area-modo-nova-analise {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--cor-fundo-grafico);
+  background-image:
+    linear-gradient(rgba(253, 246, 227, 0.88), rgba(253, 246, 227, 0.88)),
+    url("../icones/analysis.svg");
+  background-repeat: no-repeat, no-repeat;
+  background-position: center center, center center;
+  background-size: cover, 40% auto;
+}
+

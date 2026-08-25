@@ -232,6 +232,21 @@
   border-color: #D62728;
 }
 
+/* 'Nova análise' pressionado — o modo fica LIGADO até o usuário clicar
+   de novo (ver alternar_modo_nova_analise, callbacks.py), então o
+   botão precisa continuar marcado como "ativo" indefinidamente, não só
+   durante o clique (diferente do destaque vermelho de aparar/excluir
+   acima, que é temporário — dura só a seleção de 2 cliques). Cor de
+   accent (o mesmo teal usado em toggles/estados "ligados" no resto do
+   app — ver '.painel-edicao-toggle.ativo', '.canal-editar-btn' em
+   edição, etc.) em vez do vermelho de corte, pra não confundir com uma
+   ação destrutiva em andamento. */
+.toolbar-upload#nova-analise.ativo div {
+  background: rgba(47, 165, 160, 0.22);
+  border-color: var(--cor-accent);
+  color: var(--cor-texto-claro);
+}
+
 /* Prompt 'Confirmar seleção?' — nasce escondido (style inline em
    layout.py) e some de novo assim que confirmar/cancelar é clicado.
    Fica na MESMA linha dos ícones (toolbar), não no rodapé — é sobre a

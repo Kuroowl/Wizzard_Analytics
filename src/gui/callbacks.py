@@ -290,6 +290,50 @@ def registrar_callbacks(app, estado):
             raise PreventUpdate
         return (mensagem_seguinte or ''), True
 
+    # ------------------------------------------------------------------
+    # Modo "Nova Análise" — 'nova-analise' (toolbar) virou um liga/
+    # desliga: pressionado, cobre a área central e o painel de edição
+    # com uma camada própria (analysis.svg / gear.svg — ver
+    # '.area-modo-nova-analise'/'.area-modo-nova-analise-edicao' em
+    # central_menu.css/edit_menu.css), sem tocar no que está por baixo.
+    #
+    # Por que só cobrir, nunca trocar 'children': o gráfico
+    # (arquivo.figura, já cacheado — ver Arquivo.grafico_gerado em
+    # src/core/arquivo.py) e o estado do painel de edição (a classe
+    # 'ativa' de 'painel-direito' + o conteúdo carregado em
+    # 'painel-direito-conteudo') já são "propriedade dos objetos"
+    # existentes — ninguém aqui precisa ser destruído/reconstruído pra
+    # isso funcionar, então desligar o modo não precisa "restaurar"
+    # nada explicitamente: o que estava lá antes nunca saiu do DOM, só
+    # ficou coberto.
+    #
+    # 'nova-analise' é um id ESTÁTICO (não um padrão coringa
+    # {'type':...}), nunca recriado por nenhum outro callback — ao
+    # contrário dos botões de canal/aba (ver _processar_cliques_padrao,
+    # no topo deste arquivo), não sofre o "disparo fantasma" de
+    # remontagem, então o guard simples de 'not n_clicks' já basta
+    # aqui.
+    # ------------------------------------------------------------------
+
+    @app.callback(
+        Output('modo-nova-analise-store', 'data'),
+        Output('nova-analise', 'className'),
+        Output('area-modo-nova-analise', 'style'),
+        Output('area-modo-nova-analise-edicao', 'style'),
+        Input('nova-analise', 'n_clicks'),
+        State('modo-nova-analise-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def alternar_modo_nova_analise(n_clicks, modo_ativo_atual):
+        if not n_clicks:
+            raise PreventUpdate
+
+        novo_ativo = not modo_ativo_atual
+        classe_botao = 'toolbar-upload' + (' ativo' if novo_ativo else '')
+        estilo_area = {'display': 'flex'} if novo_ativo else {'display': 'none'}
+
+        return novo_ativo, classe_botao, estilo_area, estilo_area
+
     @app.callback(
         Output('aba-ativa-store', 'data', allow_duplicate=True),
         Output('container-abas-chrome', 'children'),

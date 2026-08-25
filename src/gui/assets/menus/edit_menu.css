@@ -8,6 +8,14 @@
 .painel-direito {
   flex: 0 0 auto;
   width: 400px;
+  /* 'position: relative' — ancora '#area-modo-nova-analise-edicao'
+     (layout.py), que cobre este painel inteiro com
+     'position:absolute; inset:0;' quando o modo 'Nova Análise' está
+     ligado (ver alternar_modo_nova_analise, callbacks.py). Sem isso,
+     o 'absolute' subiria a procura do PRÓXIMO ancestral posicionado
+     (provavelmente '.corpo' ou a raiz do app), cobrindo a tela toda
+     em vez de só este painel. */
+  position: relative;
   /* 400px de largura INICIAL (era 320px) — min-width (300px) e
      max-width (560px) não mudam, 400 cabe folgado entre os dois, e
      são eles (não a largura inicial) que ditam até onde o divisor
@@ -919,4 +927,38 @@
    ticks em callbacks.py), mas serve pra qualquer outro caso futuro. */
 .painel-edicao-oculto {
   display: none;
+}
+
+/* ==========================================================================
+   Modo "Nova Análise" — camada que cobre '#painel-direito' inteiro
+   (conteúdo normal + botão 'Iniciar edição') enquanto o botão
+   'nova-analise' da toolbar está pressionado (ver
+   alternar_modo_nova_analise, callbacks.py). MESMO espírito visual do
+   watermark de repouso do próprio painel (fundo var(--cor-fundo-
+   grafico) + um SVG apagado ao centro), só que com gear.svg no lugar
+   de pintura.svg — a ideia é marcar "este painel virou outra coisa
+   agora", não mais as opções de edição da curva.
+
+   'display: none' aqui é só o padrão CSS de repouso — quem liga/
+   desliga de verdade é o 'style' inline (layout.py + callbacks.py),
+   trocando pra 'flex' quando o modo é ativado. Cobre o painel
+   INTEIRO ('position: absolute; inset: 0;', ancorado no '.painel-
+   direito { position: relative }' logo no topo deste arquivo) sem
+   remover nada do que está por baixo — o conteúdo normal (repouso ou
+   o card 'Curva' aberto) continua existindo e intocado no DOM, só
+   fica coberto/inacessível enquanto este modo está ligado. */
+.area-modo-nova-analise-edicao {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--cor-fundo-grafico);
+  background-image:
+    linear-gradient(rgba(253, 246, 227, 0.88), rgba(253, 246, 227, 0.88)),
+    url("../icones/gear.svg");
+  background-repeat: no-repeat, no-repeat;
+  background-position: center center, center center;
+  background-size: cover, 40% auto;
 }

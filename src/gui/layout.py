@@ -78,6 +78,22 @@ def montar_layout(estado):
         # _processar_cliques_padrao em callbacks.py.
         dcc.Store(id='nclicks-padrao-store', data={}),
 
+        # 'modo-nova-analise-store': True/False — 'Nova análise' na
+        # toolbar deixou de ser um dcc.Upload (nunca esteve de fato
+        # conectado a nenhum callback de 'contents', então clicar nele
+        # só abria o seletor de arquivo do sistema à toa — ver
+        # ao_fazer_upload em callbacks.py, que só reage a
+        # 'upload-arquivo') e virou um BOTÃO DE LIGA/DESLIGA: um modo de
+        # trabalho alternativo, onde a área central e o painel de
+        # edição saem de cena (cobertos por uma camada opaca própria,
+        # com watermark de analysis.svg/gear.svg) sem que nada por
+        # baixo seja destruído — o gráfico e a edição continuam
+        # exatamente como estavam (são 'propriedade do objeto', não
+        # precisam de nenhum Store à parte pra isso), só ficam
+        # temporariamente encobertos. Ver alternar_modo_nova_analise em
+        # callbacks.py.
+        dcc.Store(id='modo-nova-analise-store', data=False),
+
         # 'corte-selecao-store': None enquanto nenhuma seleção de corte
         # está em andamento; durante 'Aparar dados' (e, no futuro,
         # 'Excluir dados' — mesma mecânica, ver aparar_dados/excluir_dados
@@ -143,11 +159,23 @@ def montar_layout(estado):
                     children=html.Div([icone_colorido('CutData_icon.png'), html.Span('Excluir dados', className='toolbar-tooltip')]),
                     className='toolbar-upload', disabled=sem_grafico, n_clicks=0,
                 ),
-                dcc.Upload(
+                # 'nova-analise' era um dcc.Upload, mas NUNCA esteve
+                # ligado a nenhum callback de 'contents' (só
+                # 'upload-arquivo' é — ver ao_fazer_upload,
+                # callbacks.py) — clicar nele só abria o seletor de
+                # arquivo do sistema sem fazer nada com o resultado.
+                # Virou um <button> de verdade (mesmo motivo de
+                # 'aparar-dados'/'excluir-dados' acima: precisa de
+                # 'n_clicks' de verdade) porque agora é um LIGA/DESLIGA
+                # — ver alternar_modo_nova_analise em callbacks.py, que
+                # cobre a área central e o painel de edição com uma
+                # camada própria (analysis.svg / gear.svg) enquanto
+                # este modo está ativo. A classe 'ativo' (ver
+                # icon_menu.css) dá o visual "pressionado".
+                html.Button(
                     id='nova-analise',
                     children=html.Div([icone_colorido('NewAnalysis_icon.png'), html.Span('Nova análise', className='toolbar-tooltip')]),
-                    className='toolbar-upload', disabled=sem_arquivo,
-                    multiple=False,
+                    className='toolbar-upload', disabled=sem_arquivo, n_clicks=0,
                 ),
                 dcc.Upload(
                     id='nova-amostra',
@@ -242,6 +270,20 @@ def montar_layout(estado):
                         children=renderizar_area_grafico(estado),
                     ),
                 ),
+                # Camada do "modo Nova Análise" — cobre '.centro'
+                # inteiro por CIMA de '#container-grafico' (mesma
+                # técnica de 'position:absolute; inset:0' que
+                # '.area-grafico-container' já usa, ver
+                # central_menu.css) quando 'nova-analise' está
+                # pressionado (ver alternar_modo_nova_analise,
+                # callbacks.py). NASCE ESCONDIDA (display:none) —
+                # importante que seja só isso (não um 'children'
+                # trocado): o gráfico por baixo continua existindo e
+                # renderizado o tempo todo, só fica coberto/inacessível
+                # enquanto este modo está ligado, então nada precisa
+                # ser salvo/restaurado à parte pra voltar exatamente
+                # como estava ao desligar.
+                html.Div(id='area-modo-nova-analise', className='area-modo-nova-analise', style={'display': 'none'}),
             ]),
 
             html.Div(id='divisor-resize-edit', className='divisor-resize'),
@@ -279,6 +321,16 @@ def montar_layout(estado):
                     disabled=True,
                     n_clicks=0,
                 ),
+                # Camada do "modo Nova Análise" — mesmo espírito da
+                # irmã em '.centro' (ver 'area-modo-nova-analise' acima):
+                # cobre '#painel-direito' inteiro por CIMA do conteúdo
+                # normal (repouso OU o card 'Curva' aberto), sem
+                # remover/trocar nada por baixo. Precisa de
+                # 'position: relative' em '.painel-direito' (ver
+                # edit_menu.css) pra este 'position:absolute; inset:0;'
+                # ancorar no painel certo, não em algum ancestral mais
+                # distante.
+                html.Div(id='area-modo-nova-analise-edicao', className='area-modo-nova-analise-edicao', style={'display': 'none'}),
             ]),
         ]),
 
