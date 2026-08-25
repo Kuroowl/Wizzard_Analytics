@@ -320,45 +320,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     iniciarSeletorCor();
 
-    function iniciarBloqueioCliqueRenomearCanal() {
-        // O campo de renomear canal ('.canal-rotulo-input', ver
-        // renderizar_colunas_da_aba_ativa em renderizadores.py) nasce
-        // DENTRO da mesma '.coluna-item' que alterna seleção do canal
-        // ao ser clicada (gerenciar_selecao_canais, callbacks.py) — um
-        // clique só pra POSICIONAR O CURSOR no campo (antes de digitar
-        // o novo nome) borbulharia como clique na linha por baixo,
-        // desmarcando/marcando o canal E fazendo o Dash reconstruir a
-        // lista SEM o modo de edição, fechando o campo bem no
-        // instante em que o usuário tentou usá-lo.
-        //
-        // Diferente de um <button> (lápis/lixeira), este <input> NÃO
-        // tem 'n_clicks' nenhum no Dash — o foco/cursor que o clique
-        // provoca já é ação NATIVA do navegador (associada ao
-        // 'mousedown', que acontece ANTES do 'click'), então parar a
-        // propagação do 'click' aqui não tira a digitação do usuário,
-        // só evita o efeito colateral indesejado lá em cima na linha.
-        //
-        // Por isso a captura acontece em '#lista-canais-aba' (o
-        // container ESTÁVEL — só o 'children' dele é substituído a
-        // cada callback, o próprio nó nunca é recriado, mesmo padrão
-        // de estabilidade usado em 'container-grafico' pros outros
-        // MutationObservers deste arquivo) e na FASE DE CAPTURA: ela
-        // intercepta o clique ANTES dele alcançar '.coluna-item', ao
-        // contrário de um listener em fase de bolha (que só rodaria
-        // DEPOIS do onClick da linha já ter disparado).
-        var container = document.getElementById('lista-canais-aba');
-        if (!container) {
-            setTimeout(iniciarBloqueioCliqueRenomearCanal, 300);
-            return;
-        }
-        container.addEventListener('click', function (e) {
-            if (e.target && e.target.closest && e.target.closest('.canal-rotulo-input')) {
-                e.stopPropagation();
-            }
-        }, true);
-    }
-    iniciarBloqueioCliqueRenomearCanal();
-
     // Mapa de comandos LaTeX 'simples' -> símbolo Unicode equivalente,
     // usado nas caixas de texto de Título/Axis x/Axis y da seção
     // 'Eixos' (ver 'painel-edicao-latex-input' em edit_menu.css e

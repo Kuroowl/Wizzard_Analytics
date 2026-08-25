@@ -219,7 +219,14 @@
   color: var(--cor-texto-escuro);
   padding: 5px 8px;
   border-radius: 4px;
-  cursor: pointer;
+  /* SEM 'cursor: pointer' aqui de propósito — a linha em si não é
+     mais um alvo de clique único (ver docstring de
+     renderizar_colunas_da_aba_ativa, renderizadores.py): o clique que
+     (des)marca o canal agora vive SÓ em '.canal-checkbox' (a
+     caixinha ☐/✓), não na linha inteira. 'user-select: none'
+     permanece — ainda não queremos que um clique/arraste sobre o
+     texto do rótulo (fora do modo de edição) selecione a string à
+     toa. */
   user-select: none;
 }
 
@@ -227,11 +234,41 @@
 
 .coluna-item.selecionada { background: rgba(47, 165, 160, 0.2); }
 
+/* Caixinha de seleção (☐/✓) — ÚNICO alvo de clique que (des)marca o
+   canal (ver 'id={"type": "linha-canal", ...}' em
+   renderizar_colunas_da_aba_ativa, renderizadores.py, e
+   gerenciar_selecao_canais em callbacks.py, cujo Input pattern-
+   matching não mudou, só QUEM carrega esse id). Antes esse clique
+   reativo vivia na linha INTEIRA ('.coluna-item'), com lápis/lixeira/
+   campo-de-renomear morando DENTRO dela — qualquer clique nesses
+   filhos borbulhava e também contava como clique na linha,
+   desmarcando/marcando o canal como efeito colateral (e no caso do
+   campo de renomear, fechando a edição no instante em que o usuário
+   tentava usá-la). Isolar o clique reativo só nesta caixinha (agora
+   um <button> de verdade, era um <span>) resolve isso na raiz: os
+   outros controles da linha passam a ser IRMÃOS dela, não
+   descendentes — sem ancestral clicável por perto, não tem
+   borbulhamento nenhum pra se preocupar. */
 .canal-checkbox {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  padding: 0;
+  border-radius: 3px;
   font-family: var(--fonte-dado);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--cor-accent);
-  width: 14px;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s;
+}
+
+.canal-checkbox:hover {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .canal-rotulo {

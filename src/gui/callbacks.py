@@ -1,5 +1,3 @@
-import json
-
 from dash import Input, Output, State, ctx, ALL, MATCH, no_update
 from dash.exceptions import PreventUpdate
 
@@ -33,29 +31,6 @@ def _clique_real(ctx_triggered):
     `type` do gatilho (`ctx.triggered_id.get('type')`) antes de agir.
     """
     return bool(ctx_triggered)
-
-
-def _tipos_disparados(ctx_triggered):
-    """
-    Extrai o 'type' (do id padrão {'type': ..., ...}) de CADA entrada de
-    'ctx.triggered' — não só da primeira (que é o que 'ctx.triggered_id'
-    devolve). Usado quando um clique físico do usuário pode, por
-    borbulhamento de evento (um <button>/<input> dentro de uma
-    '.coluna-item' que TAMBÉM escuta clique, ver gerenciar_selecao_canais
-    logo abaixo), disparar MAIS DE UM Input pattern-matched na mesma
-    interação — sem checar a lista inteira, um callback que só olha
-    'ctx.triggered_id' corre o risco de agir com base no elemento ERRADO
-    se o mais específico (o botão/input que o usuário realmente tocou)
-    não vier primeiro nessa lista.
-    """
-    tipos = set()
-    for item in (ctx_triggered or []):
-        id_parte = item.get('prop_id', '').rsplit('.', 1)[0]
-        try:
-            tipos.add(json.loads(id_parte).get('type'))
-        except (ValueError, TypeError, AttributeError):
-            tipos.add(id_parte)
-    return tipos
 
 
 def _estados_toolbar(estado, aba_ativa):
@@ -341,20 +316,6 @@ def registrar_callbacks(app, estado):
     )
     def gerenciar_selecao_canais(n_clicks_list, _n_clicks_excluir, aba_ativa, classe_painel_direito, coluna_em_edicao):
         if not _clique_real(ctx.triggered) or not aba_ativa:
-            raise PreventUpdate
-
-        # Um clique no lápis (✏️, 'botao-editar-canal') mora DENTRO da
-        # mesma '.coluna-item' que este callback escuta via
-        # 'linha-canal' — se o clique borbulhar (evento do <button>
-        # também contar como clique na linha por baixo), esse OUTRO
-        # gatilho apareceria aqui junto, e este callback reconstruiria
-        # 'lista-canais-aba' SEM o modo de edição (fechando o campo que
-        # alternar_edicao_canal, mais abaixo, está tentando abrir na
-        # MESMA interação). Checar o conjunto INTEIRO de tipos disparados
-        # (não só 'ctx.triggered_id', que só reflete uma entrada) evita
-        # essa corrida: se o lápis fez parte do clique, quem toma conta
-        # da renderização é exclusivamente alternar_edicao_canal.
-        if 'botao-editar-canal' in _tipos_disparados(ctx.triggered):
             raise PreventUpdate
 
         gatilho_id = ctx.triggered_id

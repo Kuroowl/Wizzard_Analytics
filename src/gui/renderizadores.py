@@ -109,6 +109,21 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao=None):
     alternar_edicao_canal/confirmar_edicao_canal em callbacks.py, que
     escrevem/leem 'canal-em-edicao-store'). Qualquer outra linha
     continua no modo normal (Span + lápis + lixeira).
+
+    ATENÇÃO À ÁREA DE CLIQUE — 'id={'type': 'linha-canal', ...}' (que
+    (des)marca o canal, ver gerenciar_selecao_canais em callbacks.py)
+    vive SÓ no botão da caixinha de seleção (☐/✓) agora, não mais no
+    <div> da linha inteira. Antes a linha INTEIRA era um alvo de
+    clique, com o lápis/lixeira/campo-de-renomear vivendo DENTRO dela
+    — clicar em qualquer um desses filhos borbulhava e também contava
+    como clique na linha (desmarcando/marcando o canal como efeito
+    colateral de só querer editar o nome ou excluir), então dava pra
+    "fechar" o campo de renomear sem querer no instante em que o
+    usuário clicava nele pra digitar. Restringindo o clique reativo só
+    à caixinha, o lápis/lixeira/campo de texto ficam como IRMÃOS dela
+    (não descendentes) — sem ancestral clicável nenhum por perto, não
+    tem borbulhamento nenhum pra se preocupar, e nenhum truque de
+    'stopPropagation' é necessário.
     """
     if not aba_ativa or aba_ativa not in estado.arquivos:
         return html.Div('Abra um arquivo.', className='abas-placeholder', style={'padding': '14px'})
@@ -122,7 +137,7 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao=None):
         selecionado = par_canal in estado.canais_selecionados
 
         classe_canal = 'coluna-item' + (' selecionada' if selecionado else '')
-        marcador_check = '✓ ' if selecionado else '☐ '
+        marcador_check = '✓' if selecionado else '☐'
 
         em_edicao = bool(canal_em_edicao) and canal_em_edicao.get('arquivo') == aba_ativa \
             and canal_em_edicao.get('coluna') == coluna
@@ -148,10 +163,15 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao=None):
             campo_rotulo = html.Span(rotulo, className="canal-rotulo")
 
         lista_canais.append(html.Div(
-            id={'type': 'linha-canal', 'arquivo': aba_ativa, 'coluna': coluna},
             className=classe_canal,
             children=[
-                html.Span(marcador_check, className="canal-checkbox"),
+                html.Button(
+                    marcador_check,
+                    id={'type': 'linha-canal', 'arquivo': aba_ativa, 'coluna': coluna},
+                    className="canal-checkbox",
+                    title=('Ocultar' if selecionado else 'Mostrar') + f" canal '{rotulo}'",
+                    n_clicks=0,
+                ),
                 campo_rotulo,
                 html.Button(
                     '✏️',
