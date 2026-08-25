@@ -1,3 +1,5 @@
+import json
+
 from dash import Input, Output, State, ctx, ALL, MATCH, no_update
 from dash.exceptions import PreventUpdate
 
@@ -31,6 +33,29 @@ def _clique_real(ctx_triggered):
     `type` do gatilho (`ctx.triggered_id.get('type')`) antes de agir.
     """
     return bool(ctx_triggered)
+
+
+def _tipos_disparados(ctx_triggered):
+    """
+    Extrai o 'type' (do id padrão {'type': ..., ...}) de CADA entrada de
+    'ctx.triggered' — não só da primeira (que é o que 'ctx.triggered_id'
+    devolve). Usado quando um clique físico do usuário pode, por
+    borbulhamento de evento (um <button>/<input> dentro de uma
+    '.coluna-item' que TAMBÉM escuta clique, ver gerenciar_selecao_canais
+    logo abaixo), disparar MAIS DE UM Input pattern-matched na mesma
+    interação — sem checar a lista inteira, um callback que só olha
+    'ctx.triggered_id' corre o risco de agir com base no elemento ERRADO
+    se o mais específico (o botão/input que o usuário realmente tocou)
+    não vier primeiro nessa lista.
+    """
+    tipos = set()
+    for item in (ctx_triggered or []):
+        id_parte = item.get('prop_id', '').rsplit('.', 1)[0]
+        try:
+            tipos.add(json.loads(id_parte).get('type'))
+        except (ValueError, TypeError, AttributeError):
+            tipos.add(id_parte)
+    return tipos
 
 
 def _estados_toolbar(estado, aba_ativa):
@@ -318,6 +343,20 @@ def registrar_callbacks(app, estado):
         if not _clique_real(ctx.triggered) or not aba_ativa:
             raise PreventUpdate
 
+        # Um clique no lápis (✏️, 'botao-editar-canal') mora DENTRO da
+        # mesma '.coluna-item' que este callback escuta via
+        # 'linha-canal' — se o clique borbulhar (evento do <button>
+        # também contar como clique na linha por baixo), esse OUTRO
+        # gatilho apareceria aqui junto, e este callback reconstruiria
+        # 'lista-canais-aba' SEM o modo de edição (fechando o campo que
+        # alternar_edicao_canal, mais abaixo, está tentando abrir na
+        # MESMA interação). Checar o conjunto INTEIRO de tipos disparados
+        # (não só 'ctx.triggered_id', que só reflete uma entrada) evita
+        # essa corrida: se o lápis fez parte do clique, quem toma conta
+        # da renderização é exclusivamente alternar_edicao_canal.
+        if 'botao-editar-canal' in _tipos_disparados(ctx.triggered):
+            raise PreventUpdate
+
         gatilho_id = ctx.triggered_id
         mensagem = no_update
         area_grafico = no_update
@@ -389,6 +428,130 @@ def registrar_callbacks(app, estado):
         return (renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem, area_grafico,
                 badge_texto, badge_classe, popup_children,
                 True, painel_edicao)
+
+    # ------------------------------------------------------------------
+    # Renomear canal (lápis ✏️ na lista de canais) — 2 callbacks: um
+    # LIGA o modo de edição (troca o rótulo estático por um <input>,
+    # ver alternar_edicao_canal), outro CONFIRMA (Enter ou clicar fora,
+    # ver confirmar_edicao_canal). 'canal-em-edicao-store' (layout.py)
+    # é quem guarda qual linha está em edição agora — só uma por vez,
+    # já que a lista inteira (lista-canais-aba) é reconstruída a cada
+    # passo (mesmo padrão de gerenciar_selecao_canais acima).
+    #
+    # O rótulo gravado por Arquivo.renomear_canal (src/core/arquivo.py)
+    # é o mesmo lido em TODO lugar que hoje já chama 'arquivo.rotulo(
+    # coluna)' — a legenda do gráfico (ver rotulo/name em
+    # construir_figura_serie_temporal, plotter.py) e a caixa 'Dado' do
+    # painel de edição da curva (ver opcoes_dado em
+    # renderizar_painel_edicao) — então renomear aqui já é a fonte
+    # única de verdade pros dois lugares, sem precisar duplicar o nome
+    # em nenhum Store à parte. Só precisamos redesenhar os dois depois
+    # de renomear, o que os dois callbacks abaixo já fazem.
+    # ------------------------------------------------------------------
+
+    @app.callback(
+        Output('lista-canais-aba', 'children', allow_duplicate=True),
+        Output('canal-em-edicao-store', 'data', allow_duplicate=True),
+        Input({'type': 'botao-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
+        State('aba-ativa-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def alternar_edicao_canal(_n_clicks_list, aba_ativa):
+        """
+        Clique no lápis de UMA linha específica: grava {'arquivo',
+        'coluna'} em 'canal-em-edicao-store' e reconstrói a lista com
+        essa linha (e só essa) nascendo com o <input> editável — ver
+        'canal_em_edicao' em renderizar_colunas_da_aba_ativa
+        (renderizadores.py).
+        """
+        if not _clique_real(ctx.triggered) or not aba_ativa:
+            raise PreventUpdate
+
+        gatilho_id = ctx.triggered_id
+        if not gatilho_id or gatilho_id.get('type') != 'botao-editar-canal':
+            raise PreventUpdate
+
+        canal_em_edicao = {'arquivo': gatilho_id.get('arquivo'), 'coluna': gatilho_id.get('coluna')}
+        return renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao), canal_em_edicao
+
+    @app.callback(
+        Output('lista-canais-aba', 'children', allow_duplicate=True),
+        Output('canal-em-edicao-store', 'data', allow_duplicate=True),
+        Output('container-grafico', 'children', allow_duplicate=True),
+        Output('rodape-status', 'children', allow_duplicate=True),
+        Output('painel-direito-conteudo', 'children', allow_duplicate=True),
+        Input({'type': 'input-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_submit'),
+        Input({'type': 'input-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_blur'),
+        State({'type': 'input-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'value'),
+        State('aba-ativa-store', 'data'),
+        State('canal-em-edicao-store', 'data'),
+        State('painel-direito', 'className'),
+        State('edicao-curva-dado-atual', 'data'),
+        prevent_initial_call=True,
+    )
+    def confirmar_edicao_canal(_n_submit_list, _n_blur_list, valores, aba_ativa,
+                                canal_em_edicao, classe_painel_direito, coluna_em_edicao_painel):
+        """
+        Sai do modo de edição — tanto por Enter ('n_submit') quanto por
+        clicar fora do campo ('n_blur', dispara ao perder o foco) — os
+        dois caem aqui, então SALVAR ao clicar fora é intencional (não
+        um efeito colateral): não tem um jeito de "cancelar" digitando
+        e clicando fora sem salvar, dá pra desfazer só digitando o nome
+        de volta.
+
+        Como só existe UM <input> desse tipo na tela por vez (a lista
+        inteira nasce com no máximo uma linha em edição, ver
+        'canal_em_edicao' em renderizar_colunas_da_aba_ativa), a lista
+        pattern-matched 'valores' (State com ALL) tem no máximo 1 item
+        — é ele que vira o novo nome.
+
+        'canal_em_edicao' (State, não Input) é o guia de verdade sobre
+        QUAL canal está sendo editado — depois que este callback roda
+        uma vez e zera esse Store pra None, uma 2ª notificação
+        (blur nativo do navegador quando o <input> é removido do DOM
+        na troca pra Span, por exemplo) já bate nesse guard e sai sem
+        fazer nada de novo.
+        """
+        if not ctx.triggered or not canal_em_edicao:
+            raise PreventUpdate
+
+        arquivo_alvo = canal_em_edicao.get('arquivo')
+        coluna = canal_em_edicao.get('coluna')
+        arquivo = estado.arquivos.get(arquivo_alvo)
+        if not arquivo:
+            raise PreventUpdate
+
+        novo_nome = valores[0] if valores else None
+        mensagem = no_update
+        area_grafico = no_update
+
+        if novo_nome and novo_nome.strip() and novo_nome.strip() != arquivo.rotulo(coluna):
+            arquivo.renomear_canal(coluna, novo_nome.strip())
+            mensagem = f'🧙‍♂️: " Canal renomeado para \'{arquivo.rotulo(coluna)}\'. "'
+            if arquivo.grafico_gerado:
+                # A legenda do gráfico lê 'arquivo.rotulo(coluna)' na
+                # hora de montar cada traço (ver 'name=rotulo' em
+                # construir_figura_serie_temporal, plotter.py) — como o
+                # rótulo já foi atualizado acima, só precisa redesenhar
+                # pra essa legenda nova aparecer.
+                fig = construir_figura_serie_temporal(estado, arquivo_alvo)
+                arquivo.figura = fig
+                area_grafico = renderizar_grafico_com_fechar(fig)
+        # nome vazio (só espaço) ou igual ao atual: ignora silenciosamente,
+        # mantém o rótulo antigo — sem popup de erro pra um caso tão
+        # menor quanto "apagou tudo sem querer e clicou fora".
+
+        painel_edicao = no_update
+        em_edicao_painel = classe_painel_direito and 'ativa' in classe_painel_direito.split()
+        if em_edicao_painel and arquivo_alvo == aba_ativa:
+            # Mesmo raciocínio do gráfico: a caixa 'Dado' do card
+            # 'Curva' lê 'arquivo.rotulo(coluna)' pra montar as opções
+            # (ver opcoes_dado em renderizar_painel_edicao) — recarrega
+            # o card pra essa lista de opções refletir o novo nome.
+            painel_edicao = renderizar_painel_edicao(estado, aba_ativa, coluna_em_edicao_painel)
+
+        return (renderizar_colunas_da_aba_ativa(estado, aba_ativa), None,
+                area_grafico, mensagem, painel_edicao)
 
     @app.callback(
         Output('container-abas-chrome', 'children', allow_duplicate=True),

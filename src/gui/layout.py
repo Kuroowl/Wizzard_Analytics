@@ -38,6 +38,17 @@ def montar_layout(estado):
         # "A nonexistent object was used in an State of a Dash callback".
         dcc.Store(id='edicao-curva-dado-atual', data=None),
 
+        # 'canal-em-edicao-store': None enquanto nenhum canal está sendo
+        # renomeado; vira {'arquivo': <aba>, 'coluna': <nome_interno>}
+        # entre o clique no lápis (✏️, ver alternar_edicao_canal em
+        # callbacks.py) e a confirmação (Enter ou clicar fora, ver
+        # confirmar_edicao_canal) — é isso que diz pra
+        # renderizar_colunas_da_aba_ativa (renderizadores.py) qual linha
+        # específica da lista deve nascer com um <input> editável no
+        # lugar do rótulo estático, em vez de precisar reconstruir a
+        # lista inteira num modo "tudo editável".
+        dcc.Store(id='canal-em-edicao-store', data=None),
+
         # 'corte-selecao-store': None enquanto nenhuma seleção de corte
         # está em andamento; durante 'Aparar dados' (e, no futuro,
         # 'Excluir dados' — mesma mecânica, ver aparar_dados/excluir_dados

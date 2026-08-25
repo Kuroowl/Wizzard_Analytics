@@ -101,7 +101,15 @@ def renderizar_abas_estilo_chrome(estado, aba_ativa):
     return abas
 
 
-def renderizar_colunas_da_aba_ativa(estado, aba_ativa):
+def renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao=None):
+    """
+    'canal_em_edicao': None (padrão) ou {'arquivo': <aba>, 'coluna':
+    <nome_interno>} — quando bate com a aba/coluna desta linha, ela
+    nasce com um <input> editável no lugar do rótulo estático (ver
+    alternar_edicao_canal/confirmar_edicao_canal em callbacks.py, que
+    escrevem/leem 'canal-em-edicao-store'). Qualquer outra linha
+    continua no modo normal (Span + lápis + lixeira).
+    """
     if not aba_ativa or aba_ativa not in estado.arquivos:
         return html.Div('Abra um arquivo.', className='abas-placeholder', style={'padding': '14px'})
 
@@ -116,12 +124,42 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa):
         classe_canal = 'coluna-item' + (' selecionada' if selecionado else '')
         marcador_check = '✓ ' if selecionado else '☐ '
 
+        em_edicao = bool(canal_em_edicao) and canal_em_edicao.get('arquivo') == aba_ativa \
+            and canal_em_edicao.get('coluna') == coluna
+
+        if em_edicao:
+            # Input no lugar do Span — 'autoFocus' já abre com o cursor
+            # pronto pra digitar (não precisa de um segundo clique), e
+            # o valor de partida é o rótulo ATUAL (não o nome_interno),
+            # pra edições incrementais (corrigir só um detalhe do nome)
+            # não obrigarem redigitar tudo. 'debounce=False': cada
+            # tecla já atualiza 'value' no componente, mas o callback
+            # só LÊ esse valor no Enter/blur (n_submit/n_blur, ver
+            # confirmar_edicao_canal) — debounce aqui só atrasaria o
+            # que o usuário vê digitado, sem ganho nenhum, já que
+            # ninguém reage a cada tecla.
+            campo_rotulo = dcc.Input(
+                id={'type': 'input-editar-canal', 'arquivo': aba_ativa, 'coluna': coluna},
+                type='text', value=rotulo, autoFocus=True, debounce=False,
+                className='canal-rotulo-input',
+                maxLength=80,
+            )
+        else:
+            campo_rotulo = html.Span(rotulo, className="canal-rotulo")
+
         lista_canais.append(html.Div(
             id={'type': 'linha-canal', 'arquivo': aba_ativa, 'coluna': coluna},
             className=classe_canal,
             children=[
                 html.Span(marcador_check, className="canal-checkbox"),
-                html.Span(rotulo, className="canal-rotulo"),
+                campo_rotulo,
+                html.Button(
+                    '✏️',
+                    id={'type': 'botao-editar-canal', 'arquivo': aba_ativa, 'coluna': coluna},
+                    className="canal-editar-btn",
+                    title=f"Renomear canal '{rotulo}'",
+                    n_clicks=0,
+                ),
                 html.Button(
                     '🗑',
                     id={'type': 'botao-excluir-canal', 'arquivo': aba_ativa, 'coluna': coluna},

@@ -248,6 +248,17 @@
   background: transparent;
   color: var(--cor-texto-mudo);
   border-radius: 3px;
+  /* 'font-family' EXPLÍCITO — botões/inputs NÃO herdam a fonte do
+     elemento pai por padrão (é a folha de estilo nativa do navegador
+     quem define a fonte de <button>/<input>, tipicamente a fonte de
+     UI do sistema operacional, não a do texto ao redor) — sem esta
+     linha, o ícone da lixeira ficava numa fonte diferente do rótulo
+     do canal ao lado ('.canal-rotulo', que herda '--fonte-dado' de
+     '.coluna-item' normalmente, já que Span não tem essa folha de
+     estilo própria pra sobrescrever). Mesmo ajuste replicado em
+     '.canal-editar-btn' e '.canal-rotulo-input' logo abaixo, pelo
+     mesmo motivo. */
+  font-family: var(--fonte-dado);
   font-size: 11px;
   width: 18px;
   height: 18px;
@@ -264,4 +275,69 @@
 .canal-lixeira-btn:hover {
   background-color: rgba(217, 83, 79, 0.18);
   color: #C0392B;
+}
+
+/* Lápis ✏️ — renomeia o canal (ver alternar_edicao_canal em
+   callbacks.py). MESMO tamanho/comportamento de hover que a lixeira
+   (só aparece no hover da linha), fica À ESQUERDA dela (mais perto do
+   rótulo, "editar" antes de "excluir" na leitura da esquerda pra
+   direita) — ver ordem dos filhos em renderizar_colunas_da_aba_ativa,
+   renderizadores.py. */
+.canal-editar-btn {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--cor-texto-mudo);
+  border-radius: 3px;
+  font-family: var(--fonte-dado);
+  font-size: 11px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+
+.coluna-item:hover .canal-editar-btn { opacity: 1; }
+
+.canal-editar-btn:hover {
+  background-color: rgba(47, 165, 160, 0.18);
+  color: var(--cor-accent);
+}
+
+/* Campo de renomear — substitui '.canal-rotulo' (Span) na MESMA
+   posição/tamanho quando a linha está em edição (ver 'canal_em_edicao'
+   em renderizar_colunas_da_aba_ativa) — por isso 'flex'/'min-width'
+   espelham exatamente o Span que ele substitui, e a fonte segue o
+   mesmo raciocínio dos botões acima (inputs também não herdam fonte
+   por padrão). 'padding'/'border' negativos compensados via
+   'box-sizing: border-box' (herdado do '*' global, ver estilo.css)
+   pra não empurrar o layout da linha 1-2px quando entra em modo de
+   edição. */
+.canal-rotulo-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--fonte-dado);
+  font-size: 12px;
+  color: var(--cor-texto-escuro);
+  background-color: #FFFFFF;
+  border: 1px solid var(--cor-accent);
+  border-radius: 4px;
+  padding: 1px 4px;
+  height: 20px;
+  /* Clicar no campo pra posicionar o cursor não deve (des)marcar a
+     linha por baixo — mesmo raciocínio de 'cursor: text' sobrescrevendo
+     o 'cursor: pointer' herdado de '.coluna-item' — e o clique
+     realmente parar de propagar pro clique da linha é responsabilidade
+     do JS (ver iniciarBloqueioCliqueEdicaoCanal, scripts_js.py). */
+  cursor: text;
+}
+
+.canal-rotulo-input:focus {
+  outline: none;
+  border-color: var(--cor-accent);
+  box-shadow: 0 0 0 2px rgba(47, 165, 160, 0.18);
 }
