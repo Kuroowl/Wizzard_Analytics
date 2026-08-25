@@ -340,6 +340,22 @@
 
 .coluna-item:hover .canal-editar-btn { opacity: 1; }
 
+/* Enquanto a linha está em edição ('.editando', ver
+   renderizar_colunas_da_aba_ativa em renderizadores.py), o lápis fica
+   REVELADO mesmo sem o mouse em cima — sem isso, ele só aparecia no
+   ':hover' e sumia assim que o usuário tirava o mouse da linha depois
+   de abrir a caixa de renomear, escondendo o próprio botão que
+   precisa ser clicado de novo pra fechar/salvar (ver
+   gerenciar_edicao_canal, callbacks.py — o lápis funciona como um
+   "toggle": clicar de novo NA MESMA linha fecha e salva). O visual
+   "pressionado" (mesmo fundo/cor do hover, só que fixo) reforça que
+   ele está no estado ATIVO agora, não só disponível pra clicar. */
+.coluna-item.editando .canal-editar-btn {
+  opacity: 1;
+  background-color: rgba(47, 165, 160, 0.18);
+  color: var(--cor-accent);
+}
+
 .canal-editar-btn:hover {
   background-color: rgba(47, 165, 160, 0.18);
   color: var(--cor-accent);

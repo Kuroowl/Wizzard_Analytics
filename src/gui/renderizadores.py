@@ -136,11 +136,19 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao=None):
         par_canal = (aba_ativa, coluna)
         selecionado = par_canal in estado.canais_selecionados
 
-        classe_canal = 'coluna-item' + (' selecionada' if selecionado else '')
-        marcador_check = '✓' if selecionado else '☐'
-
         em_edicao = bool(canal_em_edicao) and canal_em_edicao.get('arquivo') == aba_ativa \
             and canal_em_edicao.get('coluna') == coluna
+
+        # 'editando' força o lápis (e, por consistência visual, o resto
+        # da linha) a ficar no estado "revelado" mesmo sem o mouse em
+        # cima — sem essa classe, o lápis só aparece no ':hover' (ver
+        # '.coluna-item:hover .canal-editar-btn' em file_menu.css), e o
+        # usuário perdia de vista o próprio botão que precisa clicar
+        # de novo pra fechar/salvar (ver gerenciar_edicao_canal,
+        # callbacks.py) assim que tirava o mouse de cima da linha
+        # depois de abrir a edição.
+        classe_canal = 'coluna-item' + (' selecionada' if selecionado else '') + (' editando' if em_edicao else '')
+        marcador_check = '✓' if selecionado else '☐'
 
         if em_edicao:
             # Input no lugar do Span — 'autoFocus' já abre com o cursor
