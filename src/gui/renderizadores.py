@@ -1249,7 +1249,10 @@ def renderizar_calculadora_botoes(estado, aba_ativa):
         _grupo_calculadora('Funções', FUNCOES, classe_extra='calculadora-token-funcao'),
         html.Div(className='calculadora-grupo', children=[
             html.Div('Operações rápidas', className='calculadora-grupo-titulo'),
-            html.Div(className='calculadora-grupo-botoes calculadora-grupo-botoes-vertical', children=[
+            # Mesma grade compacta dos outros grupos ('calculadora-
+            # grupo-botoes', flex-wrap) — antes ficava empilhado, um
+            # botão por linha, ocupando a largura toda do painel.
+            html.Div(className='calculadora-grupo-botoes', children=[
                 _botao_operacao_rapida(display, operacao_id) for display, operacao_id in OPERACOES_RAPIDAS
             ]),
         ]),

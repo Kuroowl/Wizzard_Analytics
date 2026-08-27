@@ -443,6 +443,37 @@ def registrar_callbacks(app, estado):
     # ------------------------------------------------------------------
 
     @app.callback(
+        Output('calc-nome-input', 'className'),
+        Output('calc-coluna-destino', 'className'),
+        Input('calc-tipo-destino', 'value'),
+        prevent_initial_call=True,
+    )
+    def alternar_tipo_destino_calculadora(tipo_destino):
+        """
+        Troca o seletor 'Nova coluna' / 'Coluna existente' (início da
+        barra) alterna qual dos dois campos fica visível — o campo de
+        NOME (pra batizar a coluna nova) ou o DROPDOWN de qual coluna
+        sobrescrever. Os dois já nascem sempre no DOM (ver
+        renderizar_calculadora_barra, renderizadores.py — só um deles
+        escondido via classe 'calculadora-oculto'); esta callback só
+        precisava REAGIR à troca do seletor pra alternar qual classe
+        cada um leva — antes só existia como leitura (State) nos
+        outros callbacks (Criar/token/etc.), nunca como gatilho próprio
+        pra essa troca visual, então o campo certo nunca aparecia
+        sozinho ao mudar o seletor.
+
+        Só troca 2 classNames — não reconstrói a barra inteira (evita
+        remontar os outros componentes à toa, inclusive os de padrão
+        coringa que são sensíveis a disparo fantasma em remontagem).
+        """
+        if not tipo_destino:
+            raise PreventUpdate
+        modo_nova = tipo_destino != 'existente'
+        classe_nome = 'calculadora-nome-input' + ('' if modo_nova else ' calculadora-oculto')
+        classe_coluna = 'calculadora-coluna-destino' + ('' if not modo_nova else ' calculadora-oculto')
+        return classe_nome, classe_coluna
+
+    @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
         Output('calc-resultado-pendente-store', 'data', allow_duplicate=True),

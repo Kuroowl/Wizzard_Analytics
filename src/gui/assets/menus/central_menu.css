@@ -196,20 +196,30 @@
 #area-modo-nova-analise.area-modo-nova-analise-completa {
   display: none; /* alternado via 'style' inline pelo callback */
   flex-direction: column;
+  align-items: center; /* centraliza a barra e a miniatura horizontalmente (largura 80%, ver abaixo) */
   height: 100%;
   width: 100%;
+  padding-top: 20px; /* distância do topo, pedido explícito */
+  box-sizing: border-box;
 }
 
+/* 80% da largura, centralizada ('align-items:center' no pai acima
+   cuida disso sozinho, sem precisar de 'margin: auto') — antes
+   ocupava 100% da largura colada nas duas bordas. 'border-radius'
+   nas 4 pontas (era só embaixo) porque agora ela "flutua" com espaço
+   dos dois lados, então faz mais sentido visual como um cartão
+   inteiro, não mais uma barra colada no topo. */
 .calculadora-barra-central-conteudo {
   flex: 0 0 56px;
-  width: 100%;
+  width: 80%;
   height: 56px;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 0 14px;
   background-color: #FFFFFF;
-  border-bottom: 1px solid var(--cor-borda);
+  border: 1px solid var(--cor-borda);
+  border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
@@ -218,15 +228,24 @@
    pra referência enquanto o usuário monta a expressão — não é
    editável/interativa da mesma forma que o gráfico grande (ver
    'config' em renderizar_area_calculadora_completa, renderizadores.py).
-   Ocupa o espaço restante depois da barra ('flex: 1 1 auto'). */
+   Ocupa o espaço restante depois da barra ('flex: 1 1 auto').
+   MESMA largura da barra acima (80%, também centralizada pelo
+   'align-items:center' do pai) — pedido explícito de manter as duas
+   alinhadas. 'margin' dá a distância da parede de baixo (o pai não
+   tem padding-bottom, só padding-top) e um respiro embaixo da
+   barra. */
 .calculadora-miniatura-container {
   flex: 1 1 auto;
+  width: 80%;
   min-height: 0;
+  margin: 16px 0 24px 0;
   padding: 12px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
   background-color: var(--cor-fundo-grafico);
+  border-radius: 8px;
 }
 
 .calculadora-grafico-miniatura {

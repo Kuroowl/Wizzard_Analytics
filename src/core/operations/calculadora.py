@@ -68,11 +68,17 @@ OPERACOES_RAPIDAS = [
     # aplicar_operacao_rapida logo abaixo e
     # 'calc-op-rapida'/'calc-resultado-pendente-store' em
     # callbacks.py/layout.py.
-    ('Derivada', 'derivada'),
-    ('Integral', 'integral'),
-    ('Média', 'media'),
-    ('Máximo', 'maximo'),
-    ('Mínimo', 'minimo'),
+    #
+    # Símbolo auxiliar antes do nome (∂, ∫, x̄, ↑, ↓) — pedido
+    # explícito, pra reconhecer o botão de relance sem precisar ler o
+    # texto inteiro. Os botões agora ficam na MESMA grade compacta dos
+    # outros grupos (ver '.calculadora-grupo-botoes' em edit_menu.css)
+    # em vez de empilhados um por linha ocupando a largura toda.
+    ('∂ Derivada', 'derivada'),
+    ('∫ Integral', 'integral'),
+    ('x̄ Média', 'media'),
+    ('↑ Máximo', 'maximo'),
+    ('↓ Mínimo', 'minimo'),
 ]
 
 

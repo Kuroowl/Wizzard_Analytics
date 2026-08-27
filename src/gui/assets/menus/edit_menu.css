@@ -1006,20 +1006,13 @@
   gap: 6px;
 }
 
-/* Operações rápidas (Derivada/Integral/Média/Máximo/Mínimo) — cada
-   botão ocupa a LARGURA TODA do painel, empilhados (não lado a lado
-   como os outros 3 grupos): são ações mais "pesadas" (disparam um
-   cálculo de verdade sobre as colunas já clicadas, ver
-   aplicar_operacao_rapida_calculadora em callbacks.py), então um
-   alvo de clique maior e uma leitura de cima a baixo cabe melhor que
-   uma grade apertada de símbolos curtos. */
-.calculadora-grupo-botoes-vertical {
-  flex-direction: column;
-}
-
-.calculadora-grupo-botoes-vertical .calculadora-token {
-  width: 100%;
-  text-align: left;
+/* Operações rápidas (Derivada/Integral/Média/Máximo/Mínimo) — MESMA
+   grade que os outros 3 grupos agora (flex-wrap, não empilhado numa
+   coluna vertical de largura total como antes) — cabem confortável
+   com os rótulos curtos (símbolo + palavra, ver OPERACOES_RAPIDAS em
+   calculadora.py) sem precisar de uma linha inteira cada um. */
+.calculadora-token-rapido {
+  white-space: nowrap;
 }
 
 .calculadora-token {
@@ -1057,7 +1050,7 @@
 .calculadora-numeros-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  gap: 5px;
   flex: 1 1 auto;
 }
 
@@ -1068,10 +1061,17 @@
   flex: 0 0 auto;
 }
 
+/* Botões numéricos MENORES que o resto (pedido explícito) — a grade
+   de 0-9 é só repetição visual, não precisa do mesmo tamanho de alvo
+   de clique que operadores/funções/colunas, que aparecem em menor
+   quantidade cada. */
 .calculadora-token-numero {
   background-color: #F7F7F5;
   color: var(--cor-texto-escuro);
   text-align: center;
+  padding: 4px 6px;
+  min-width: 24px;
+  font-size: 12px;
 }
 
 .calculadora-token-numero:hover {
@@ -1087,7 +1087,8 @@
   border-color: rgba(217, 119, 6, 0.4);
   color: #B45309;
   font-weight: 700;
-  min-width: 40px;
+  min-width: 32px;
+  padding: 5px 8px;
   text-align: center;
 }
 
