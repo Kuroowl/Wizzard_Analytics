@@ -1050,6 +1050,17 @@
 .calculadora-numeros-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  /* 'justify-items: center' é o que faltava — por padrão, CSS Grid
+     ESTICA os itens pra preencher a célula inteira ('stretch'), o que
+     ignorava completamente o 'min-width: 32px' de '.calculadora-
+     token-numero' (min-width só trava um MÍNIMO, nunca impede esticar
+     além dele) — é por isso que os números apareciam bem maiores que
+     os operadores ao lado (que estão num flex column, sem esse
+     comportamento de esticar por padrão). Com 'center', cada botão
+     volta a ficar do tamanho do próprio conteúdo/min-width, só
+     centralizado dentro da célula da grade. */
+  justify-items: center;
+  align-items: center;
   gap: 5px;
   flex: 1 1 auto;
 }
