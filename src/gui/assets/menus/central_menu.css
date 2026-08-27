@@ -217,7 +217,7 @@
    depende do título + a linha, não é mais um valor fixo só. */
 .calculadora-barra-central-conteudo {
   flex: 0 0 auto;
-  width: 80%;
+  width: 90%;
   display: flex;
   flex-direction: column;
   gap: 6px;
