@@ -208,19 +208,39 @@
    ocupava 100% da largura colada nas duas bordas. 'border-radius'
    nas 4 pontas (era só embaixo) porque agora ela "flutua" com espaço
    dos dois lados, então faz mais sentido visual como um cartão
-   inteiro, não mais uma barra colada no topo. */
+   inteiro, não mais uma barra colada no topo.
+
+   Virou COLUNA (título em cima, linha de controles embaixo — ver
+   '.calculadora-barra-titulo'/'.calculadora-barra-linha' logo
+   abaixo) — antes era uma única linha, sem identificação nenhuma;
+   'flex: 0 0 auto' (era '0 0 56px' fixo) porque a altura agora
+   depende do título + a linha, não é mais um valor fixo só. */
 .calculadora-barra-central-conteudo {
-  flex: 0 0 56px;
+  flex: 0 0 auto;
   width: 80%;
-  height: 56px;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 14px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
   background-color: #FFFFFF;
   border: 1px solid var(--cor-borda);
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+}
+
+/* Reaproveita '.calculadora-grupo-titulo' (mesmo estilo dos títulos
+   dos grupos de botões — maiúsculas pequenas, cor apagada), só
+   zerando a margem própria dele (o 'gap' do pai acima já cuida do
+   espaçamento). */
+.calculadora-barra-titulo {
+  margin-bottom: 0;
+}
+
+.calculadora-barra-linha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* Miniatura do gráfico — mostra 'arquivo.figura' (o último estado já
@@ -276,9 +296,16 @@
   border-color: var(--cor-borda);
 }
 
+/* 'min-width' garante um TAMANHO MÍNIMO fixo pra área de cálculo
+   mesmo quando a barra fica apertada — 'flex: 1 1 auto' é o que dá o
+   MÁXIMO variável (cresce livremente até sobrar espaço, empurrado só
+   pelos vizinhos de largura fixa/menor — tipo-destino, nome/coluna-
+   destino, botões). Antes o nome/coluna tinham largura fixa GRANDE
+   (220px) roubando espaço demais desta área; reduzidos abaixo pra
+   sobrar mais espaço aqui por padrão. */
 .calculadora-expressao {
   flex: 1 1 auto;
-  min-width: 0;
+  min-width: 160px;
   font-family: var(--fonte-dado);
   font-size: 14px;
   color: var(--cor-texto-escuro);
@@ -297,8 +324,13 @@
   white-space: nowrap;
 }
 
+/* Reduzido de 220px pra 130px (pedido explícito — "faça o box nome
+   da coluna menor") e 'flex: 0 1 130px' (não '0 0'): a base ainda é
+   130px, mas ele PODE encolher (o '1' do meio) se a barra ficar
+   muito apertada, cedendo espaço pra '.calculadora-expressao' acima
+   nunca ficar espremida abaixo do seu 'min-width'. */
 .calculadora-nome-input {
-  flex: 0 0 220px;
+  flex: 0 1 130px;
   font-family: var(--fonte-ui);
   font-size: 13px;
   color: var(--cor-texto-escuro);
@@ -307,6 +339,7 @@
   border-radius: 5px;
   padding: 8px 10px;
   height: 36px;
+  box-sizing: border-box;
 }
 
 .calculadora-nome-input:focus {
@@ -315,8 +348,11 @@
   box-shadow: 0 0 0 2px rgba(47, 165, 160, 0.18);
 }
 
+/* Mesmo raciocínio de '.calculadora-nome-input' acima — os dois se
+   revezam no mesmo espaço (ver 'calculadora-oculto'), então precisam
+   do MESMO comportamento de encolher/basis. */
 .calculadora-coluna-destino {
-  flex: 0 0 220px;
+  flex: 0 1 130px;
 }
 
 /* 'Nova coluna'/'Coluna existente' (ver 'calc-tipo-destino' na barra)

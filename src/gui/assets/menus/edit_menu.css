@@ -1061,17 +1061,17 @@
   flex: 0 0 auto;
 }
 
-/* Botões numéricos MENORES que o resto (pedido explícito) — a grade
-   de 0-9 é só repetição visual, não precisa do mesmo tamanho de alvo
-   de clique que operadores/funções/colunas, que aparecem em menor
-   quantidade cada. */
+/* Números e Operadores com o MESMO tamanho (pedido explícito, de
+   novo — a rodada anterior tinha deixado os números menores; agora
+   os dois usam o mesmo padding/min-width/font-size, só a COR
+   continua diferenciando os dois grupos). */
 .calculadora-token-numero {
   background-color: #F7F7F5;
   color: var(--cor-texto-escuro);
   text-align: center;
-  padding: 4px 6px;
-  min-width: 24px;
-  font-size: 12px;
+  padding: 5px 8px;
+  min-width: 32px;
+  font-size: 13px;
 }
 
 .calculadora-token-numero:hover {
@@ -1089,6 +1089,7 @@
   font-weight: 700;
   min-width: 32px;
   padding: 5px 8px;
+  font-size: 13px;
   text-align: center;
 }
 

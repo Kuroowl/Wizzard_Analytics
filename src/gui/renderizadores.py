@@ -1115,35 +1115,42 @@ def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
     modo_nova = tipo_destino != 'existente'
 
     return html.Div(className='calculadora-barra-central-conteudo', children=[
-        dcc.Dropdown(
-            id='calc-tipo-destino',
-            options=[
-                {'label': 'Nova coluna', 'value': 'nova'},
-                {'label': 'Coluna existente', 'value': 'existente'},
-            ],
-            value=tipo_destino, clearable=False, searchable=False,
-            className='calculadora-tipo-destino',
-        ),
-        html.Div(texto_expressao, id='calc-expressao-display', className='calculadora-expressao'),
-        dcc.Input(
-            id='calc-nome-input', type='text', placeholder='nome da nova coluna',
-            value=(resultado_pendente or {}).get('sugestao_nome'),
-            className='calculadora-nome-input' + ('' if modo_nova else ' calculadora-oculto'),
-            maxLength=80,
-        ),
-        dcc.Dropdown(
-            id='calc-coluna-destino',
-            options=opcoes_colunas_destino, value=coluna_destino,
-            placeholder='sobrescrever qual coluna?',
-            className='calculadora-coluna-destino' + ('' if not modo_nova else ' calculadora-oculto'),
-        ),
-        html.Button('Criar', id='calc-criar', className='calculadora-btn-criar', n_clicks=0),
-        # '⌫' remove só o ÚLTIMO token inteiro (não um caractere — ver
-        # docstring de 'calc-expressao-store', layout.py) — separado de
-        # 'Limpar' (que zera tudo de uma vez), pra corrigir um clique
-        # errado sem perder a expressão inteira.
-        html.Button('⌫', id='calc-apagar', className='calculadora-btn-apagar', n_clicks=0, title='Apagar último'),
-        html.Button('Limpar', id='calc-limpar', className='calculadora-btn-limpar', n_clicks=0),
+        # Título — mesmo padrão visual dos grupos de botões
+        # ('.calculadora-grupo-titulo', reaproveitado aqui), pedido
+        # explícito pra a barra ter uma identificação igual a
+        # 'Operações básicas' e os outros containers.
+        html.Div('Barra de cálculo', className='calculadora-grupo-titulo calculadora-barra-titulo'),
+        html.Div(className='calculadora-barra-linha', children=[
+            dcc.Dropdown(
+                id='calc-tipo-destino',
+                options=[
+                    {'label': 'Nova coluna', 'value': 'nova'},
+                    {'label': 'Coluna existente', 'value': 'existente'},
+                ],
+                value=tipo_destino, clearable=False, searchable=False,
+                className='calculadora-tipo-destino',
+            ),
+            html.Div(texto_expressao, id='calc-expressao-display', className='calculadora-expressao'),
+            dcc.Input(
+                id='calc-nome-input', type='text', placeholder='nova coluna',
+                value=(resultado_pendente or {}).get('sugestao_nome'),
+                className='calculadora-nome-input' + ('' if modo_nova else ' calculadora-oculto'),
+                maxLength=80,
+            ),
+            dcc.Dropdown(
+                id='calc-coluna-destino',
+                options=opcoes_colunas_destino, value=coluna_destino,
+                placeholder='sobrescrever qual coluna?',
+                className='calculadora-coluna-destino' + ('' if not modo_nova else ' calculadora-oculto'),
+            ),
+            html.Button('Criar', id='calc-criar', className='calculadora-btn-criar', n_clicks=0),
+            # '⌫' remove só o ÚLTIMO token inteiro (não um caractere —
+            # ver docstring de 'calc-expressao-store', layout.py) —
+            # separado de 'Limpar' (que zera tudo de uma vez), pra
+            # corrigir um clique errado sem perder a expressão inteira.
+            html.Button('⌫', id='calc-apagar', className='calculadora-btn-apagar', n_clicks=0, title='Apagar último'),
+            html.Button('Limpar', id='calc-limpar', className='calculadora-btn-limpar', n_clicks=0),
+        ]),
     ])
 
 
