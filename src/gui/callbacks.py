@@ -4,7 +4,7 @@ from dash import Input, Output, State, ctx, ALL, MATCH, no_update
 from dash.exceptions import PreventUpdate
 
 from src.core.operations.sampling import aparar_dados, excluir_dados
-from src.core.operations.calculadora import avaliar_expressao_calculadora
+from src.core.operations.calculadora import avaliar_expressao_calculadora, aplicar_operacao_rapida
 from src.core.plotting.plotter import (
     construir_figura_serie_temporal, resolver_eixo_x, colunas_plotadas, cor_da_coluna,
     aplicar_guias_corte,
@@ -14,7 +14,8 @@ from src.gui.renderizadores import (
     truncar_nome_arquivo, renderizar_abas_estilo_chrome, renderizar_colunas_da_aba_ativa,
     renderizar_area_grafico, renderizar_grafico_com_fechar,
     renderizar_info_rodape, renderizar_badge_alerta, classe_badge_alerta, renderizar_popup_alerta,
-    renderizar_painel_direito_padrao, renderizar_painel_edicao, renderizar_calculadora, _hex_para_rgb,
+    renderizar_painel_direito_padrao, renderizar_painel_edicao,
+    renderizar_calculadora_barra, renderizar_calculadora_botoes, _hex_para_rgb,
 )
 from src.utils.helpers import carregar_dados_de_upload
 
@@ -291,105 +292,119 @@ def registrar_callbacks(app, estado):
         if not n_intervals:
             raise PreventUpdate
         return (mensagem_seguinte or ''), True
-
     # ------------------------------------------------------------------
-    # Modo "Nova Análise" — 'nova-analise' (toolbar) virou um liga/
-    # desliga: pressionado, cobre a área central e o painel de edição
-    # com uma camada própria (analysis.svg / gear.svg — ver
-    # '.area-modo-nova-analise'/'.area-modo-nova-analise-edicao' em
-    # central_menu.css/edit_menu.css), sem tocar no que está por baixo.
+    # Modo "Nova Análise" — 'nova-analise' (toolbar) é um liga/desliga:
+    # pressionado, faz DUAS coisas aparecerem ao mesmo tempo:
+    #   1) uma BARRA fina no topo da área central, EMPURRANDO o gráfico
+    #      pra baixo (não cobrindo mais ele — mudança de proposta,
+    #      antes uma camada opaca escondia o gráfico inteiro; agora ele
+    #      continua visível/interativo o tempo todo) — ver '.centro.
+    #      calc-ativa' em central_menu.css.
+    #   2) uma camada cobrindo o painel de edição inteiro, com os
+    #      GRUPOS de botões da calculadora (Operações básicas/Colunas/
+    #      Funções/Operações rápidas) — ver '.area-modo-nova-analise-
+    #      edicao' em edit_menu.css.
     #
-    # Por que só cobrir, nunca trocar 'children': o gráfico
-    # (arquivo.figura, já cacheado — ver Arquivo.grafico_gerado em
-    # src/core/arquivo.py) e o estado do painel de edição (a classe
-    # 'ativa' de 'painel-direito' + o conteúdo carregado em
-    # 'painel-direito-conteudo') já são "propriedade dos objetos"
-    # existentes — ninguém aqui precisa ser destruído/reconstruído pra
-    # isso funcionar, então desligar o modo não precisa "restaurar"
-    # nada explicitamente: o que estava lá antes nunca saiu do DOM, só
-    # ficou coberto.
+    # Por que nunca tocar em 'painel-direito-conteudo'/'container-
+    # grafico': o gráfico (arquivo.figura, já cacheado — ver
+    # Arquivo.grafico_gerado em src/core/arquivo.py) e o estado do
+    # painel de edição (a classe 'ativa' de 'painel-direito' + o
+    # conteúdo carregado) já são "propriedade dos objetos" existentes —
+    # ninguém aqui precisa ser destruído/reconstruído, então desligar o
+    # modo não precisa "restaurar" nada explicitamente.
     #
     # 'nova-analise' é um id ESTÁTICO (não um padrão coringa
-    # {'type':...}), nunca recriado por nenhum outro callback — ao
-    # contrário dos botões de canal/aba (ver _processar_cliques_padrao,
-    # no topo deste arquivo), não sofre o "disparo fantasma" de
-    # remontagem, então o guard simples de 'not n_clicks' já basta
-    # aqui.
+    # {'type':...}), nunca recriado por nenhum outro callback — não
+    # sofre o "disparo fantasma" de remontagem (ver
+    # _processar_cliques_padrao, topo deste arquivo), então o guard
+    # simples de 'not n_clicks' já basta aqui.
     # ------------------------------------------------------------------
 
     @app.callback(
         Output('modo-nova-analise-store', 'data'),
         Output('nova-analise', 'className'),
-        Output('area-modo-nova-analise', 'style'),
+        Output('centro-grafico', 'className'),
         Output('area-modo-nova-analise-edicao', 'style'),
         Output('area-modo-nova-analise', 'children'),
+        Output('area-modo-nova-analise-edicao', 'children'),
         Input('nova-analise', 'n_clicks'),
         State('modo-nova-analise-store', 'data'),
         State('aba-ativa-store', 'data'),
+        State('calc-expressao-store', 'data'),
         prevent_initial_call=True,
     )
-    def alternar_modo_nova_analise(n_clicks, modo_ativo_atual, aba_ativa):
+    def alternar_modo_nova_analise(n_clicks, modo_ativo_atual, aba_ativa, tokens_atuais):
         if not n_clicks:
             raise PreventUpdate
 
         novo_ativo = not modo_ativo_atual
         classe_botao = 'toolbar-upload' + (' ativo' if novo_ativo else '')
-        estilo_area = {'display': 'flex'} if novo_ativo else {'display': 'none'}
+        classe_centro = 'centro' + (' calc-ativa' if novo_ativo else '')
+        estilo_area_edicao = {'display': 'flex'} if novo_ativo else {'display': 'none'}
 
         # A calculadora só precisa existir de verdade (com os botões de
         # coluna do arquivo CERTO) quando o modo está LIGANDO — ao
-        # desligar, 'no_update' preserva o que já estava montado (não
-        # precisa reconstruir só pra esconder, o 'style' acima já
-        # cuida disso) e a expressão em andamento ('calc-expressao-
-        # store') fica intocada, pra continuar de onde parou se o
-        # usuário ligar de novo. Zerar a expressão só acontece de
-        # propósito (ver 'Limpar'/'Criar' abaixo), nunca como efeito
-        # colateral de ligar/desligar.
-        conteudo_calculadora = renderizar_calculadora(estado, aba_ativa) if novo_ativo else no_update
+        # desligar, 'no_update' preserva o que já estava montado (a
+        # barra já vira invisível só com o 'className' de '.centro'
+        # acima, não precisa reconstruir pra esconder) e a expressão em
+        # andamento ('calc-expressao-store') fica intocada, pra
+        # continuar de onde parou se o usuário ligar de novo.
+        conteudo_barra = no_update
+        conteudo_botoes = no_update
+        if novo_ativo:
+            conteudo_barra = renderizar_calculadora_barra(estado, aba_ativa, tokens_atuais)
+            conteudo_botoes = renderizar_calculadora_botoes(estado, aba_ativa)
 
-        return novo_ativo, classe_botao, estilo_area, estilo_area, conteudo_calculadora
+        return novo_ativo, classe_botao, classe_centro, estilo_area_edicao, conteudo_barra, conteudo_botoes
 
     # ------------------------------------------------------------------
-    # Calculadora do modo "Nova Análise" — 4 callbacks:
-    #   1) registrar_token_calculadora: clique em QUALQUER botão de
-    #      token (operador/função/atalho/coluna — todos usam o MESMO
-    #      padrão de id, ver _botao_token_calculadora em
-    #      renderizadores.py) anexa esse token na expressão.
-    #   2) apagar_ultimo_token_calculadora: '⌫' remove só o ÚLTIMO
-    #      token inteiro.
-    #   3) limpar_expressao_calculadora: 'Limpar' zera tudo.
-    #   4) criar_canal_calculado_calculadora: 'Criar' avalia a
-    #      expressão de verdade (ver avaliar_expressao_calculadora,
-    #      src/core/operations/calculadora.py) e grava o resultado como
-    #      um Canal novo com origem='calculado' (ver
-    #      Arquivo.registrar_canal, src/core/arquivo.py) — é o mesmo
-    #      campo que já existia pronto, só nunca tinha UI nenhuma
-    #      escrevendo nele até agora.
-    #
-    # As 4 reconstroem 'area-modo-nova-analise' inteira via
-    # renderizar_calculadora (mesmo espírito de renderizar_colunas_da_
-    # aba_ativa: um template server-side só, sempre coerente, em vez de
-    # sincronizar pedaços soltos no cliente).
+    # Calculadora — 5 callbacks:
+    #   1) registrar_token_calculadora: clique em token de OPERADOR/
+    #      FUNÇÃO/COLUNA (todos usam o MESMO padrão de id, ver
+    #      _botao_token_calculadora em renderizadores.py) anexa esse
+    #      token na expressão. Só atualiza a BARRA (não os botões — que
+    #      não mudam com a expressão, ver renderizar_calculadora_botoes)
+    #      — diferente da versão anterior, que reconstruía a
+    #      calculadora inteira a cada clique.
+    #   2) aplicar_operacao_rapida_calculadora: clique em Derivada/
+    #      Integral/Média/Máximo/Mínimo — NÃO anexa token, dispara um
+    #      cálculo de verdade (ver aplicar_operacao_rapida, src/core/
+    #      operations/calculadora.py) sobre as colunas já referenciadas
+    #      na expressão, guardando o resultado em
+    #      'calc-resultado-pendente-store' até o usuário confirmar com
+    #      'Criar'.
+    #   3) apagar_ultimo_token_calculadora: '⌫' remove o ÚLTIMO token,
+    #      ou descarta um resultado de operação rápida pendente
+    #      (voltando a poder editar a expressão token a token).
+    #   4) limpar_expressao_calculadora: 'Limpar' zera tudo.
+    #   5) criar_canal_calculado_calculadora: 'Criar' — usa o resultado
+    #      pendente (se houver) ou avalia a expressão livre, e GRAVA o
+    #      resultado como coluna NOVA ou SOBRESCREVENDO uma existente,
+    #      conforme o seletor 'calc-tipo-destino' no início da barra.
     # ------------------------------------------------------------------
 
     @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
+        Output('calc-resultado-pendente-store', 'data', allow_duplicate=True),
         Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input({'type': 'calc-token', 'display': ALL, 'codigo': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('calc-expressao-store', 'data'),
+        State('calc-tipo-destino', 'value'),
+        State('calc-coluna-destino', 'value'),
         State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
-    def registrar_token_calculadora(_n_clicks_list, aba_ativa, tokens_atuais, nclicks_anteriores):
+    def registrar_token_calculadora(_n_clicks_list, aba_ativa, tokens_atuais, tipo_destino,
+                                     coluna_destino, nclicks_anteriores):
         # Mesmo cuidado de gerenciar_selecao_canais/gerenciar_abas: os
-        # botões de token são padrão coringa, e 'area-modo-nova-
-        # analise' É reconstruída por outros callbacks (o próprio
-        # alternar_modo_nova_analise, ao ligar) — sem comparar contra o
-        # último valor visto, uma reconstrução alheia adicionaria um
-        # token sozinho, sem clique nenhum do usuário (ver
-        # _processar_cliques_padrao, topo deste arquivo).
+        # botões de token são padrão coringa, e a barra É reconstruída
+        # por outro callback (alternar_modo_nova_analise, ao ligar, e
+        # sincronizar_interface_por_aba, ao trocar de aba) — sem
+        # comparar contra o último valor visto, uma reconstrução alheia
+        # adicionaria um token sozinho, sem clique nenhum do usuário
+        # (ver _processar_cliques_padrao, topo deste arquivo).
         gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
         if gatilho_id is None:
             raise PreventUpdate
@@ -397,47 +412,116 @@ def registrar_callbacks(app, estado):
         novo_token = {'display': gatilho_id.get('display'), 'codigo': gatilho_id.get('codigo')}
         novos_tokens = (tokens_atuais or []) + [novo_token]
 
-        return renderizar_calculadora(estado, aba_ativa, novos_tokens), novos_tokens, novo_mapa
+        # Continuar montando a expressão token a token DESCARTA
+        # qualquer resultado de operação rápida pendente — os dois
+        # modos (expressão livre / resultado de operação rápida) são
+        # mutuamente exclusivos na barra (ver renderizar_calculadora_
+        # barra, renderizadores.py, que mostra UM ou OUTRO).
+        conteudo = renderizar_calculadora_barra(estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino, None)
+        return conteudo, novos_tokens, None, novo_mapa
+
+    @app.callback(
+        Output('area-modo-nova-analise', 'children', allow_duplicate=True),
+        Output('calc-resultado-pendente-store', 'data', allow_duplicate=True),
+        Output('rodape-status', 'children', allow_duplicate=True),
+        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
+        Input({'type': 'calc-op-rapida', 'operacao': ALL}, 'n_clicks'),
+        State('aba-ativa-store', 'data'),
+        State('calc-expressao-store', 'data'),
+        State('calc-tipo-destino', 'value'),
+        State('calc-coluna-destino', 'value'),
+        State('nclicks-padrao-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def aplicar_operacao_rapida_calculadora(_n_clicks_list, aba_ativa, tokens_atuais, tipo_destino,
+                                             coluna_destino, nclicks_anteriores):
+        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        if gatilho_id is None:
+            raise PreventUpdate
+
+        arquivo = estado.arquivos.get(aba_ativa)
+        if not arquivo:
+            raise PreventUpdate
+
+        operacao_id = gatilho_id.get('operacao')
+        try:
+            valores, sugestao_nome, descricao = aplicar_operacao_rapida(operacao_id, arquivo, estado, tokens_atuais)
+        except ValueError as e:
+            mensagem = f'🧙‍♂️: " Não deu pra calcular: {e} "'
+            return no_update, no_update, mensagem, novo_mapa
+
+        resultado_pendente = {'valores': valores, 'sugestao_nome': sugestao_nome, 'descricao': descricao}
+        conteudo = renderizar_calculadora_barra(
+            estado, aba_ativa, tokens_atuais, tipo_destino, coluna_destino, resultado_pendente)
+        return conteudo, resultado_pendente, no_update, novo_mapa
 
     @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
+        Output('calc-resultado-pendente-store', 'data', allow_duplicate=True),
         Input('calc-apagar', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('calc-expressao-store', 'data'),
+        State('calc-resultado-pendente-store', 'data'),
+        State('calc-tipo-destino', 'value'),
+        State('calc-coluna-destino', 'value'),
         prevent_initial_call=True,
     )
-    def apagar_ultimo_token_calculadora(n_clicks, aba_ativa, tokens_atuais):
-        if not n_clicks or not tokens_atuais:
-            raise PreventUpdate
-        novos_tokens = tokens_atuais[:-1]
-        return renderizar_calculadora(estado, aba_ativa, novos_tokens), novos_tokens
-
-    @app.callback(
-        Output('area-modo-nova-analise', 'children', allow_duplicate=True),
-        Output('calc-expressao-store', 'data', allow_duplicate=True),
-        Input('calc-limpar', 'n_clicks'),
-        State('aba-ativa-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def limpar_expressao_calculadora(n_clicks, aba_ativa):
+    def apagar_ultimo_token_calculadora(n_clicks, aba_ativa, tokens_atuais, resultado_pendente,
+                                         tipo_destino, coluna_destino):
         if not n_clicks:
             raise PreventUpdate
-        return renderizar_calculadora(estado, aba_ativa, []), []
+        # Um resultado de operação rápida pendente conta como "o último
+        # passo dado" — apagar descarta ELE primeiro (volta a poder
+        # editar a expressão token a token), só depois passa a remover
+        # tokens um a um.
+        if resultado_pendente:
+            novos_tokens = tokens_atuais or []
+            novo_resultado_pendente = None
+        elif tokens_atuais:
+            novos_tokens = tokens_atuais[:-1]
+            novo_resultado_pendente = None
+        else:
+            raise PreventUpdate
+
+        conteudo = renderizar_calculadora_barra(
+            estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino, novo_resultado_pendente)
+        return conteudo, novos_tokens, novo_resultado_pendente
 
     @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
+        Output('calc-resultado-pendente-store', 'data', allow_duplicate=True),
+        Input('calc-limpar', 'n_clicks'),
+        State('aba-ativa-store', 'data'),
+        State('calc-tipo-destino', 'value'),
+        State('calc-coluna-destino', 'value'),
+        prevent_initial_call=True,
+    )
+    def limpar_expressao_calculadora(n_clicks, aba_ativa, tipo_destino, coluna_destino):
+        if not n_clicks:
+            raise PreventUpdate
+        conteudo = renderizar_calculadora_barra(estado, aba_ativa, [], tipo_destino, coluna_destino, None)
+        return conteudo, [], None
+
+    @app.callback(
+        Output('area-modo-nova-analise', 'children', allow_duplicate=True),
+        Output('calc-expressao-store', 'data', allow_duplicate=True),
+        Output('calc-resultado-pendente-store', 'data', allow_duplicate=True),
         Output('lista-canais-aba', 'children', allow_duplicate=True),
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
         Input('calc-criar', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('calc-expressao-store', 'data'),
+        State('calc-resultado-pendente-store', 'data'),
+        State('calc-tipo-destino', 'value'),
+        State('calc-coluna-destino', 'value'),
         State('calc-nome-input', 'value'),
         prevent_initial_call=True,
     )
-    def criar_canal_calculado_calculadora(n_clicks, aba_ativa, tokens_atuais, nome_novo_canal):
+    def criar_canal_calculado_calculadora(n_clicks, aba_ativa, tokens_atuais, resultado_pendente,
+                                           tipo_destino, coluna_destino, nome_novo_canal):
         if not n_clicks:
             raise PreventUpdate
 
@@ -445,447 +529,99 @@ def registrar_callbacks(app, estado):
         if not arquivo:
             raise PreventUpdate
 
-        mensagem = no_update
+        def _sem_mudanca_de_conteudo(mensagem):
+            """Devolve os 6 valores desta callback quando SÓ a mensagem
+            do rodapé muda (erro de validação) — a barra/expressão/
+            listas continuam exatamente como estavam."""
+            return no_update, no_update, no_update, no_update, no_update, mensagem
+
+        # 1) Resultado de uma Operação rápida pendente tem PRIORIDADE
+        #    sobre a expressão livre (os dois são mutuamente
+        #    exclusivos, ver renderizar_calculadora_barra) — se
+        #    existir, usa ele direto, sem reavaliar 'codigo' nenhum.
+        if resultado_pendente:
+            valores = resultado_pendente['valores']
+            formula_ou_descricao = resultado_pendente['descricao']
+        else:
+            codigo = ''.join(t['codigo'] for t in (tokens_atuais or []))
+            try:
+                valores = avaliar_expressao_calculadora(codigo, arquivo).tolist()
+            except ValueError as e:
+                return _sem_mudanca_de_conteudo(f'🧙‍♂️: " Não deu pra criar: {e} "')
+            formula_ou_descricao = codigo
+
         area_grafico = no_update
 
-        nome_novo_canal = (nome_novo_canal or '').strip()
-        if not nome_novo_canal:
-            mensagem = '🧙‍♂️: " Dê um nome pra essa análise antes de criar. "'
-            return no_update, no_update, no_update, no_update, mensagem
+        if tipo_destino == 'existente':
+            # --- Sobrescreve uma coluna JÁ EXISTENTE ---
+            if not coluna_destino or coluna_destino not in arquivo.df_editado.columns:
+                return _sem_mudanca_de_conteudo('🧙‍♂️: " Escolha qual coluna sobrescrever antes de criar. "')
 
-        codigo = ''.join(t['codigo'] for t in (tokens_atuais or []))
-        try:
-            resultado = avaliar_expressao_calculadora(codigo, arquivo)
-        except ValueError as e:
-            mensagem = f'🧙‍♂️: " Não deu pra criar: {e} "'
-            return no_update, no_update, no_update, no_update, mensagem
+            arquivo.df_editado[coluna_destino] = valores
+            canal = arquivo.canais.get(coluna_destino) or arquivo.registrar_canal(coluna_destino)
+            canal.origem = 'calculado'
+            canal.formula = formula_ou_descricao
+            # AGORA SIM invalida o cache — sobrescrever os DADOS de uma
+            # coluna que já existe pode mudar uma curva JÁ desenhada no
+            # gráfico (diferente de criar uma coluna nova, que nasce
+            # sempre fora da seleção e não afeta nada plotado).
+            if arquivo.grafico_gerado:
+                arquivo.invalidar_grafico()
+                fig = construir_figura_serie_temporal(estado, aba_ativa)
+                arquivo.figura = fig
+                area_grafico = renderizar_grafico_com_fechar(fig)
+            mensagem = f'🧙‍♂️: " Coluna \'{arquivo.rotulo(coluna_destino)}\' recalculada. "'
+        else:
+            # --- Cria uma coluna NOVA ---
+            nome_novo_canal = (nome_novo_canal or '').strip()
+            if not nome_novo_canal:
+                return _sem_mudanca_de_conteudo('🧙‍♂️: " Dê um nome pra essa análise antes de criar. "')
 
-        # Nome interno sanitizado (sem espaço/acento/símbolo) pra virar
-        # coluna de verdade no df_editado — o RÓTULO exibido continua
-        # sendo o texto livre que o usuário digitou (mesma separação
-        # nome_interno/rótulo usada em todo canal, ver Canal em
-        # src/core/arquivo.py). 'sanitizar_rotulo_para_nome_coluna' já
-        # existia pronta (src/core/rotulos.py) — cobre acento, espaço,
-        # e evita colidir com uma coluna já existente.
-        nome_interno = sanitizar_rotulo_para_nome_coluna(nome_novo_canal)
-        sufixo = 1
-        nome_interno_final = nome_interno
-        while nome_interno_final in arquivo.df_editado.columns:
-            sufixo += 1
-            nome_interno_final = f'{nome_interno}_{sufixo}'
+            # Nome interno sanitizado (sem espaço/acento/símbolo) pra
+            # virar coluna de verdade no df_editado — o RÓTULO exibido
+            # continua sendo o texto livre digitado (mesma separação
+            # nome_interno/rótulo de todo Canal, ver src/core/arquivo.py).
+            nome_interno = sanitizar_rotulo_para_nome_coluna(nome_novo_canal)
+            sufixo = 1
+            nome_interno_final = nome_interno
+            while nome_interno_final in arquivo.df_editado.columns:
+                sufixo += 1
+                nome_interno_final = f'{nome_interno}_{sufixo}'
 
-        arquivo.df_editado[nome_interno_final] = resultado
-        # SEM 'arquivo.invalidar_grafico()' aqui de propósito — o novo
-        # canal nasce OCULTO da seleção (como qualquer canal recém-
-        # registrado, ver Arquivo.registrar_canal), então não afeta
-        # nenhuma curva já desenhada; invalidar o cache reverteria um
-        # gráfico já aberto pra grade de opções vazia sem necessidade,
-        # só porque um canal SEM RELAÇÃO com o que está plotado foi
-        # criado.
-        arquivo.registrar_canal(nome_interno_final, rotulo=nome_novo_canal, origem='calculado', formula=codigo)
+            arquivo.df_editado[nome_interno_final] = valores
+            # SEM invalidar o gráfico aqui de propósito — o canal novo
+            # nasce OCULTO da seleção (como qualquer canal recém-
+            # registrado), não afeta nenhuma curva já desenhada.
+            arquivo.registrar_canal(nome_interno_final, rotulo=nome_novo_canal,
+                                     origem='calculado', formula=formula_ou_descricao)
+            mensagem = f'🧙‍♂️: " Canal \'{nome_novo_canal}\' criado ({formula_ou_descricao}). "'
 
-        mensagem = f'🧙‍♂️: " Canal \'{nome_novo_canal}\' criado a partir da expressão. "'
-
-        # Limpa a expressão depois de criar (mesmo espírito de um
-        # formulário que reseta após salvar) — o canal novo já está
-        # gravado no arquivo, não tem motivo pra manter a expressão
-        # velha ocupando a barra.
-        return (renderizar_calculadora(estado, aba_ativa, []), [],
+        # Limpa a expressão/resultado pendente depois de criar (mesmo
+        # espírito de um formulário que reseta após salvar).
+        conteudo = renderizar_calculadora_barra(estado, aba_ativa, [], tipo_destino, None, None)
+        return (conteudo, [], None,
                 renderizar_colunas_da_aba_ativa(estado, aba_ativa),
                 area_grafico, mensagem)
 
     @app.callback(
-        Output('aba-ativa-store', 'data', allow_duplicate=True),
-        Output('container-abas-chrome', 'children'),
-        Output('lista-canais-aba', 'children'),
-        Output('rodape-status', 'children', allow_duplicate=True),
-        Output('nova-analise', 'disabled', allow_duplicate=True),
-        Output('fundir-arquivos', 'disabled', allow_duplicate=True),
-        Output('container-grafico', 'children', allow_duplicate=True),
-        Output('aparar-dados', 'disabled', allow_duplicate=True),
-        Output('excluir-dados', 'disabled', allow_duplicate=True),
-        Output('nova-amostra', 'disabled', allow_duplicate=True),
-        Output('exportar-grafico', 'disabled', allow_duplicate=True),
-        Output('exportar-dados', 'disabled', allow_duplicate=True),
-        Output('iniciar-edicao', 'disabled', allow_duplicate=True),
-        Output('painel-direito', 'className', allow_duplicate=True),
-        Output('painel-direito-conteudo', 'children', allow_duplicate=True),
-        Output('rodape-info-arquivo', 'children', allow_duplicate=True),
-        Output('rodape-alerta-badge', 'children', allow_duplicate=True),
-        Output('rodape-alerta-badge', 'className', allow_duplicate=True),
-        Output('rodape-alerta-popup', 'children', allow_duplicate=True),
-        Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
-        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
-        Input({'type': 'aba-item', 'arquivo': ALL}, 'n_clicks'),
-        Input({'type': 'botao-fechar-aba', 'arquivo': ALL}, 'n_clicks'),
-        State('aba-ativa-store', 'data'),
-        State('nclicks-padrao-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def gerenciar_abas(_c_item, _c_fechar, aba_ativa, nclicks_anteriores):
-        # '_clique_real' sozinho não basta aqui: fazer upload de um
-        # arquivo NOVO reconstrói 'container-abas-chrome' inteiro (uma
-        # aba a mais), e os botões das abas JÁ EXISTENTES nascem de
-        # novo com 'n_clicks=0' — o que o Dash relata como disparo
-        # deste callback mesmo sem clique nenhum (ver
-        # _processar_cliques_padrao, no topo do arquivo, que explica o
-        # mecanismo). Só um valor MAIOR que o último visto conta como
-        # clique de verdade.
-        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
-        if gatilho_id is None:
-            raise PreventUpdate
-
-        aba_ativa_anterior = aba_ativa
-        tipo = gatilho_id.get('type')
-        arquivo_alvo = gatilho_id.get('arquivo')
-
-        if tipo == 'botao-fechar-aba':
-            estado.remover_arquivo(arquivo_alvo)
-            if aba_ativa == arquivo_alvo:
-                aba_ativa = list(estado.arquivos.keys())[0] if estado.arquivos else None
-            mensagem = f'🧙‍♂️: " Arquivo \'{arquivo_alvo}\' fechado. "'
-        elif tipo == 'aba-item':
-            aba_ativa = arquivo_alvo
-            mensagem = f'🧙‍♂️: " Trabalhando em \'{truncar_nome_arquivo(arquivo_alvo)}\'. "'
-        else:
-            mensagem = no_update
-
-        mudou_de_arquivo = aba_ativa != aba_ativa_anterior
-
-        # Tratamento da área central:
-        if aba_ativa is None:
-            # Sem arquivos restantes -> Reseta para a área vazia/inicial
-            area_grafico = renderizar_area_grafico(estado)
-        elif mudou_de_arquivo and aba_ativa in estado.arquivos:
-            arquivo = estado.arquivos[aba_ativa]
-            if arquivo.grafico_gerado:
-                area_grafico = renderizar_grafico_com_fechar(arquivo.figura)
-            else:
-                area_grafico = renderizar_area_grafico(estado)
-        else:
-            area_grafico = no_update
-
-        # Os 3 critérios de habilitação (ver _estados_toolbar): fechar uma
-        # aba pode mudar 'sem_arquivo'/'sem_2_arquivos' (perdeu um
-        # arquivo), e tanto fechar quanto trocar de aba muda qual gráfico
-        # é "o da aba ativa" (sem_grafico_da_aba). Antes, um único
-        # 'botoes_dependentes' aplicava o critério de gráfico também a
-        # 'nova-amostra'/'exportar-dados', que na verdade só dependem de
-        # haver arquivo — por isso eles ficavam desabilitados incorretamente
-        # ao fechar o gráfico de um arquivo que continuava carregado.
-        sem_arquivo, sem_2_arquivos, sem_grafico_da_aba = _estados_toolbar(estado, aba_ativa)
-
-        return (aba_ativa, renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa),
-                mensagem, sem_arquivo, sem_2_arquivos, area_grafico,
-                sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
-                sem_grafico_da_aba,
-                # Trocar/fechar aba sempre volta o painel de edição pro estado
-                # normal — o modo "ativo" é por gráfico específico (ligado só
-                # via clique em 'Iniciar edição', ver abrir_painel_edicao), não
-                # faz sentido persistir editando a curva de OUTRO arquivo/aba.
-                # O conteúdo (painel-direito-conteudo) também volta ao
-                # placeholder+botão, já nascendo com o 'disabled' certo pra
-                # aba nova (sem_grafico_da_aba).
-                _classe_painel_direito(ativo=False),
-                renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba),
-                # Trocar/fechar aba muda qual arquivo é "o ativo": info, badge
-                # e popup do rodapé precisam refletir a NOVA aba, e qualquer
-                # mensagem temporária pendente da aba anterior é cancelada.
-                *_valores_rodape(estado, aba_ativa),
-                True, novo_mapa)
-
-    @app.callback(
-        Output('lista-canais-aba', 'children', allow_duplicate=True),
-        Output('rodape-status', 'children', allow_duplicate=True),
-        Output('container-grafico', 'children', allow_duplicate=True),
-        Output('rodape-alerta-badge', 'children', allow_duplicate=True),
-        Output('rodape-alerta-badge', 'className', allow_duplicate=True),
-        Output('rodape-alerta-popup', 'children', allow_duplicate=True),
-        Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
-        Output('painel-direito-conteudo', 'children', allow_duplicate=True),
-        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
-        Input({'type': 'linha-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
-        Input({'type': 'botao-excluir-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
-        State('aba-ativa-store', 'data'),
-        State('painel-direito', 'className'),
-        State('edicao-curva-dado-atual', 'data'),
-        State('nclicks-padrao-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def gerenciar_selecao_canais(n_clicks_list, _n_clicks_excluir, aba_ativa, classe_painel_direito,
-                                  coluna_em_edicao, nclicks_anteriores):
-        if not aba_ativa:
-            raise PreventUpdate
-
-        # '_clique_real' sozinho não basta aqui: gerar/fechar o gráfico,
-        # trocar de aba ou fazer upload de outro arquivo reconstrói
-        # 'lista-canais-aba' inteira, e os botões (caixinha/lixeira)
-        # nascem de novo com 'n_clicks=0' — o Dash relata isso como
-        # disparo deste callback mesmo sem clique nenhum do usuário (ver
-        # _processar_cliques_padrao, no topo do arquivo). Era essa
-        # reconstrução por TERCEIROS que fazia o primeiro botão da lista
-        # "disparar sozinho" toda vez que o gráfico era gerado, um
-        # arquivo era carregado, ou outro canal era clicado.
-        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
-        if gatilho_id is None:
-            raise PreventUpdate
-
-        mensagem = no_update
-        area_grafico = no_update
-        # Se o painel de edição estiver aberto ('ativa'), (des)marcar ou
-        # excluir um canal pode fazer a curva que ele está mostrando na
-        # caixa 'Dado' sumir do gráfico. Sem isto, o 'Dado' ficava com um
-        # valor apontando pra uma coluna que não está mais em
-        # colunas_plotadas(), e mexer no slider/cor/estilo caía sempre no
-        # guard de aplicar_preferencias_curva — nada acontecia, dando a
-        # sensação de painel "travado". Recalculando aqui, o 'Dado'
-        # sempre reflete o que está de fato plotado (mantém a coluna
-        # escolhida se ela continuar lá, senão cai pra outra automaticamente
-        # — ver renderizar_painel_edicao).
-        painel_edicao = no_update
-        em_edicao = classe_painel_direito and 'ativa' in classe_painel_direito.split()
-
-        if gatilho_id and gatilho_id.get('type') == 'botao-excluir-canal':
-            arquivo_alvo, coluna = gatilho_id.get('arquivo'), gatilho_id.get('coluna')
-            arquivo = estado.arquivos.get(arquivo_alvo)
-            if arquivo:
-                # Guarda se já havia gráfico ANTES de excluir, porque
-                # excluir_canal() já invalida o cache da figura (ver
-                # Arquivo.invalidar_grafico em src/core/arquivo.py) —
-                # depois disso 'grafico_gerado' já viria False.
-                tinha_grafico = arquivo.grafico_gerado
-                rotulo = arquivo.rotulo(coluna)
-
-                arquivo.excluir_canal(coluna)  # soft-delete: some da lista, dado continua no df_editado
-                estado.canais_selecionados.discard((arquivo_alvo, coluna))
-                mensagem = f'🧙‍♂️: " Canal \'{rotulo}\' excluído. "'
-
-                if tinha_grafico:
-                    # Redesenha sem o canal excluído (mesmo raciocínio do
-                    # toggle de seleção logo abaixo).
-                    fig = construir_figura_serie_temporal(estado, arquivo_alvo)
-                    arquivo.figura = fig
-                    area_grafico = renderizar_grafico_com_fechar(fig)
-
-        elif gatilho_id and gatilho_id.get('type') == 'linha-canal':
-            arquivo, coluna = gatilho_id.get('arquivo'), gatilho_id.get('coluna')
-            estado.alternar_selecao_canal(arquivo, coluna)
-            ligado = (arquivo, coluna) in estado.canais_selecionados
-            acao = 'ativado' if ligado else 'desativado'
-            mensagem = f'🧙‍♂️: " Canal \'{coluna}\' {acao}. ({len(estado.canais_selecionados)} selecionado(s)) "'
-
-            # Só redesenha o gráfico se a aba ativa já estiver com um
-            # gráfico aberto (senão ainda estamos na grade de opções, e
-            # marcar um canal não deve pular direto pra visualização).
-            arquivo = estado.arquivos.get(aba_ativa)
-            if arquivo and arquivo.grafico_gerado:
-                # Pode empurrar o aviso de amostragem (>5000 linhas) pra
-                # lista de avisos da aba — por isso recalculamos o badge
-                #/popup do rodapé logo abaixo, depois desta chamada.
-                fig = construir_figura_serie_temporal(estado, aba_ativa)
-                arquivo.figura = fig
-                area_grafico = renderizar_grafico_com_fechar(fig)
-
-        if em_edicao and aba_ativa in estado.arquivos:
-            # Recarrega o card 'Curva' com a lista de colunas plotadas
-            # atualizada. Passa a coluna que estava sendo editada — se
-            # ela ainda estiver plotada, o 'Dado' continua nela; senão
-            # (foi ela que acabou de ser desmarcada/excluída),
-            # renderizar_painel_edicao já cai automaticamente pra outra
-            # coluna plotada, ou pro estado "sem canal" (Dado vazio) se
-            # não sobrar nenhuma.
-            painel_edicao = renderizar_painel_edicao(estado, aba_ativa, coluna_em_edicao)
-
-        _, badge_texto, badge_classe, popup_children = _valores_rodape(estado, aba_ativa)
-        return (renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem, area_grafico,
-                badge_texto, badge_classe, popup_children,
-                True, painel_edicao, novo_mapa)
-
-    # ------------------------------------------------------------------
-    # Renomear canal (lápis ✏️ na lista de canais) — UM callback só,
-    # 'gerenciar_edicao_canal', cobre os 3 jeitos de entrar/sair do modo
-    # de edição:
-    #   1) clicar no lápis de uma linha PARADA -> abre a edição nela
-    #      (salvando antes qualquer edição pendente de OUTRA linha, se
-    #      houver — só uma linha em edição por vez).
-    #   2) clicar no lápis da MESMA linha que já está em edição -> fecha
-    #      e salva (é o "toggle": pressionado = aberto).
-    #   3) apertar Enter dentro do campo -> confirma e fecha.
-    #
-    # ANTES existia um 2º callback separado reagindo também a 'n_blur'
-    # (perder o foco/clicar fora) pra fechar a edição — foi removido de
-    # propósito: o Dash dispara 'n_blur' (e qualquer prop observada por
-    # um Input de padrão coringa) como "mudança" assim que o PRÓPRIO
-    # <input> nasce pela primeira vez (mesmo mecanismo de "disparo
-    # fantasma" de n_clicks em componentes recém-criados, ver
-    # _processar_cliques_padrao acima) — então bastava clicar no lápis
-    # pra abrir a edição que ela imediatamente "fechava sozinha" de
-    # novo, como se um clique-fora tivesse acontecido na hora. Tirando
-    # 'n_blur' da equação (só lápis de novo ou Enter fecham agora), esse
-    # vetor de disparo fantasma nem existe mais pra esse fluxo.
-    #
-    # 'canal-em-edicao-store' (layout.py) guarda qual linha está em
-    # edição agora — só uma por vez, já que a lista inteira
-    # (lista-canais-aba) é reconstruída a cada passo (mesmo padrão de
-    # gerenciar_selecao_canais acima).
-    #
-    # O rótulo gravado por Arquivo.renomear_canal (src/core/arquivo.py)
-    # é o mesmo lido em TODO lugar que hoje já chama 'arquivo.rotulo(
-    # coluna)' — a legenda do gráfico (ver rotulo/name em
-    # construir_figura_serie_temporal, plotter.py) e a caixa 'Dado' do
-    # painel de edição da curva (ver opcoes_dado em
-    # renderizar_painel_edicao) — então renomear aqui já é a fonte
-    # única de verdade pros dois lugares, sem precisar duplicar o nome
-    # em nenhum Store à parte.
-    # ------------------------------------------------------------------
-
-    def _valor_por_id(grupo_lista, alvo_id):
-        """
-        Acha, dentro de UM grupo de 'ctx.states_list' (a lista de
-        {'id','property','value'} correspondente a UM State de padrão
-        coringa), o valor do componente cujo id bate com 'alvo_id'.
-        Devolve None se não achar (linha já não existe mais na tela).
-        """
-        chave_alvo = json.dumps(alvo_id, sort_keys=True)
-        for item in (grupo_lista or []):
-            if json.dumps(item.get('id'), sort_keys=True) == chave_alvo:
-                return item.get('value')
-        return None
-
-    @app.callback(
-        Output('lista-canais-aba', 'children', allow_duplicate=True),
-        Output('canal-em-edicao-store', 'data', allow_duplicate=True),
-        Output('container-grafico', 'children', allow_duplicate=True),
-        Output('rodape-status', 'children', allow_duplicate=True),
-        Output('painel-direito-conteudo', 'children', allow_duplicate=True),
-        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
-        Input({'type': 'botao-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
-        Input({'type': 'input-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_submit'),
-        State({'type': 'input-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'value'),
-        State('aba-ativa-store', 'data'),
-        State('canal-em-edicao-store', 'data'),
-        State('painel-direito', 'className'),
-        State('edicao-curva-dado-atual', 'data'),
-        State('nclicks-padrao-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def gerenciar_edicao_canal(_n_clicks_lapis, _n_submit_input, _valores_input_bruto, aba_ativa,
-                                canal_em_edicao, classe_painel_direito, coluna_em_edicao_painel,
-                                nclicks_anteriores):
-        if not aba_ativa:
-            raise PreventUpdate
-
-        # Mesmo cuidado de gerenciar_selecao_canais: tanto o lápis
-        # quanto o <input> são padrão coringa, e 'lista-canais-aba'
-        # pode ser reconstruída por OUTRO callback (gerar/fechar
-        # gráfico, trocar de aba, upload, marcar canal) — sem comparar
-        # contra o último valor visto, uma reconstrução alheia abriria
-        # ou "confirmaria" a edição sozinha, sem clique/Enter nenhum do
-        # usuário.
-        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
-        if gatilho_id is None:
-            raise PreventUpdate
-
-        # 'ctx.states_list[0]' — não o parâmetro '_valores_input_bruto'
-        # (que o Dash entrega como lista de VALORES soltos, sem id
-        # nenhum junto, pra um State de padrão coringa) — é onde mora o
-        # par {'id', 'value'} de cada campo de renomear atualmente na
-        # tela; é isso que '_valor_por_id' precisa pra achar o valor do
-        # campo certo por arquivo+coluna.
-        grupo_valores_input = ctx.states_list[0] if ctx.states_list else []
-
-        tipo = gatilho_id.get('type')
-        mensagem = no_update
-        area_grafico = no_update
-        novo_canal_em_edicao = canal_em_edicao
-
-        def _salvar_se_mudou(arquivo_alvo, coluna, novo_nome):
-            """Renomeia só se houver arquivo, texto não-vazio, e o nome
-            for DIFERENTE do rótulo atual — silenciosamente ignora
-            texto vazio/só espaço ou digitar o mesmo nome de novo (sem
-            popup de erro pra um caso tão menor)."""
-            nonlocal mensagem, area_grafico
-            arquivo = estado.arquivos.get(arquivo_alvo)
-            if not arquivo or not novo_nome:
-                return
-            novo_nome = novo_nome.strip()
-            if not novo_nome or novo_nome == arquivo.rotulo(coluna):
-                return
-            arquivo.renomear_canal(coluna, novo_nome)
-            mensagem = f'🧙‍♂️: " Canal renomeado para \'{arquivo.rotulo(coluna)}\'. "'
-            if arquivo.grafico_gerado:
-                # A legenda do gráfico lê 'arquivo.rotulo(coluna)' na
-                # hora de montar cada traço (ver 'name=rotulo' em
-                # construir_figura_serie_temporal, plotter.py) — como o
-                # rótulo já foi atualizado acima, só precisa redesenhar
-                # pra essa legenda nova aparecer.
-                fig = construir_figura_serie_temporal(estado, arquivo_alvo)
-                arquivo.figura = fig
-                area_grafico = renderizar_grafico_com_fechar(fig)
-
-        if tipo == 'input-editar-canal':
-            # Enter dentro do campo -> confirma e fecha. 'canal_em_edicao'
-            # (State) já diz qual linha é essa (só existe um <input>
-            # desse tipo na tela por vez).
-            if not canal_em_edicao:
-                raise PreventUpdate
-            arquivo_alvo, coluna = canal_em_edicao.get('arquivo'), canal_em_edicao.get('coluna')
-            valor = _valor_por_id(grupo_valores_input, gatilho_id)
-            _salvar_se_mudou(arquivo_alvo, coluna, valor)
-            novo_canal_em_edicao = None
-
-        elif tipo == 'botao-editar-canal':
-            arquivo_alvo, coluna = gatilho_id.get('arquivo'), gatilho_id.get('coluna')
-            mesma_linha = (
-                canal_em_edicao
-                and canal_em_edicao.get('arquivo') == arquivo_alvo
-                and canal_em_edicao.get('coluna') == coluna
-            )
-            if mesma_linha:
-                # Lápis clicado de novo NA MESMA linha que já está
-                # aberta -> fecha e salva (o "toggle": pressionado =
-                # aberto). O valor atual do campo está em
-                # 'grupo_valores_input', pelo MESMO id do lápis
-                # (arquivo/coluna iguais, só o 'type' difere).
-                valor = _valor_por_id(
-                    grupo_valores_input, {'type': 'input-editar-canal', 'arquivo': arquivo_alvo, 'coluna': coluna})
-                _salvar_se_mudou(arquivo_alvo, coluna, valor)
-                novo_canal_em_edicao = None
-            else:
-                # Abrindo uma linha nova (ou trocando de linha) — se
-                # havia OUTRA em edição, salva o que estava digitado
-                # nela antes de trocar (mesmo espírito de "clicar fora
-                # salva", só que agora é uma ação EXPLÍCITA do usuário —
-                # clicar em outro lápis — não um blur fantasma).
-                if canal_em_edicao:
-                    valor_anterior = _valor_por_id(grupo_valores_input, {
-                        'type': 'input-editar-canal',
-                        'arquivo': canal_em_edicao.get('arquivo'),
-                        'coluna': canal_em_edicao.get('coluna'),
-                    })
-                    _salvar_se_mudou(canal_em_edicao.get('arquivo'), canal_em_edicao.get('coluna'), valor_anterior)
-                novo_canal_em_edicao = {'arquivo': arquivo_alvo, 'coluna': coluna}
-
-        painel_edicao = no_update
-        em_edicao_painel = classe_painel_direito and 'ativa' in classe_painel_direito.split()
-        if em_edicao_painel and aba_ativa in estado.arquivos:
-            # Mesmo raciocínio do gráfico: a caixa 'Dado' do card
-            # 'Curva' lê 'arquivo.rotulo(coluna)' pra montar as opções
-            # (ver opcoes_dado em renderizar_painel_edicao) — recarrega
-            # o card pra essa lista de opções refletir o novo nome.
-            painel_edicao = renderizar_painel_edicao(estado, aba_ativa, coluna_em_edicao_painel)
-
-        return (renderizar_colunas_da_aba_ativa(estado, aba_ativa, novo_canal_em_edicao),
-                novo_canal_em_edicao, area_grafico, mensagem, painel_edicao, novo_mapa)
-
-    @app.callback(
         Output('container-abas-chrome', 'children', allow_duplicate=True),
         Output('lista-canais-aba', 'children', allow_duplicate=True),
+        Output('area-modo-nova-analise-edicao', 'children', allow_duplicate=True),
         Input('aba-ativa-store', 'data'),
+        State('modo-nova-analise-store', 'data'),
         prevent_initial_call=True,
     )
-    def sincronizar_interface_por_aba(aba_ativa):
-        return renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa)
+    def sincronizar_interface_por_aba(aba_ativa, modo_calculadora_ativo):
+        # Os botões de COLUNA da calculadora (grupo 'Colunas', ver
+        # renderizar_calculadora_botoes) dependem de qual arquivo está
+        # ativo — sem isto, trocar de aba com o modo 'Nova Análise'
+        # ligado deixava o painel de edição mostrando as colunas do
+        # arquivo ANTERIOR, mesmo já estando noutra aba.
+        botoes_calculadora = no_update
+        if modo_calculadora_ativo:
+            botoes_calculadora = renderizar_calculadora_botoes(estado, aba_ativa)
+        return (renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa),
+                botoes_calculadora)
 
     @app.callback(
         Output('container-grafico', 'children', allow_duplicate=True),

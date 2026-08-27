@@ -1023,20 +1023,37 @@ def renderizar_grafico_com_fechar(fig):
         dcc.Graph(id='grafico-plotly-real', figure=fig, className='grafico-plotly'),
     ])
 
-
 def _botao_token_calculadora(display, codigo, classe_extra=''):
     """
-    Um botão da calculadora — todos (operadores, funções, atalhos e
-    colunas) usam o MESMO padrão de id, {'type': 'calc-token',
-    'display':..., 'codigo':...}: o próprio id já carrega o que
-    precisa ser anexado à expressão, então UM único callback (ver
-    registrar_token_calculadora, callbacks.py) cobre os 4 grupos sem
-    precisar de uma tabela de consulta à parte no servidor.
+    Um botão de token (operador/função/coluna) — todos usam o MESMO
+    padrão de id, {'type': 'calc-token', 'display':..., 'codigo':...}:
+    o próprio id já carrega o que precisa ser anexado à expressão,
+    então UM único callback (ver registrar_token_calculadora,
+    callbacks.py) cobre operadores/funções/colunas sem precisar de uma
+    tabela de consulta à parte no servidor.
     """
     return html.Button(
         display,
         id={'type': 'calc-token', 'display': display, 'codigo': codigo},
         className='calculadora-token ' + classe_extra,
+        n_clicks=0,
+    )
+
+
+def _botao_operacao_rapida(display, operacao_id):
+    """
+    Botão de 'Operação rápida' (Derivada/Integral/Média/Máximo/
+    Mínimo) — id de tipo DIFERENTE de '_botao_token_calculadora'
+    ('calc-op-rapida', não 'calc-token') porque não anexa texto
+    nenhum à expressão: dispara um CÁLCULO de verdade sobre as
+    colunas já referenciadas nela (ver aplicar_operacao_rapida,
+    src/core/operations/calculadora.py, e
+    aplicar_operacao_rapida_calculadora em callbacks.py).
+    """
+    return html.Button(
+        display,
+        id={'type': 'calc-op-rapida', 'operacao': operacao_id},
+        className='calculadora-token calculadora-token-rapido',
         n_clicks=0,
     )
 
@@ -1050,24 +1067,104 @@ def _grupo_calculadora(titulo, pares_display_codigo, classe_extra=''):
     ])
 
 
-def renderizar_calculadora(estado, aba_ativa, tokens_expressao=None):
+def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
+                                  tipo_destino='nova', coluna_destino=None,
+                                  resultado_pendente=None):
     """
-    UI inteira do modo 'Nova Análise' (ver '#area-modo-nova-analise',
-    layout.py/callbacks.py): a barra de expressão + nome + Criar/
-    Limpar, e os 4 grupos de botões (operadores, funções, atalhos,
-    colunas). Reconstruída inteira a cada clique de token (mesmo
-    padrão de 'renderizar_colunas_da_aba_ativa': é mais simples manter
-    UM template server-side sempre coerente do que sincronizar pedaços
-    soltos no cliente).
+    A BARRA de cálculo — vive em '#area-modo-nova-analise', agora
+    ACIMA do gráfico (não mais cobrindo ele, ver '.centro.calc-ativa'
+    em central_menu.css). Mostra a expressão sendo construída (ou a
+    descrição de uma 'Operação rápida' pendente — ver
+    'resultado_pendente'), o seletor "Nova coluna" / "Coluna
+    existente", o campo de nome (ou o dropdown de coluna a
+    sobrescrever, conforme o seletor) e Criar/Apagar/Limpar.
 
-    'tokens_expressao' é a lista guardada em 'calc-expressao-store'
-    (layout.py) — None/vazia quando a expressão ainda não tem nada
-    clicado. Os botões de COLUNA são gerados aqui (não em
-    calculadora.py) porque dependem de QUAL arquivo está ativo agora.
+    Os GRUPOS DE BOTÕES (Operações básicas/Colunas/Funções/Operações
+    rápidas) não moram mais aqui — foram pro painel de edição, ver
+    renderizar_calculadora_botoes logo abaixo.
+
+    'resultado_pendente' é o 'data' de 'calc-resultado-pendente-store'
+    (None a maior parte do tempo; vira {'valores':[...], 'descricao':
+    ..., 'sugestao_nome': ...} depois de clicar numa Operação rápida —
+    ver aplicar_operacao_rapida_calculadora, callbacks.py). Quando
+    presente, a barra mostra a DESCRIÇÃO no lugar da expressão token a
+    token (ex: 'Derivada(Pressão)'), já que o resultado de uma
+    operação rápida não é mais editável token a token.
     """
     tokens_expressao = tokens_expressao or []
-    texto_expressao = ''.join(t['display'] for t in tokens_expressao) or ' '
+    if resultado_pendente:
+        texto_expressao = resultado_pendente.get('descricao', '')
+    else:
+        texto_expressao = ''.join(t['display'] for t in tokens_expressao) or ' '
 
+    arquivo = estado.arquivos.get(aba_ativa) if aba_ativa else None
+    opcoes_colunas_destino = []
+    if arquivo:
+        opcoes_colunas_destino = [
+            {'label': arquivo.rotulo(nome), 'value': nome} for nome in arquivo.colunas_visiveis()
+        ]
+
+    # Nome-input e dropdown-de-coluna-existente nascem OS DOIS sempre
+    # no DOM (um deles só escondido via CSS, classe
+    # 'calculadora-oculto' — ver central_menu.css) em vez de um
+    # substituir o outro condicionalmente: assim os Estados que os
+    # callbacks leem (State('calc-nome-input','value')/
+    # State('calc-coluna-destino','value')) sempre encontram os dois
+    # componentes de verdade no DOM, nunca 'None' por o componente
+    # simplesmente não existir na renderização atual.
+    modo_nova = tipo_destino != 'existente'
+
+    return html.Div(className='calculadora-barra-central-conteudo', children=[
+        dcc.Dropdown(
+            id='calc-tipo-destino',
+            options=[
+                {'label': 'Nova coluna', 'value': 'nova'},
+                {'label': 'Coluna existente', 'value': 'existente'},
+            ],
+            value=tipo_destino, clearable=False, searchable=False,
+            className='calculadora-tipo-destino',
+        ),
+        html.Div(texto_expressao, id='calc-expressao-display', className='calculadora-expressao'),
+        dcc.Input(
+            id='calc-nome-input', type='text', placeholder='nome da nova coluna',
+            value=(resultado_pendente or {}).get('sugestao_nome'),
+            className='calculadora-nome-input' + ('' if modo_nova else ' calculadora-oculto'),
+            maxLength=80,
+        ),
+        dcc.Dropdown(
+            id='calc-coluna-destino',
+            options=opcoes_colunas_destino, value=coluna_destino,
+            placeholder='sobrescrever qual coluna?',
+            className='calculadora-coluna-destino' + ('' if not modo_nova else ' calculadora-oculto'),
+        ),
+        html.Button('Criar', id='calc-criar', className='calculadora-btn-criar', n_clicks=0),
+        # '⌫' remove só o ÚLTIMO token inteiro (não um caractere — ver
+        # docstring de 'calc-expressao-store', layout.py) — separado de
+        # 'Limpar' (que zera tudo de uma vez), pra corrigir um clique
+        # errado sem perder a expressão inteira.
+        html.Button('⌫', id='calc-apagar', className='calculadora-btn-apagar', n_clicks=0, title='Apagar último'),
+        html.Button('Limpar', id='calc-limpar', className='calculadora-btn-limpar', n_clicks=0),
+    ])
+
+
+def renderizar_calculadora_botoes(estado, aba_ativa):
+    """
+    Os GRUPOS DE BOTÕES da calculadora — vivem em
+    '#area-modo-nova-analise-edicao' (painel de edição, cobrindo tudo
+    com watermark de analysis.svg, ver edit_menu.css), NÃO mais dentro
+    do gráfico. Layout MAIS VERTICAL de propósito (grupos empilhados,
+    um por linha, cada um com seus botões em grade estreita) — a
+    versão anterior ficava na área central, larga, com os grupos lado
+    a lado; aqui o painel é estreito (~400px, mesma largura de sempre)
+    e alto, então empilhar verticalmente aproveita o espaço de
+    verdade, em vez de forçar quebra de linha toda hora.
+
+    Diferente da barra (renderizar_calculadora_barra), este bloco NÃO
+    precisa ser reconstruído a cada clique de token — os botões em si
+    não mudam com a expressão, só a barra reflete o que foi clicado.
+    Só precisa recarregar quando o MODO liga (arquivo pode ter mudado)
+    ou a aba ativa muda enquanto o modo está ligado.
+    """
     arquivo = estado.arquivos.get(aba_ativa) if aba_ativa else None
     colunas_pares = []
     if arquivo:
@@ -1075,33 +1172,22 @@ def renderizar_calculadora(estado, aba_ativa, tokens_expressao=None):
             rotulo = arquivo.rotulo(nome_interno)
             colunas_pares.append((rotulo, f'col[{nome_interno!r}]'))
 
-    return html.Div(className='calculadora', children=[
-        html.Div(className='calculadora-barra', children=[
-            html.Div(texto_expressao, id='calc-expressao-display', className='calculadora-expressao'),
-            dcc.Input(
-                id='calc-nome-input', type='text', placeholder='nova análise',
-                className='calculadora-nome-input', maxLength=80,
-            ),
-            html.Button('Criar', id='calc-criar', className='calculadora-btn-criar', n_clicks=0),
-            # '⌫' remove só o ÚLTIMO token inteiro (não um caractere —
-            # ver docstring de 'calc-expressao-store', layout.py) —
-            # separado de 'Limpar' (que zera tudo de uma vez), pra
-            # corrigir um clique errado sem perder a expressão inteira.
-            html.Button('⌫', id='calc-apagar', className='calculadora-btn-apagar', n_clicks=0, title='Apagar último'),
-            html.Button('Limpar', id='calc-limpar', className='calculadora-btn-limpar', n_clicks=0),
+    return html.Div(className='calculadora-botoes', children=[
+        _grupo_calculadora('Operações básicas', OPERADORES_BASICOS, classe_extra='calculadora-token-basico'),
+        html.Div(className='calculadora-grupo calculadora-grupo-colunas', children=[
+            html.Div('Colunas', className='calculadora-grupo-titulo'),
+            html.Div(className='calculadora-grupo-botoes', children=(
+                [_botao_token_calculadora(display, codigo, 'calculadora-token-coluna')
+                 for display, codigo in colunas_pares]
+                if colunas_pares else
+                [html.Div('Abra um arquivo pra ver as colunas aqui.', className='calculadora-colunas-vazio')]
+            )),
         ]),
-        html.Div(className='calculadora-grupos', children=[
-            _grupo_calculadora('Operações básicas', OPERADORES_BASICOS, classe_extra='calculadora-token-basico'),
-            _grupo_calculadora('Funções', FUNCOES, classe_extra='calculadora-token-funcao'),
-            _grupo_calculadora('Operações rápidas', OPERACOES_RAPIDAS, classe_extra='calculadora-token-rapido'),
-            html.Div(className='calculadora-grupo calculadora-grupo-colunas', children=[
-                html.Div('Colunas', className='calculadora-grupo-titulo'),
-                html.Div(className='calculadora-grupo-botoes', children=(
-                    [_botao_token_calculadora(display, codigo, 'calculadora-token-coluna')
-                     for display, codigo in colunas_pares]
-                    if colunas_pares else
-                    [html.Div('Abra um arquivo pra ver as colunas aqui.', className='calculadora-colunas-vazio')]
-                )),
+        _grupo_calculadora('Funções', FUNCOES, classe_extra='calculadora-token-funcao'),
+        html.Div(className='calculadora-grupo', children=[
+            html.Div('Operações rápidas', className='calculadora-grupo-titulo'),
+            html.Div(className='calculadora-grupo-botoes calculadora-grupo-botoes-vertical', children=[
+                _botao_operacao_rapida(display, operacao_id) for display, operacao_id in OPERACOES_RAPIDAS
             ]),
         ]),
     ])

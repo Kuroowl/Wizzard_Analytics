@@ -935,9 +935,12 @@
    'nova-analise' da toolbar está pressionado (ver
    alternar_modo_nova_analise, callbacks.py). MESMO espírito visual do
    watermark de repouso do próprio painel (fundo var(--cor-fundo-
-   grafico) + um SVG apagado ao centro), só que com gear.svg no lugar
-   de pintura.svg — a ideia é marcar "este painel virou outra coisa
-   agora", não mais as opções de edição da curva.
+   grafico) + um SVG apagado ao centro), só que com analysis.svg no
+   lugar de pintura.svg — o MESMO svg da barra de cálculo central (ver
+   central_menu.css): as duas partes são a MESMA calculadora, só
+   espalhada em dois lugares da tela agora (mudança de proposta: antes
+   era gear.svg aqui e analysis.svg cobria o gráfico; agora só esta
+   camada cobre algo, e o svg dela é analysis.svg).
 
    'display: none' aqui é só o padrão CSS de repouso — quem liga/
    desliga de verdade é o 'style' inline (layout.py + callbacks.py),
@@ -952,13 +955,134 @@
   inset: 0;
   z-index: 5;
   display: none;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  padding: 14px;
+  overflow-y: auto;
   background-color: var(--cor-fundo-grafico);
   background-image:
     linear-gradient(rgba(253, 246, 227, 0.88), rgba(253, 246, 227, 0.88)),
-    url("../icones/gear.svg");
+    url("../icones/analysis.svg");
   background-repeat: no-repeat, no-repeat;
   background-position: center center, center center;
   background-size: cover, 40% auto;
 }
+
+/* ==========================================================================
+   Grupos de botões da calculadora (Operações básicas / Colunas /
+   Funções / Operações rápidas) — vivem dentro de
+   '.area-modo-nova-analise-edicao' (ver renderizar_calculadora_botoes,
+   renderizadores.py). Layout MAIS VERTICAL de propósito (um grupo
+   embaixo do outro, ocupando a largura toda do painel — ~400px) — a
+   versão anterior ficava na área central, larga, com os grupos lado a
+   lado e várias linhas de quebra; aqui o painel é estreito e alto,
+   então empilhar aproveita o espaço de verdade.
+   ========================================================================== */
+
+.calculadora-botoes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.calculadora-grupo {
+  flex: 0 0 auto;
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--cor-borda);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.calculadora-grupo-titulo {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cor-texto-mudo);
+  margin-bottom: 8px;
+}
+
+.calculadora-grupo-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Operações rápidas (Derivada/Integral/Média/Máximo/Mínimo) — cada
+   botão ocupa a LARGURA TODA do painel, empilhados (não lado a lado
+   como os outros 3 grupos): são ações mais "pesadas" (disparam um
+   cálculo de verdade sobre as colunas já clicadas, ver
+   aplicar_operacao_rapida_calculadora em callbacks.py), então um
+   alvo de clique maior e uma leitura de cima a baixo cabe melhor que
+   uma grade apertada de símbolos curtos. */
+.calculadora-grupo-botoes-vertical {
+  flex-direction: column;
+}
+
+.calculadora-grupo-botoes-vertical .calculadora-token {
+  width: 100%;
+  text-align: left;
+}
+
+.calculadora-token {
+  font-family: var(--fonte-dado);
+  font-size: 13px;
+  color: var(--cor-texto-escuro);
+  background-color: #FFFFFF;
+  border: 1px solid var(--cor-borda);
+  border-radius: 5px;
+  padding: 7px 10px;
+  min-width: 34px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, transform 0.05s;
+}
+
+.calculadora-token:hover {
+  background-color: rgba(47, 165, 160, 0.14);
+  border-color: var(--cor-accent);
+}
+
+.calculadora-token:active {
+  transform: scale(0.97);
+}
+
+/* Colunas usam a fonte de UI (não a monoespaçada dos operadores) —
+   são rótulos livres do usuário (podem ter acento, espaço, qualquer
+   texto), não símbolos matemáticos, então a fonte de dado
+   (--fonte-dado) não faz sentido semântico aqui. Cor de fundo lilás
+   suave (o mesmo tom de '--cor-accent-divisao', mas bem diluído —
+   MESMA cor usada pro marcador 'ƒ' de canal calculado, ver
+   file_menu.css) deixa claro visualmente "isto vem do arquivo",
+   diferente dos operadores/funções fixos. */
+.calculadora-token-coluna {
+  font-family: var(--fonte-ui);
+  background-color: rgba(127, 75, 196, 0.08);
+  border-color: rgba(127, 75, 196, 0.3);
+}
+
+.calculadora-token-coluna:hover {
+  background-color: rgba(127, 75, 196, 0.18);
+  border-color: var(--cor-accent-divisao);
+}
+
+/* Operações rápidas usam o mesmo lilás das colunas (também "operam
+   sobre dados do arquivo"), mas SÓLIDO em vez de diluído — reforça
+   que são um tipo de ação diferente (disparam um cálculo imediato),
+   não um token que só se anexa à expressão. */
+.calculadora-token-rapido {
+  font-family: var(--fonte-ui);
+  background-color: rgba(127, 75, 196, 0.1);
+  border-color: rgba(127, 75, 196, 0.35);
+  font-weight: 600;
+}
+
+.calculadora-token-rapido:hover {
+  background-color: rgba(127, 75, 196, 0.22);
+  border-color: var(--cor-accent-divisao);
+}
+
+.calculadora-colunas-vazio {
+  font-family: var(--fonte-ui);
+  font-size: 12px;
+  color: var(--cor-texto-mudo);
+  padding: 6px 2px;
+}
+

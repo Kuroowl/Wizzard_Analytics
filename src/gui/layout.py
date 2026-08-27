@@ -111,6 +111,21 @@ def montar_layout(estado):
         # 'sin(') em vez de um caractere por vez.
         dcc.Store(id='calc-expressao-store', data=[]),
 
+        # 'calc-resultado-pendente-store': None a maior parte do tempo;
+        # vira {'valores': [...], 'sugestao_nome': ..., 'descricao':
+        # ...} depois de clicar numa 'Operação rápida' (Derivada/
+        # Integral/Média/Máximo/Mínimo — ver aplicar_operacao_rapida,
+        # src/core/operations/calculadora.py, e
+        # aplicar_operacao_rapida_calculadora em callbacks.py). Os DOIS
+        # modos — expressão livre token a token ('calc-expressao-
+        # store') OU resultado de operação rápida — são mutuamente
+        # exclusivos: continuar clicando um token descarta este Store
+        # (volta pro modo expressão), e vice-versa (uma operação rápida
+        # ignora o 'codigo' dos tokens, só olha quais COLUNAS estão
+        # referenciadas). 'Criar' usa este Store, se presente, em vez
+        # de reavaliar a expressão.
+        dcc.Store(id='calc-resultado-pendente-store', data=None),
+
         # 'corte-selecao-store': None enquanto nenhuma seleção de corte
         # está em andamento; durante 'Aparar dados' (e, no futuro,
         # 'Excluir dados' — mesma mecânica, ver aparar_dados/excluir_dados
@@ -277,7 +292,16 @@ def montar_layout(estado):
 
             html.Div(id='divisor-resize', className='divisor-resize'),
 
-            html.Div(className='centro', children=[
+            # id='centro-grafico' — precisa de um id agora pra alternar
+            # a classe 'calc-ativa' (ver alternar_modo_nova_analise,
+            # callbacks.py), que é quem faz a barra de cálculo aparecer
+            # E empurra '#container-grafico' pra baixo, tudo via CSS
+            # (ver '.centro.calc-ativa' em central_menu.css) — o
+            # gráfico continua TOTALMENTE visível/interativo com o modo
+            # ligado agora (mudança de proposta: antes uma camada opaca
+            # cobria ele inteiro; agora só uma barra fina no topo entra
+            # em cena, sem esconder nada por baixo).
+            html.Div(id='centro-grafico', className='centro', children=[
                 dcc.Loading(
                     id="loading-grafico",
                     type="circle",
@@ -287,20 +311,17 @@ def montar_layout(estado):
                         children=renderizar_area_grafico(estado),
                     ),
                 ),
-                # Camada do "modo Nova Análise" — cobre '.centro'
-                # inteiro por CIMA de '#container-grafico' (mesma
-                # técnica de 'position:absolute; inset:0' que
-                # '.area-grafico-container' já usa, ver
-                # central_menu.css) quando 'nova-analise' está
-                # pressionado (ver alternar_modo_nova_analise,
-                # callbacks.py). NASCE ESCONDIDA (display:none) —
-                # importante que seja só isso (não um 'children'
-                # trocado): o gráfico por baixo continua existindo e
-                # renderizado o tempo todo, só fica coberto/inacessível
-                # enquanto este modo está ligado, então nada precisa
-                # ser salvo/restaurado à parte pra voltar exatamente
-                # como estava ao desligar.
-                html.Div(id='area-modo-nova-analise', className='area-modo-nova-analise', style={'display': 'none'}),
+                # Barra de cálculo do modo "Nova Análise" — fica no
+                # TOPO de '.centro' (position:absolute; top:0; ver
+                # '.calculadora-barra-central' em central_menu.css),
+                # SÓ aparece quando '.centro' ganha a classe
+                # 'calc-ativa'. Os botões de operador/função/coluna NÃO
+                # moram mais aqui — foram pro painel de edição (ver
+                # 'area-modo-nova-analise-edicao' logo abaixo); esta
+                # barra só mostra a expressão sendo construída + o
+                # seletor "nova coluna"/"coluna existente" + nome +
+                # Criar/Apagar/Limpar.
+                html.Div(id='area-modo-nova-analise', className='calculadora-barra-central'),
             ]),
 
             html.Div(id='divisor-resize-edit', className='divisor-resize'),
@@ -338,15 +359,21 @@ def montar_layout(estado):
                     disabled=True,
                     n_clicks=0,
                 ),
-                # Camada do "modo Nova Análise" — mesmo espírito da
-                # irmã em '.centro' (ver 'area-modo-nova-analise' acima):
-                # cobre '#painel-direito' inteiro por CIMA do conteúdo
-                # normal (repouso OU o card 'Curva' aberto), sem
-                # remover/trocar nada por baixo. Precisa de
-                # 'position: relative' em '.painel-direito' (ver
-                # edit_menu.css) pra este 'position:absolute; inset:0;'
-                # ancorar no painel certo, não em algum ancestral mais
-                # distante.
+                # Camada do "modo Nova Análise" — cobre '#painel-direito'
+                # inteiro por CIMA do conteúdo normal (repouso OU o
+                # card 'Curva' aberto), sem remover/trocar nada por
+                # baixo (ver docstring completa em edit_menu.css).
+                # Mudança de proposta: a camada CENTRAL (irmã desta, em
+                # '.centro') deixou de cobrir o gráfico — só esta,
+                # aqui no painel de edição, continua cobrindo tudo por
+                # completo, e agora é onde moram os GRUPOS de botões da
+                # calculadora (Operações básicas / Colunas / Funções /
+                # Operações rápidas — ver renderizar_calculadora_
+                # botoes, renderizadores.py), não mais no meio do
+                # gráfico. O watermark também trocou: era gear.svg,
+                # agora é analysis.svg (mesmo SVG da barra central),
+                # já que as DUAS partes — barra + botões — são a MESMA
+                # calculadora, só espalhada em dois lugares da tela.
                 html.Div(id='area-modo-nova-analise-edicao', className='area-modo-nova-analise-edicao', style={'display': 'none'}),
             ]),
         ]),
