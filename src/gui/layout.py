@@ -293,36 +293,43 @@ def montar_layout(estado):
             html.Div(id='divisor-resize', className='divisor-resize'),
 
             # id='centro-grafico' — precisa de um id agora pra alternar
-            # a classe 'calc-ativa' (ver alternar_modo_nova_analise,
-            # callbacks.py), que é quem faz a barra de cálculo aparecer
-            # E empurra '#container-grafico' pra baixo, tudo via CSS
-            # (ver '.centro.calc-ativa' em central_menu.css) — o
-            # gráfico continua TOTALMENTE visível/interativo com o modo
-            # ligado agora (mudança de proposta: antes uma camada opaca
-            # cobria ele inteiro; agora só uma barra fina no topo entra
-            # em cena, sem esconder nada por baixo).
+            # a classe 'calc-ativa' (usada só pra estilizar, hoje —
+            # ver central_menu.css). Mudança de abordagem: em vez de
+            # tentar injetar a barra de cálculo DENTRO da área do
+            # gráfico normal (o que não estava se mostrando na tela por
+            # algum motivo que não conseguimos isolar de fora do
+            # navegador), agora são DUAS ÁREAS SEPARADAS, mutuamente
+            # exclusivas, alternadas via 'style' (display:none/flex) —
+            # nunca as duas visíveis ao mesmo tempo:
+            #   1) '#area-grafico-normal' — o gráfico de sempre, sem
+            #      NENHUMA mudança nele (mesmo id/estrutura/CSS de
+            #      antes). Visível quando o modo 'Nova Análise' está
+            #      DESLIGADO.
+            #   2) '#area-modo-nova-analise' — área NOVA, própria,
+            #      subdividida em duas partes empilhadas: a barra de
+            #      cálculo (topo) e uma MINIATURA do gráfico atual
+            #      (embaixo — mostra 'arquivo.figura', o último estado
+            #      já desenhado, só que menor). Visível quando o modo
+            #      está LIGADO.
+            # Como são duas árvores de DOM totalmente separadas (não
+            # uma tentando se encaixar dentro da outra), qualquer
+            # conflito de CSS/z-index/posicionamento que a área do
+            # gráfico tivesse fica isolado, sem chance de interferir na
+            # área nova.
             html.Div(id='centro-grafico', className='centro', children=[
-                dcc.Loading(
-                    id="loading-grafico",
-                    type="circle",
-                    children=html.Div(
-                        id='container-grafico',
-                        className='area-grafico-container',
-                        children=renderizar_area_grafico(estado),
+                html.Div(id='area-grafico-normal', style={'display': 'block'}, children=[
+                    dcc.Loading(
+                        id="loading-grafico",
+                        type="circle",
+                        children=html.Div(
+                            id='container-grafico',
+                            className='area-grafico-container',
+                            children=renderizar_area_grafico(estado),
+                        ),
                     ),
-                ),
-                # Barra de cálculo do modo "Nova Análise" — fica no
-                # TOPO de '.centro' (position:absolute; top:0; ver
-                # '.calculadora-barra-central' em central_menu.css),
-                # SÓ aparece quando '.centro' ganha a classe
-                # 'calc-ativa'. Os botões de operador/função/coluna NÃO
-                # moram mais aqui — foram pro painel de edição (ver
-                # 'area-modo-nova-analise-edicao' logo abaixo); esta
-                # barra só mostra a expressão sendo construída + o
-                # seletor "nova coluna"/"coluna existente" + nome +
-                # Criar/Apagar/Limpar.
+                ]),
                 html.Div(
-                    id='area-modo-nova-analise', className='calculadora-barra-central',
+                    id='area-modo-nova-analise', className='area-modo-nova-analise-completa',
                     style={'display': 'none'},
                 ),
             ]),

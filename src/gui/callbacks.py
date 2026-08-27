@@ -15,7 +15,7 @@ from src.gui.renderizadores import (
     renderizar_area_grafico, renderizar_grafico_com_fechar,
     renderizar_info_rodape, renderizar_badge_alerta, classe_badge_alerta, renderizar_popup_alerta,
     renderizar_painel_direito_padrao, renderizar_painel_edicao,
-    renderizar_calculadora_barra, renderizar_calculadora_botoes, _hex_para_rgb,
+    renderizar_calculadora_barra, renderizar_area_calculadora_completa, renderizar_calculadora_botoes, _hex_para_rgb,
 )
 from src.utils.helpers import carregar_dados_de_upload
 
@@ -372,7 +372,7 @@ def registrar_callbacks(app, estado):
     @app.callback(
         Output('modo-nova-analise-store', 'data'),
         Output('nova-analise', 'className'),
-        Output('centro-grafico', 'className'),
+        Output('area-grafico-normal', 'style'),
         Output('area-modo-nova-analise', 'style'),
         Output('area-modo-nova-analise-edicao', 'style'),
         Output('area-modo-nova-analise', 'children'),
@@ -389,20 +389,20 @@ def registrar_callbacks(app, estado):
 
         novo_ativo = not modo_ativo_atual
         classe_botao = 'toolbar-upload' + (' ativo' if novo_ativo else '')
-        # 'centro-grafico' só precisa da classe 'calc-ativa' pra
-        # empurrar '#container-grafico' pra baixo (ver '.centro.calc-
-        # ativa .area-grafico-container' em central_menu.css) — a
-        # VISIBILIDADE da barra em si (logo abaixo) é decidida pelo
-        # 'style' inline dela mesma, não por essa classe do ancestral
-        # (mesmo padrão já testado/funcionando de
-        # '#toolbar-confirmacao-corte', em vez de depender de uma
-        # classe cascateando por CSS até um filho).
-        classe_centro = 'centro' + (' calc-ativa' if novo_ativo else '')
-        estilo_area_barra = {'display': 'flex'} if novo_ativo else {'display': 'none'}
+        # As DUAS áreas ('#area-grafico-normal' e '#area-modo-nova-
+        # analise') são MUTUAMENTE EXCLUSIVAS — nunca as duas visíveis
+        # ao mesmo tempo (ver docstring completa em layout.py sobre por
+        # que viraram áreas separadas, em vez de tentar encaixar a
+        # barra dentro da área do gráfico normal). '#container-grafico'
+        # dentro de '#area-grafico-normal' NUNCA é tocado aqui — o
+        # gráfico continua exatamente como estava, só fica escondido/
+        # mostrado por inteiro via este 'display'.
+        estilo_area_grafico = {'display': 'none'} if novo_ativo else {'display': 'block'}
+        estilo_area_calc = {'display': 'flex'} if novo_ativo else {'display': 'none'}
         estilo_area_edicao = {'display': 'flex'} if novo_ativo else {'display': 'none'}
 
-        # A calculadora só precisa existir de verdade (com os botões de
-        # coluna do arquivo CERTO) quando o modo está LIGANDO — ao
+        # A calculadora só precisa existir de verdade (com os botões/
+        # miniatura do arquivo CERTO) quando o modo está LIGANDO — ao
         # desligar, 'no_update' preserva o que já estava montado (o
         # 'style' acima já cuida de esconder) e a expressão em
         # andamento ('calc-expressao-store') fica intocada, pra
@@ -410,10 +410,10 @@ def registrar_callbacks(app, estado):
         conteudo_barra = no_update
         conteudo_botoes = no_update
         if novo_ativo:
-            conteudo_barra = renderizar_calculadora_barra(estado, aba_ativa, tokens_atuais)
+            conteudo_barra = renderizar_area_calculadora_completa(estado, aba_ativa, tokens_atuais)
             conteudo_botoes = renderizar_calculadora_botoes(estado, aba_ativa)
 
-        return (novo_ativo, classe_botao, classe_centro, estilo_area_barra, estilo_area_edicao,
+        return (novo_ativo, classe_botao, estilo_area_grafico, estilo_area_calc, estilo_area_edicao,
                 conteudo_barra, conteudo_botoes)
 
     # ------------------------------------------------------------------
@@ -476,7 +476,7 @@ def registrar_callbacks(app, estado):
         # modos (expressão livre / resultado de operação rápida) são
         # mutuamente exclusivos na barra (ver renderizar_calculadora_
         # barra, renderizadores.py, que mostra UM ou OUTRO).
-        conteudo = renderizar_calculadora_barra(estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino, None)
+        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino, None)
         return conteudo, novos_tokens, None, novo_mapa
 
     @app.callback(
@@ -510,7 +510,7 @@ def registrar_callbacks(app, estado):
             return no_update, no_update, mensagem, novo_mapa
 
         resultado_pendente = {'valores': valores, 'sugestao_nome': sugestao_nome, 'descricao': descricao}
-        conteudo = renderizar_calculadora_barra(
+        conteudo = renderizar_area_calculadora_completa(
             estado, aba_ativa, tokens_atuais, tipo_destino, coluna_destino, resultado_pendente)
         return conteudo, resultado_pendente, no_update, novo_mapa
 
@@ -543,7 +543,7 @@ def registrar_callbacks(app, estado):
         else:
             raise PreventUpdate
 
-        conteudo = renderizar_calculadora_barra(
+        conteudo = renderizar_area_calculadora_completa(
             estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino, novo_resultado_pendente)
         return conteudo, novos_tokens, novo_resultado_pendente
 
@@ -560,7 +560,7 @@ def registrar_callbacks(app, estado):
     def limpar_expressao_calculadora(n_clicks, aba_ativa, tipo_destino, coluna_destino):
         if not n_clicks:
             raise PreventUpdate
-        conteudo = renderizar_calculadora_barra(estado, aba_ativa, [], tipo_destino, coluna_destino, None)
+        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, [], tipo_destino, coluna_destino, None)
         return conteudo, [], None
 
     @app.callback(
@@ -657,7 +657,7 @@ def registrar_callbacks(app, estado):
 
         # Limpa a expressão/resultado pendente depois de criar (mesmo
         # espírito de um formulário que reseta após salvar).
-        conteudo = renderizar_calculadora_barra(estado, aba_ativa, [], tipo_destino, None, None)
+        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, [], tipo_destino, None, None)
         return (conteudo, [], None,
                 renderizar_colunas_da_aba_ativa(estado, aba_ativa),
                 area_grafico, mensagem)

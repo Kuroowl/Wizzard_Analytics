@@ -13,25 +13,28 @@
   background-color: var(---cor-fundo-grafico, #FDF6E3);
 }
 
-/* O dcc.Loading injeta um wrapper próprio (position:relative, sem classe
-   fixa) como único filho direto de .centro. Esse wrapper não tem altura
-   própria por padrão (o conteúdo dele é absolutamente posicionado, então
-   não "empurra" altura pro pai) — sem isso, o position:absolute+inset:0
-   do .area-grafico-container calcula 0 em cima de um pai de altura 0.
-   Mirar em '.centro > div' pega esse wrapper de forma estável, sem
-   depender do nome de classe que o Dash decidir usar.
+/* '.centro' agora tem SEMPRE 2 filhos diretos, mutuamente exclusivos
+   (nunca os dois visíveis ao mesmo tempo — alternados via 'style'
+   inline, ver alternar_modo_nova_analise em callbacks.py):
+     - '#area-grafico-normal': o gráfico de sempre (visível com o modo
+       'Nova Análise' DESLIGADO).
+     - '#area-modo-nova-analise': barra de cálculo + miniatura do
+       gráfico (visível com o modo LIGADO).
+   Os dois precisam de 'height:100%; width:100%;' pra preencher
+   '.centro' inteiro — daí este seletor pegar os dois genericamente. */
+.centro > div {
+  height: 100%;
+  width: 100%;
+}
 
-   ':not(#area-modo-nova-analise)' EXCLUI explicitamente a barra de
-   cálculo dessa regra — ela também é um <div> filho direto de '.centro'
-   (mesmo nível do wrapper do dcc.Loading), então SEM essa exclusão
-   também levaria 'height:100%; width:100%;' daqui. Isso, na teoria,
-   já era vencido pela regra '#area-modo-nova-analise { height: 56px }'
-   mais abaixo (ID é mais específico que classe+elemento) — mas como a
-   barra continuou não aparecendo mesmo assim, excluir explicitamente
-   aqui remove QUALQUER dependência de cálculo de especificidade: a
-   barra nunca mais recebe essa regra, ponto final, não importa o que
-   mude nas outras. */
-.centro > div:not(#area-modo-nova-analise) {
+/* O dcc.Loading injeta um wrapper próprio (position:relative, sem
+   classe fixa) — antes ele era filho DIRETO de '.centro', agora é
+   filho de '#area-grafico-normal' (um nível a mais, ver layout.py).
+   Esse wrapper não tem altura própria por padrão (o conteúdo dele é
+   absolutamente posicionado, então não "empurra" altura pro pai) —
+   sem isso, o position:absolute+inset:0 do '.area-grafico-container'
+   calcula 0 em cima de um pai de altura 0. */
+#area-grafico-normal > div {
   height: 100%;
   width: 100%;
 }
@@ -178,49 +181,64 @@
    '.calculadora-botoes' em edit_menu.css. Esta barra só tem: seletor
    Nova coluna/Coluna existente, a expressão sendo montada, o campo de
    nome (ou dropdown de coluna a sobrescrever), e Criar/Apagar/Limpar.
-   ========================================================================== */
 
-/* Visibilidade controlada por 'style' INLINE (display:none/flex),
-   setado pelo callback (alternar_modo_nova_analise, callbacks.py) —
-   MESMO padrão já testado/funcionando de '#toolbar-confirmacao-corte'
-   (icon_menu.css/layout.py), em vez de depender de uma classe no
-   ANCESTRAL ('.centro.calc-ativa') cascatear até aqui. A versão
-   anterior (height:0 -> 56px via classe do pai) não estava
-   funcionando de forma confiável — trocado pelo mecanismo mais direto
-   e já comprovado no resto do app. */
-#area-modo-nova-analise {
-  position: relative;
-  z-index: 50; /* bem acima de qualquer coisa em '.centro' (o gráfico não define z-index próprio) */
-  height: 56px;
+   MUDANÇA DE ABORDAGEM: antes a barra tentava se encaixar DENTRO da
+   área do gráfico normal (empurrando '#container-grafico' pra baixo
+   via 'position:absolute'/'top' dinâmico) — por algum motivo que não
+   foi possível isolar sem acesso ao navegador, isso não estava
+   aparecendo na tela. Agora '#area-modo-nova-analise' é uma área
+   TOTALMENTE separada (irmã de '#area-grafico-normal', nunca as duas
+   visíveis ao mesmo tempo — ver layout.py), então não tem chance
+   nenhuma de um conflito da área antiga vazar pra esta. Bem mais
+   simples também: layout flex comum (coluna: barra em cima, miniatura
+   do gráfico embaixo), SEM 'position:absolute'/'z-index'/'top'
+   dinâmico nenhum. */
+#area-modo-nova-analise.area-modo-nova-analise-completa {
+  display: none; /* alternado via 'style' inline pelo callback */
+  flex-direction: column;
+  height: 100%;
   width: 100%;
-  min-height: 56px; /* reforça contra qualquer 'height:auto' vindo de outro lugar */
-  flex: 0 0 56px;   /* caso '.centro' vire flex container no futuro, trava o tamanho aqui também */
-  display: flex;
-  align-items: center;
-  background-color: #FFFFFF;
-  border-bottom: 1px solid var(--cor-borda);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  overflow: visible;
-}
-
-/* Empurra '#container-grafico' pra baixo — mesmo valor da altura da
-   barra acima ('56px'). '.area-grafico-container' continua
-   'position:absolute' (não mudou o truque de "ignora quantos
-   wrappers existem", ver a explicação completa logo acima nesse
-   arquivo) — só o 'top' passa a depender de '.calc-ativa' estar
-   presente ou não em '.centro', em vez de ser sempre '0' (que é o que
-   o 'inset:0' original já cobria pro caso comum, sem a barra). */
-.centro.calc-ativa .area-grafico-container {
-  top: 56px;
 }
 
 .calculadora-barra-central-conteudo {
+  flex: 0 0 56px;
   width: 100%;
-  height: 100%;
+  height: 56px;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 0 14px;
+  background-color: #FFFFFF;
+  border-bottom: 1px solid var(--cor-borda);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Miniatura do gráfico — mostra 'arquivo.figura' (o último estado já
+   desenhado, se algum gráfico já foi gerado) numa versão MENOR, só
+   pra referência enquanto o usuário monta a expressão — não é
+   editável/interativa da mesma forma que o gráfico grande (ver
+   'config' em renderizar_area_calculadora_completa, renderizadores.py).
+   Ocupa o espaço restante depois da barra ('flex: 1 1 auto'). */
+.calculadora-miniatura-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--cor-fundo-grafico);
+}
+
+.calculadora-grafico-miniatura {
+  width: 100%;
+  height: 100%;
+}
+
+.calculadora-miniatura-vazia {
+  font-family: var(--fonte-ui);
+  font-size: 13px;
+  color: var(--cor-texto-mudo);
+  text-align: center;
 }
 
 .calculadora-tipo-destino {

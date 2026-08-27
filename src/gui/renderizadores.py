@@ -1071,10 +1071,10 @@ def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
                                   tipo_destino='nova', coluna_destino=None,
                                   resultado_pendente=None):
     """
-    A BARRA de cálculo — vive em '#area-modo-nova-analise', agora
-    ACIMA do gráfico (não mais cobrindo ele, ver '.centro.calc-ativa'
-    em central_menu.css). Mostra a expressão sendo construída (ou a
-    descrição de uma 'Operação rápida' pendente — ver
+    A BARRA de cálculo — o pedaço de CIMA de '#area-modo-nova-analise'
+    (ver renderizar_area_calculadora_completa logo abaixo, que embrulha
+    esta barra + a miniatura do gráfico). Mostra a expressão sendo
+    construída (ou a descrição de uma 'Operação rápida' pendente — ver
     'resultado_pendente'), o seletor "Nova coluna" / "Coluna
     existente", o campo de nome (ou o dropdown de coluna a
     sobrescrever, conforme o seletor) e Criar/Apagar/Limpar.
@@ -1145,6 +1145,51 @@ def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
         html.Button('⌫', id='calc-apagar', className='calculadora-btn-apagar', n_clicks=0, title='Apagar último'),
         html.Button('Limpar', id='calc-limpar', className='calculadora-btn-limpar', n_clicks=0),
     ])
+
+
+def renderizar_area_calculadora_completa(estado, aba_ativa, tokens_expressao=None,
+                                          tipo_destino='nova', coluna_destino=None,
+                                          resultado_pendente=None):
+    """
+    Conteúdo INTEIRO de '#area-modo-nova-analise' — a barra (topo,
+    'renderizar_calculadora_barra' acima) + uma MINIATURA do gráfico
+    atual (embaixo). É uma área SEPARADA da área do gráfico normal
+    ('#area-grafico-normal', ver layout.py), nunca as duas visíveis ao
+    mesmo tempo — resolve um problema anterior em que tentar encaixar
+    a barra DENTRO da área do gráfico (empurrando ela pra baixo) não
+    estava aparecendo na tela por um motivo que não foi possível
+    isolar sem acesso ao navegador; como área totalmente separada, não
+    tem chance de herdar nenhum conflito de CSS/posicionamento que a
+    área antiga tivesse.
+
+    A miniatura mostra 'arquivo.figura' — o ÚLTIMO estado do gráfico já
+    desenhado (se algum gráfico já foi gerado nesta aba), só que menor
+    e sem a barra de ferramentas do Plotly ('displayModeBar': False) —
+    é só uma referência visual enquanto o usuário monta a expressão,
+    não precisa das mesmas interações do gráfico grande. Se nenhum
+    gráfico foi gerado ainda, mostra um aviso no lugar.
+    """
+    barra = renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao,
+                                          tipo_destino, coluna_destino, resultado_pendente)
+
+    arquivo = estado.arquivos.get(aba_ativa) if aba_ativa else None
+    if arquivo and arquivo.grafico_gerado and arquivo.figura is not None:
+        miniatura = dcc.Graph(
+            id='calc-grafico-miniatura',
+            figure=arquivo.figura,
+            className='calculadora-grafico-miniatura',
+            config={'displayModeBar': False, 'staticPlot': False},
+        )
+    else:
+        miniatura = html.Div(
+            'Nenhum gráfico gerado ainda nesta aba — a miniatura aparece aqui assim que você gerar um.',
+            className='calculadora-miniatura-vazia',
+        )
+
+    return [
+        barra,
+        html.Div(miniatura, className='calculadora-miniatura-container'),
+    ]
 
 
 def renderizar_calculadora_botoes(estado, aba_ativa):
