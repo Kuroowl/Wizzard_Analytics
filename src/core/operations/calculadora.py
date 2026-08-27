@@ -22,19 +22,31 @@ aqui.
 import numpy as np
 
 
-OPERADORES_BASICOS = [
-    ('7', '7'), ('8', '8'), ('9', '9'), ('÷', '/'),
-    ('4', '4'), ('5', '5'), ('6', '6'), ('×', '*'),
-    ('1', '1'), ('2', '2'), ('3', '3'), ('−', '-'),
-    ('0', '0'), ('.', '.'), ('(', '('), (')', ')'),
-    ('+', '+'),
+NUMEROS = [
+    # Grade estilo teclado numérico de calculadora de verdade (7-8-9 /
+    # 4-5-6 / 1-2-3 / 0-.) — separado de OPERADORES (logo abaixo) de
+    # propósito: os dois eram um grid só antes, misturando números e
+    # símbolos sem distinção visual nenhuma. Ver '.calculadora-token-
+    # numero' (fundo claro/neutro) em edit_menu.css.
+    ('7', '7'), ('8', '8'), ('9', '9'),
+    ('4', '4'), ('5', '5'), ('6', '6'),
+    ('1', '1'), ('2', '2'), ('3', '3'),
+    ('0', '0'), ('.', '.'),
+]
+
+OPERADORES = [
+    # Símbolos/operadores — cor DIFERENTE de NUMEROS (ver
+    # '.calculadora-token-operador', fundo âmbar, em edit_menu.css),
+    # igual toda calculadora física separa visualmente a coluna de
+    # operadores do teclado numérico.
+    ('÷', '/'), ('×', '*'), ('−', '-'), ('+', '+'),
+    ('(', '('), (')', ')'),
 ]
 
 FUNCOES = [
     # Cada função abre parêntese sozinha — o usuário fecha com o ')' de
-    # 'Operações básicas' (mesmo espírito de digitar 'sin(' numa
-    # calculadora científica de verdade: abre, digita/clica o
-    # argumento, fecha).
+    # OPERADORES (mesmo espírito de digitar 'sin(' numa calculadora
+    # científica de verdade: abre, digita/clica o argumento, fecha).
     ('sin(', 'np.sin('),
     ('cos(', 'np.cos('),
     ('tan(', 'np.tan('),

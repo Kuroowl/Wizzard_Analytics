@@ -321,7 +321,10 @@ def montar_layout(estado):
                 # barra só mostra a expressão sendo construída + o
                 # seletor "nova coluna"/"coluna existente" + nome +
                 # Criar/Apagar/Limpar.
-                html.Div(id='area-modo-nova-analise', className='calculadora-barra-central'),
+                html.Div(
+                    id='area-modo-nova-analise', className='calculadora-barra-central',
+                    style={'display': 'none'},
+                ),
             ]),
 
             html.Div(id='divisor-resize-edit', className='divisor-resize'),

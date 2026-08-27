@@ -169,29 +169,23 @@
    nome (ou dropdown de coluna a sobrescrever), e Criar/Apagar/Limpar.
    ========================================================================== */
 
-/* Nasce colapsada (height:0, overflow:hidden) — '.centro.calc-ativa'
-   (classe alternada por alternar_modo_nova_analise, callbacks.py) é
-   quem expande. 'height' (não 'display') pra poder ANIMAR a
-   transição — um 'display:none/flex' pularia de 0 pra 56px sem
-   nenhuma suavidade. IMPORTANTE: '.centro > div { height:100%; ...}'
-   (topo deste arquivo) também casa com ESTE elemento (é um <div>
-   filho direto de '.centro' igual ao wrapper do dcc.Loading) — mas
-   como É um seletor por ID (mais específico que uma classe), as
-   regras daqui SEMPRE vencem esse height:100% herdado, então a barra
-   não "estica" pra ocupar '.centro' inteiro por engano. */
+/* Visibilidade controlada por 'style' INLINE (display:none/flex),
+   setado pelo callback (alternar_modo_nova_analise, callbacks.py) —
+   MESMO padrão já testado/funcionando de '#toolbar-confirmacao-corte'
+   (icon_menu.css/layout.py), em vez de depender de uma classe no
+   ANCESTRAL ('.centro.calc-ativa') cascatear até aqui. A versão
+   anterior (height:0 -> 56px via classe do pai) não estava
+   funcionando de forma confiável — trocado pelo mecanismo mais direto
+   e já comprovado no resto do app. */
 #area-modo-nova-analise {
   position: relative;
   z-index: 6;
-  height: 0;
-  overflow: hidden;
+  height: 56px;
+  display: flex;
+  align-items: center;
   background-color: #FFFFFF;
   border-bottom: 1px solid var(--cor-borda);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  transition: height 0.15s ease;
-}
-
-.centro.calc-ativa #area-modo-nova-analise {
-  height: 56px;
 }
 
 /* Empurra '#container-grafico' pra baixo — mesmo valor da altura da
@@ -206,7 +200,8 @@
 }
 
 .calculadora-barra-central-conteudo {
-  height: 56px;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   gap: 8px;

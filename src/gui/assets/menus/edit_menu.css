@@ -1044,6 +1044,58 @@
   transform: scale(0.97);
 }
 
+/* Números x Operadores — layout de calculadora física de verdade
+   (teclado numérico + coluna de operadores ao lado), com cor
+   DIFERENTE pra cada grupo (pedido explícito) — antes viviam
+   misturados numa grade só ('Operações básicas'), sem distinção
+   visual nenhuma entre dígito e símbolo. */
+.calculadora-basicas-linha {
+  display: flex;
+  gap: 8px;
+}
+
+.calculadora-numeros-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  flex: 1 1 auto;
+}
+
+.calculadora-operadores-coluna {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.calculadora-token-numero {
+  background-color: #F7F7F5;
+  color: var(--cor-texto-escuro);
+  text-align: center;
+}
+
+.calculadora-token-numero:hover {
+  background-color: rgba(0, 0, 0, 0.06);
+  border-color: var(--cor-borda);
+}
+
+/* Âmbar — cor NOVA na paleta, escolhida de propósito pra não colidir
+   com nenhum significado já existente (teal = seleção/'ligado', roxo
+   = calculado/coluna/operação rápida, vermelho = corte/exclusão). */
+.calculadora-token-operador {
+  background-color: rgba(217, 119, 6, 0.12);
+  border-color: rgba(217, 119, 6, 0.4);
+  color: #B45309;
+  font-weight: 700;
+  min-width: 40px;
+  text-align: center;
+}
+
+.calculadora-token-operador:hover {
+  background-color: rgba(217, 119, 6, 0.24);
+  border-color: #B45309;
+}
+
 /* Colunas usam a fonte de UI (não a monoespaçada dos operadores) —
    são rótulos livres do usuário (podem ter acento, espaço, qualquer
    texto), não símbolos matemáticos, então a fonte de dado

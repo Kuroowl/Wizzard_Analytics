@@ -20,6 +20,22 @@ from src.gui.renderizadores import (
 from src.utils.helpers import carregar_dados_de_upload
 
 
+# ============================================================================
+# ⚠️ TEMPORÁRIO — DEBUG: desativa o filtro anti-"clique fantasma"
+# (_processar_cliques_padrao, logo abaixo) a pedido explícito, pra
+# isolar se ELE é a causa de "não consigo clicar em nenhuma coluna"
+# reportado depois da reestruturação da calculadora. Com False, os
+# callbacks que usam esse filtro (gerenciar_abas, gerenciar_selecao_
+# canais, gerenciar_edicao_canal, registrar_token_calculadora,
+# aplicar_operacao_rapida_calculadora) voltam a aceitar QUALQUER
+# disparo como clique de verdade — inclusive os fantasmas de
+# remontagem que o filtro existe pra bloquear (ver docstring completa
+# de _processar_cliques_padrao). Voltar pra True depois de terminado o
+# teste.
+# ============================================================================
+GUARD_CLIQUE_FANTASMA_ATIVO = False
+
+
 def _clique_real(ctx_triggered):
     """
     Protege contra o disparo 'fantasma' que callbacks de padrão (ALL) do
@@ -97,10 +113,42 @@ def _processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
         Store, mesmo quando gatilho_id vier None, senão a próxima
         reconstrução "esquece" a linha de base e volta a comparar
         contra um valor desatualizado.
+
+    ------------------------------------------------------------------
+    ⚠️ DESATIVADO TEMPORARIAMENTE (GUARD_CLIQUE_FANTASMA_ATIVO = False,
+    logo no topo deste arquivo) — a pedido explícito, pra isolar se
+    ESTE filtro é a causa de "não consigo clicar em nenhuma coluna"
+    reportado depois da reestruturação da calculadora. Enquanto
+    desativado, esta função volta a se comportar como a antiga
+    '_clique_real' (aceita QUALQUER disparo como clique de verdade,
+    inclusive fantasmas de remontagem) — ou seja, o bug ANTIGO que
+    _processar_cliques_padrao existe pra resolver PODE voltar a
+    aparecer (ex: o primeiro canal da lista marcando sozinho ao gerar/
+    fechar gráfico). Isso é esperado enquanto o teste estiver rodando.
+    Depois de confirmar (ou descartar) que este filtro é o culpado,
+    voltar 'GUARD_CLIQUE_FANTASMA_ATIVO' pra True.
+    ------------------------------------------------------------------
     """
     nclicks_anteriores = nclicks_anteriores or {}
     novo_mapa = dict(nclicks_anteriores)
     gatilho_id = None
+
+    if not GUARD_CLIQUE_FANTASMA_ATIVO:
+        # Bypass temporário: qualquer disparo conta como clique de
+        # verdade (não compara contra o valor anterior) — ainda
+        # atualiza 'novo_mapa' normalmente, pra não perder o rastreio
+        # caso o guard seja religado no meio de uma sessão.
+        for grupo in grupos_inputs_list:
+            itens = grupo if isinstance(grupo, list) else [grupo]
+            for item in itens:
+                id_item = item.get('id')
+                if not isinstance(id_item, dict):
+                    continue
+                chave = json.dumps(id_item, sort_keys=True)
+                novo_mapa[chave] = item.get('value') or 0
+        if ctx.triggered_id and isinstance(ctx.triggered_id, dict):
+            gatilho_id = ctx.triggered_id
+        return gatilho_id, novo_mapa
 
     for grupo in grupos_inputs_list:
         itens = grupo if isinstance(grupo, list) else [grupo]
@@ -324,6 +372,7 @@ def registrar_callbacks(app, estado):
         Output('modo-nova-analise-store', 'data'),
         Output('nova-analise', 'className'),
         Output('centro-grafico', 'className'),
+        Output('area-modo-nova-analise', 'style'),
         Output('area-modo-nova-analise-edicao', 'style'),
         Output('area-modo-nova-analise', 'children'),
         Output('area-modo-nova-analise-edicao', 'children'),
@@ -339,14 +388,22 @@ def registrar_callbacks(app, estado):
 
         novo_ativo = not modo_ativo_atual
         classe_botao = 'toolbar-upload' + (' ativo' if novo_ativo else '')
+        # 'centro-grafico' só precisa da classe 'calc-ativa' pra
+        # empurrar '#container-grafico' pra baixo (ver '.centro.calc-
+        # ativa .area-grafico-container' em central_menu.css) — a
+        # VISIBILIDADE da barra em si (logo abaixo) é decidida pelo
+        # 'style' inline dela mesma, não por essa classe do ancestral
+        # (mesmo padrão já testado/funcionando de
+        # '#toolbar-confirmacao-corte', em vez de depender de uma
+        # classe cascateando por CSS até um filho).
         classe_centro = 'centro' + (' calc-ativa' if novo_ativo else '')
+        estilo_area_barra = {'display': 'flex'} if novo_ativo else {'display': 'none'}
         estilo_area_edicao = {'display': 'flex'} if novo_ativo else {'display': 'none'}
 
         # A calculadora só precisa existir de verdade (com os botões de
         # coluna do arquivo CERTO) quando o modo está LIGANDO — ao
-        # desligar, 'no_update' preserva o que já estava montado (a
-        # barra já vira invisível só com o 'className' de '.centro'
-        # acima, não precisa reconstruir pra esconder) e a expressão em
+        # desligar, 'no_update' preserva o que já estava montado (o
+        # 'style' acima já cuida de esconder) e a expressão em
         # andamento ('calc-expressao-store') fica intocada, pra
         # continuar de onde parou se o usuário ligar de novo.
         conteudo_barra = no_update
@@ -355,7 +412,8 @@ def registrar_callbacks(app, estado):
             conteudo_barra = renderizar_calculadora_barra(estado, aba_ativa, tokens_atuais)
             conteudo_botoes = renderizar_calculadora_botoes(estado, aba_ativa)
 
-        return novo_ativo, classe_botao, classe_centro, estilo_area_edicao, conteudo_barra, conteudo_botoes
+        return (novo_ativo, classe_botao, classe_centro, estilo_area_barra, estilo_area_edicao,
+                conteudo_barra, conteudo_botoes)
 
     # ------------------------------------------------------------------
     # Calculadora — 5 callbacks:

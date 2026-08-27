@@ -2,7 +2,7 @@ from dash import dcc, html
 
 from src.gui.components import icone_colorido
 from src.core.plotting.plotter import cor_da_coluna, colunas_plotadas, PALETA_CORES
-from src.core.operations.calculadora import OPERADORES_BASICOS, FUNCOES, OPERACOES_RAPIDAS
+from src.core.operations.calculadora import NUMEROS, OPERADORES, FUNCOES, OPERACOES_RAPIDAS
 
 
 def renderizar_info_rodape(estado, aba_ativa):
@@ -1173,7 +1173,25 @@ def renderizar_calculadora_botoes(estado, aba_ativa):
             colunas_pares.append((rotulo, f'col[{nome_interno!r}]'))
 
     return html.Div(className='calculadora-botoes', children=[
-        _grupo_calculadora('Operações básicas', OPERADORES_BASICOS, classe_extra='calculadora-token-basico'),
+        html.Div(className='calculadora-grupo', children=[
+            html.Div('Operações básicas', className='calculadora-grupo-titulo'),
+            # Números (grade 3 colunas) + Operadores (coluna estreita
+            # ao lado) — layout de calculadora física de verdade, com
+            # cor DIFERENTE pra cada grupo (ver '.calculadora-token-
+            # numero'/'.calculadora-token-operador' em edit_menu.css).
+            # Antes os dois viviam misturados numa grade só, sem
+            # distinção visual nenhuma.
+            html.Div(className='calculadora-basicas-linha', children=[
+                html.Div(className='calculadora-numeros-grid', children=[
+                    _botao_token_calculadora(display, codigo, 'calculadora-token-numero')
+                    for display, codigo in NUMEROS
+                ]),
+                html.Div(className='calculadora-operadores-coluna', children=[
+                    _botao_token_calculadora(display, codigo, 'calculadora-token-operador')
+                    for display, codigo in OPERADORES
+                ]),
+            ]),
+        ]),
         html.Div(className='calculadora-grupo calculadora-grupo-colunas', children=[
             html.Div('Colunas', className='calculadora-grupo-titulo'),
             html.Div(className='calculadora-grupo-botoes', children=(
