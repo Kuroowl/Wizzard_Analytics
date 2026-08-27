@@ -19,8 +19,19 @@
    não "empurra" altura pro pai) — sem isso, o position:absolute+inset:0
    do .area-grafico-container calcula 0 em cima de um pai de altura 0.
    Mirar em '.centro > div' pega esse wrapper de forma estável, sem
-   depender do nome de classe que o Dash decidir usar. */
-.centro > div {
+   depender do nome de classe que o Dash decidir usar.
+
+   ':not(#area-modo-nova-analise)' EXCLUI explicitamente a barra de
+   cálculo dessa regra — ela também é um <div> filho direto de '.centro'
+   (mesmo nível do wrapper do dcc.Loading), então SEM essa exclusão
+   também levaria 'height:100%; width:100%;' daqui. Isso, na teoria,
+   já era vencido pela regra '#area-modo-nova-analise { height: 56px }'
+   mais abaixo (ID é mais específico que classe+elemento) — mas como a
+   barra continuou não aparecendo mesmo assim, excluir explicitamente
+   aqui remove QUALQUER dependência de cálculo de especificidade: a
+   barra nunca mais recebe essa regra, ponto final, não importa o que
+   mude nas outras. */
+.centro > div:not(#area-modo-nova-analise) {
   height: 100%;
   width: 100%;
 }
@@ -179,13 +190,17 @@
    e já comprovado no resto do app. */
 #area-modo-nova-analise {
   position: relative;
-  z-index: 6;
+  z-index: 50; /* bem acima de qualquer coisa em '.centro' (o gráfico não define z-index próprio) */
   height: 56px;
+  width: 100%;
+  min-height: 56px; /* reforça contra qualquer 'height:auto' vindo de outro lugar */
+  flex: 0 0 56px;   /* caso '.centro' vire flex container no futuro, trava o tamanho aqui também */
   display: flex;
   align-items: center;
   background-color: #FFFFFF;
   border-bottom: 1px solid var(--cor-borda);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  overflow: visible;
 }
 
 /* Empurra '#container-grafico' pra baixo — mesmo valor da altura da

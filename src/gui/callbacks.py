@@ -21,19 +21,20 @@ from src.utils.helpers import carregar_dados_de_upload
 
 
 # ============================================================================
-# ⚠️ TEMPORÁRIO — DEBUG: desativa o filtro anti-"clique fantasma"
-# (_processar_cliques_padrao, logo abaixo) a pedido explícito, pra
-# isolar se ELE é a causa de "não consigo clicar em nenhuma coluna"
-# reportado depois da reestruturação da calculadora. Com False, os
-# callbacks que usam esse filtro (gerenciar_abas, gerenciar_selecao_
-# canais, gerenciar_edicao_canal, registrar_token_calculadora,
-# aplicar_operacao_rapida_calculadora) voltam a aceitar QUALQUER
-# disparo como clique de verdade — inclusive os fantasmas de
-# remontagem que o filtro existe pra bloquear (ver docstring completa
-# de _processar_cliques_padrao). Voltar pra True depois de terminado o
-# teste.
+# Filtro anti-"clique fantasma" (_processar_cliques_padrao, logo
+# abaixo) — REATIVADO. Foi desligado temporariamente pra um teste de
+# diagnóstico (a pedido explícito), mas o próprio teste PROVOU que ele
+# não era o culpado: com o filtro desligado, o botão 'Derivada' passou
+# a disparar SOZINHO (mensagem de erro amigável aparecendo sem clique
+# nenhum) assim que o modo 'Nova Análise' é ligado — exatamente o
+# disparo fantasma que este filtro existe pra bloquear, agora
+# acontecendo nos NOVOS botões da calculadora também (não só nos
+# canais/abas de antes). E o problema original ("não consigo clicar em
+# nada") continuou acontecendo mesmo com o filtro desligado — ou seja,
+# desligá-lo não ajudou em nada e ainda piorou (deixou passar disparos
+# fantasmas que antes eram bloqueados). Voltando pra True.
 # ============================================================================
-GUARD_CLIQUE_FANTASMA_ATIVO = False
+GUARD_CLIQUE_FANTASMA_ATIVO = True
 
 
 def _clique_real(ctx_triggered):
