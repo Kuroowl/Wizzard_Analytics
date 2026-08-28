@@ -66,6 +66,38 @@ def _clique_real(ctx_triggered):
     return bool(ctx_triggered)
 
 
+def _chave_id_padrao(id_item):
+    """
+    Normaliza um id de componente (dict de padrão coringa
+    {'type':...,...} OU string de id fixo, tipo 'calc-limpar') numa
+    CHAVE única e estável pra usar como entrada em 'nclicks-padrao-
+    store' — devolve None se 'id_item' não for nem dict nem string
+    (formato inesperado, ignora).
+
+    Existe porque o MESMO problema de "disparo fantasma" (ver
+    _processar_cliques_padrao logo abaixo) também afeta componentes de
+    ID FIXO, não só padrão coringa — descoberto quando 'calc-apagar'
+    (um botão de id fixo, sem padrão nenhum) começou a disparar
+    sozinho toda vez que a barra de cálculo era reconstruída (a cada
+    token clicado, ver registrar_token_calculadora): o botão INTEIRO é
+    remontado do zero junto com o resto da barra, e o Dash trata esse
+    remonte como um "disparo" de 'n_clicks' mesmo sem clique nenhum —
+    exatamente o mesmo mecanismo que já causava disparo fantasma em
+    botões de padrão coringa (canais, abas), só que agora também
+    acontece com um id fixo comum. Sem rastrear o valor anterior
+    TAMBÉM pra esses ids fixos, um clique em QUALQUER token da
+    calculadora (que reconstrói a barra) fazia 'apagar_ultimo_token_
+    calculadora' disparar sozinho logo em seguida, apagando o token
+    que acabara de ser clicado — o bug fica visível: "clico na
+    coluna, ela aparece na barra e alguma coisa tira ela na hora".
+    """
+    if isinstance(id_item, dict):
+        return json.dumps(id_item, sort_keys=True)
+    if isinstance(id_item, str):
+        return id_item
+    return None
+
+
 def _processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
     """
     Alternativa a '_clique_real' pros callbacks de padrão coringa
@@ -143,11 +175,11 @@ def _processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
             itens = grupo if isinstance(grupo, list) else [grupo]
             for item in itens:
                 id_item = item.get('id')
-                if not isinstance(id_item, dict):
+                chave = _chave_id_padrao(id_item)
+                if chave is None:
                     continue
-                chave = json.dumps(id_item, sort_keys=True)
                 novo_mapa[chave] = item.get('value') or 0
-        if ctx.triggered_id and isinstance(ctx.triggered_id, dict):
+        if ctx.triggered_id is not None:
             gatilho_id = ctx.triggered_id
         return gatilho_id, novo_mapa
 
@@ -155,9 +187,9 @@ def _processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
         itens = grupo if isinstance(grupo, list) else [grupo]
         for item in itens:
             id_item = item.get('id')
-            if not isinstance(id_item, dict):
+            chave = _chave_id_padrao(id_item)
+            if chave is None:
                 continue
-            chave = json.dumps(id_item, sort_keys=True)
             valor_novo = item.get('value') or 0
             valor_antigo = novo_mapa.get(chave, 0)
             if valor_novo > valor_antigo:
@@ -600,45 +632,62 @@ def registrar_callbacks(app, estado):
     @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
+        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input('calc-apagar', 'n_clicks'),
         Input('calc-apagar-teclado', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('calc-expressao-store', 'data'),
         State('calc-tipo-destino', 'value'),
         State('calc-coluna-destino', 'value'),
+        State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
-    def apagar_ultimo_token_calculadora(_n1, _n2, aba_ativa, tokens_atuais, tipo_destino, coluna_destino):
+    def apagar_ultimo_token_calculadora(_n1, _n2, aba_ativa, tokens_atuais, tipo_destino,
+                                         coluna_destino, nclicks_anteriores):
         """
         '⌫' remove o ÚLTIMO token — 2 botões idênticos disparam este
         callback: o da barra ('calc-apagar') e o duplicado no topo do
         teclado ('calc-apagar-teclado', ver renderizar_calculadora_
         botoes) — pedido explícito, pra poder apagar sem precisar
         olhar pra barra lá em cima.
+
+        'calc-apagar' mora DENTRO da barra, que é reconstruída inteira
+        a cada token clicado (ver registrar_token_calculadora) — sem
+        _processar_cliques_padrao (que agora também rastreia ids
+        FIXOS, não só padrão coringa, ver _chave_id_padrao), esse
+        remonte disparava este callback SOZINHO logo depois de
+        qualquer clique de token, apagando o token que acabara de ser
+        adicionado (o bug "clico na coluna e ela some sozinha").
         """
-        if not ctx.triggered or not tokens_atuais:
+        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        if gatilho_id is None or not tokens_atuais:
             raise PreventUpdate
         novos_tokens = tokens_atuais[:-1]
         conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino)
-        return conteudo, novos_tokens
+        return conteudo, novos_tokens, novo_mapa
 
     @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
+        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input('calc-limpar', 'n_clicks'),
         Input('calc-limpar-teclado', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('calc-tipo-destino', 'value'),
         State('calc-coluna-destino', 'value'),
+        State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
-    def limpar_expressao_calculadora(_n1, _n2, aba_ativa, tipo_destino, coluna_destino):
+    def limpar_expressao_calculadora(_n1, _n2, aba_ativa, tipo_destino, coluna_destino, nclicks_anteriores):
         """'Limpar'/'C' zera tudo — mesmo esquema de 2 botões
-        idênticos de 'apagar_ultimo_token_calculadora' acima."""
-        if not ctx.triggered:
+        idênticos e mesmo guard anti-fantasma de
+        'apagar_ultimo_token_calculadora' acima ('calc-limpar' também
+        mora dentro da barra reconstruída a cada token)."""
+        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        if gatilho_id is None:
             raise PreventUpdate
         conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, [], tipo_destino, coluna_destino)
-        return conteudo, []
+        return conteudo, [], novo_mapa
 
     @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
@@ -646,17 +695,27 @@ def registrar_callbacks(app, estado):
         Output('lista-canais-aba', 'children', allow_duplicate=True),
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
+        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input('calc-criar', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('calc-expressao-store', 'data'),
         State('calc-tipo-destino', 'value'),
         State('calc-coluna-destino', 'value'),
         State('calc-nome-input', 'value'),
+        State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
     def criar_canal_calculado_calculadora(n_clicks, aba_ativa, tokens_atuais,
-                                           tipo_destino, coluna_destino, nome_novo_canal):
-        if not n_clicks:
+                                           tipo_destino, coluna_destino, nome_novo_canal, nclicks_anteriores):
+        """
+        'calc-criar' TAMBÉM mora dentro da barra (reconstruída a cada
+        token clicado) — mesmo guard anti-fantasma das outras 3
+        callbacks da calculadora, ainda mais importante aqui: sem ele,
+        clicar num token de coluna poderia disparar 'Criar' sozinho
+        (gravando uma coluna nova sem o usuário ter pedido isso).
+        """
+        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        if gatilho_id is None:
             raise PreventUpdate
 
         arquivo = estado.arquivos.get(aba_ativa)
@@ -664,10 +723,10 @@ def registrar_callbacks(app, estado):
             raise PreventUpdate
 
         def _sem_mudanca_de_conteudo(mensagem):
-            """Devolve os 5 valores desta callback quando SÓ a mensagem
+            """Devolve os 6 valores desta callback quando SÓ a mensagem
             do rodapé muda (erro de validação) — a barra/expressão/
             listas continuam exatamente como estavam."""
-            return no_update, no_update, no_update, no_update, mensagem
+            return no_update, no_update, no_update, no_update, mensagem, novo_mapa
 
         codigo = ''.join(t['codigo'] for t in (tokens_atuais or []))
         try:
@@ -726,7 +785,7 @@ def registrar_callbacks(app, estado):
         conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, [], tipo_destino, None)
         return (conteudo, [],
                 renderizar_colunas_da_aba_ativa(estado, aba_ativa),
-                area_grafico, mensagem)
+                area_grafico, mensagem, novo_mapa)
 
     # ------------------------------------------------------------------
     # Lista de canais (sidebar) — 2 callbacks:
@@ -1132,19 +1191,13 @@ def registrar_callbacks(app, estado):
         Output('toolbar-icones', 'className'),
         Output('container-grafico', 'className'),
         Output('rodape-status', 'children', allow_duplicate=True),
-        Output('modo-nova-analise-store', 'data', allow_duplicate=True),
-        Output('nova-analise', 'className', allow_duplicate=True),
-        Output('area-grafico-normal', 'style', allow_duplicate=True),
-        Output('area-modo-nova-analise', 'style', allow_duplicate=True),
-        Output('area-modo-nova-analise-edicao', 'style', allow_duplicate=True),
         Input('aparar-dados', 'n_clicks'),
         Input('excluir-dados', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('painel-direito', 'className'),
-        State('modo-nova-analise-store', 'data'),
         prevent_initial_call=True,
     )
-    def iniciar_selecao_corte(n_clicks_aparar, n_clicks_excluir, aba_ativa, classe_painel_atual, modo_calculadora_ativo):
+    def iniciar_selecao_corte(n_clicks_aparar, n_clicks_excluir, aba_ativa, classe_painel_atual):
         """
         Liga o modo de seleção — de 'Aparar dados' OU 'Excluir dados'
         (mesmo mecanismo de 2 cliques pros dois; 'ctx.triggered_id' diz
@@ -1172,15 +1225,16 @@ def registrar_callbacks(app, estado):
         parado). scripts_js.py já sabe ler a classe daqui e olhar o
         elemento do Plotly separadamente.
 
-        DESLIGA o modo 'Nova Análise' se estiver ativo — a seleção de
-        corte depende de clicar de verdade no gráfico PRINCIPAL
-        ('#grafico-plotly-real', dentro de '#area-grafico-normal'), que
-        fica 'display:none' enquanto o modo calculadora está ligado
-        (ver alternar_modo_nova_analise). Sem isso, clicar em 'Aparar
-        dados'/'Excluir dados' com a calculadora aberta armava a
-        seleção mas nunca recebia clique nenhum, porque o gráfico que
-        precisa ser clicado estava escondido — os botões nunca ficaram
-        desabilitados nesse caso, só ficavam praticamente inúteis.
+        NÃO mexe no modo 'Nova Análise' — de propósito, voltou a ser
+        assim (era assim antes de uma tentativa de fazer os dois
+        coexistirem, que introduziu um bug novo de "disparo fantasma"
+        na calculadora sem relação nenhuma aparente, mas que sumiu ao
+        reverter esta função pro estado original). Quem desliga o modo
+        calculadora ao clicar em 'Aparar dados'/'Excluir dados' agora é
+        um callback SEPARADO e independente — ver
+        desligar_calculadora_ao_iniciar_corte, logo abaixo — que não
+        toca em NENHUM dos Outputs desta função aqui, só observa os
+        MESMOS 2 botões em paralelo.
         """
         gatilho = ctx.triggered_id
         if gatilho not in ('aparar-dados', 'excluir-dados'):
@@ -1206,22 +1260,6 @@ def registrar_callbacks(app, estado):
         else:
             mensagem = '🧙‍♂️: " Clique no gráfico para marcar o INÍCIO do trecho a excluir. "'
 
-        # Desliga o modo calculadora se estava ligado — ver docstring
-        # acima. 'no_update' nos 5 valores quando já estava desligado,
-        # pra não reconstruir/tocar em nada à toa.
-        if modo_calculadora_ativo:
-            modo_novo = False
-            classe_botao_calc = 'toolbar-upload'
-            estilo_grafico_normal = {'display': 'block'}
-            estilo_area_calc = {'display': 'none'}
-            estilo_area_edicao = {'display': 'none'}
-        else:
-            modo_novo = no_update
-            classe_botao_calc = no_update
-            estilo_grafico_normal = no_update
-            estilo_area_calc = no_update
-            estilo_area_edicao = no_update
-
         return (
             dados_selecao,
             'sidebar area-inativa-selecao',
@@ -1229,7 +1267,53 @@ def registrar_callbacks(app, estado):
             'toolbar-icones inativo ferramenta-' + tipo,
             'area-grafico-container corte-ativo',
             mensagem,
-            modo_novo, classe_botao_calc, estilo_grafico_normal, estilo_area_calc, estilo_area_edicao,
+        )
+
+    @app.callback(
+        Output('modo-nova-analise-store', 'data', allow_duplicate=True),
+        Output('nova-analise', 'className', allow_duplicate=True),
+        Output('area-grafico-normal', 'style', allow_duplicate=True),
+        Output('area-modo-nova-analise', 'style', allow_duplicate=True),
+        Output('area-modo-nova-analise-edicao', 'style', allow_duplicate=True),
+        Input('aparar-dados', 'n_clicks'),
+        Input('excluir-dados', 'n_clicks'),
+        State('modo-nova-analise-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def desligar_calculadora_ao_iniciar_corte(n_clicks_aparar, n_clicks_excluir, modo_calculadora_ativo):
+        """
+        Desliga o modo 'Nova Análise' ao clicar em 'Aparar dados'/
+        'Excluir dados' — SEPARADO de propósito de 'iniciar_selecao_
+        corte' acima (mesmos 2 botões como Input, MAS nenhum Output em
+        comum): a seleção de corte depende de clicar de verdade no
+        gráfico PRINCIPAL ('#grafico-plotly-real', dentro de
+        '#area-grafico-normal'), que fica 'display:none' enquanto o
+        modo calculadora está ligado (ver alternar_modo_nova_analise)
+        — sem desligar a calculadora primeiro, clicar em 'Aparar
+        dados'/'Excluir dados' armava a seleção mas nunca recebia
+        clique nenhum, porque o gráfico que precisa ser clicado estava
+        escondido.
+
+        Ficar num callback À PARTE (em vez de virar mais Outputs de
+        'iniciar_selecao_corte') é proposital: uma tentativa anterior
+        de fazer os dois num callback só introduziu um bug de "disparo
+        fantasma" na calculadora (um token clicado sumia sozinho da
+        barra) sem relação óbvia com este código — bug que sumiu ao
+        separar de novo. Dash permite os DOIS callbacks escutarem os
+        MESMOS botões em paralelo sem conflito, já que os conjuntos de
+        Outputs de cada um não se cruzam.
+        """
+        if ctx.triggered_id not in ('aparar-dados', 'excluir-dados'):
+            raise PreventUpdate
+        if not modo_calculadora_ativo:
+            raise PreventUpdate
+
+        return (
+            False,
+            'toolbar-upload',
+            {'display': 'block'},
+            {'display': 'none'},
+            {'display': 'none'},
         )
 
     @app.callback(
