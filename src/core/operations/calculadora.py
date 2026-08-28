@@ -1,11 +1,13 @@
 """
 Vocabulário fixo de tokens da calculadora do modo 'Nova Análise' (ver
-renderizar_calculadora em src/gui/renderizadores.py e a barra de
-cálculo dentro de '#area-modo-nova-analise').
+renderizar_calculadora_barra/renderizar_calculadora_botoes em
+src/gui/renderizadores.py e a barra de cálculo dentro de
+'#area-modo-nova-analise').
 
 Cada token é um par (display, codigo):
-  - display: o texto mostrado no BOTÃO e ecoado na barra de expressão
-    quando clicado.
+  - display: o texto mostrado no BOTÃO e ecoado (como um "chip"
+    colorido, não texto solto — ver renderizar_calculadora_barra) na
+    barra de expressão quando clicado.
   - codigo: o fragmento de Python de VERDADE, concatenado com os
     outros tokens clicados e avaliado só na hora de 'Criar' (ver
     avaliar_expressao_calculadora logo abaixo) — 'np.' aqui sempre se
@@ -14,12 +16,13 @@ Cada token é um par (display, codigo):
 
 Os tokens de COLUNA (um botão por canal visível do arquivo ativo) não
 vivem aqui — são gerados dinamicamente por arquivo em
-renderizar_calculadora, já que dependem de qual arquivo/aba está
-ativa. Só o vocabulário FIXO (operadores, funções, atalhos) mora
-aqui.
+renderizar_calculadora_barra/_botoes, já que dependem de qual
+arquivo/aba está ativa. Só o vocabulário FIXO (operadores, funções)
+mora aqui.
 """
 
 import numpy as np
+import pandas as pd
 
 
 NUMEROS = [
@@ -46,7 +49,9 @@ OPERADORES = [
 FUNCOES = [
     # Cada função abre parêntese sozinha — o usuário fecha com o ')' de
     # OPERADORES (mesmo espírito de digitar 'sin(' numa calculadora
-    # científica de verdade: abre, digita/clica o argumento, fecha).
+    # científica de verdade: abre, digita/clica o argumento — um botão
+    # de coluna, um número, ou uma sub-expressão inteira com operações
+    # internas — e fecha).
     ('sin(', 'np.sin('),
     ('cos(', 'np.cos('),
     ('tan(', 'np.tan('),
@@ -58,58 +63,134 @@ FUNCOES = [
 ]
 
 OPERACOES_RAPIDAS = [
-    # Diferente de OPERADORES_BASICOS/FUNCOES (que são só texto anexado
-    # à expressão), estas são AÇÕES DE VERDADE — cada uma chama uma
-    # função pronta de src/core/operations/math.py sobre as colunas que
-    # já estão na expressão, em vez de virar mais um pedaço de código
-    # pra avaliar (não fazia sentido escrever 'derivada(' numa
-    # expressão livre, já que derivada/integral precisam saber qual é
-    # o eixo X do arquivo, não só a coluna Y). Ver
-    # aplicar_operacao_rapida logo abaixo e
-    # 'calc-op-rapida'/'calc-resultado-pendente-store' em
-    # callbacks.py/layout.py.
+    # Mudança de proposta: ANTES estas eram botões de AÇÃO IMEDIATA
+    # (clicar computava na hora, sobre as colunas já clicadas na
+    # expressão) — agora têm a MESMA forma/comportamento de sin(/cos(
+    # acima: abrem parêntese, o usuário clica a coluna (ou uma
+    # sub-expressão com operações internas) que quer usar como
+    # argumento, e fecha o parêntese — viram FUNÇÕES de verdade dentro
+    # da linguagem da expressão (ver Derivada/Integral/Media/Maximo/
+    # Minimo, injetadas no namespace de avaliar_expressao_calculadora
+    # logo abaixo), não mais um mecanismo à parte com resultado
+    # "pendente".
     #
     # Símbolo auxiliar antes do nome (∂, ∫, x̄, ↑, ↓) — pedido
     # explícito, pra reconhecer o botão de relance sem precisar ler o
-    # texto inteiro. Os botões agora ficam na MESMA grade compacta dos
-    # outros grupos (ver '.calculadora-grupo-botoes' em edit_menu.css)
-    # em vez de empilhados um por linha ocupando a largura toda.
-    ('∂ Derivada', 'derivada'),
-    ('∫ Integral', 'integral'),
-    ('x̄ Média', 'media'),
-    ('↑ Máximo', 'maximo'),
-    ('↓ Mínimo', 'minimo'),
+    # texto inteiro.
+    ('∂ Derivada(', 'Derivada('),
+    ('∫ Integral(', 'Integral('),
+    ('x̄ Média(', 'Media('),
+    ('↑ Máximo(', 'Maximo('),
+    ('↓ Mínimo(', 'Minimo('),
 ]
 
 
-def avaliar_expressao_calculadora(codigo, arquivo):
+def avaliar_expressao_calculadora(codigo, arquivo, estado):
     """
     Avalia 'codigo' (a concatenação dos 'codigo' de cada token
     clicado, ver 'calc-expressao-store' em layout.py) contra as
     colunas de 'arquivo.df_editado' e devolve uma pd.Series pronta
     pra virar uma coluna nova.
 
+    'estado' (o EstadoApp global) é necessário agora porque
+    Derivada()/Integral() (ver namespace_seguro abaixo) precisam saber
+    qual é o eixo X do arquivo (resolver_eixo_x) — antes isso vivia só
+    em 'aplicar_operacao_rapida', separado deste motor; as duas
+    funções se fundiram numa só agora que Derivada/Integral também são
+    funções de expressão, não mais um mecanismo à parte.
+
+    FUNÇÕES INJETADAS (além de 'col'/'np', ver namespace_seguro):
+      - Media(x)/Maximo(x)/Minimo(x): 'x' pode ser uma coluna
+        (col['A']) OU uma sub-expressão inteira (col['A']+col['B']) —
+        calcula o escalar (média/máximo/mínimo) e devolve um ARRAY DO
+        MESMO TAMANHO do arquivo, com esse escalar repetido em toda
+        linha. É de propósito: plotado, vira uma linha HORIZONTAL
+        interceptando o valor calculado (ex: uma reta na altura do
+        máximo de uma curva), não um número solto.
+      - Derivada(x)/Integral(x): idem sobre o eixo X do arquivo
+        (resolver_eixo_x) — derivada numérica (np.gradient) ou
+        integral cumulativa (trapézio), ambas devolvendo um array do
+        mesmo tamanho do arquivo.
+
     SEGURANÇA: 'codigo' só pode conter fragmentos que ESTE módulo
-    definiu (OPERADORES_BASICOS/FUNCOES/OPERACOES_RAPIDAS) mais
+    definiu (NUMEROS/OPERADORES/FUNCOES/OPERACOES_RAPIDAS) mais
     'col["<nome_interno>"]' pros tokens de coluna (gerados em
-    renderizar_calculadora com nome_interno passado por 'repr()`, não
-    concatenação de string crua — ver lá) — nunca texto livre digitado
-    pelo usuário. Mesmo assim, o eval roda com '__builtins__' vazio
-    (bloqueia 'import', 'open', 'exec' etc.) e só 'col'/'np' no
-    namespace, então mesmo um bug de token não vira uma porta pra
-    executar código arbitrário.
+    renderizar_calculadora_barra/_botoes com nome_interno passado por
+    'repr()', não concatenação de string crua) — nunca texto livre
+    digitado pelo usuário. Mesmo assim, o eval roda com
+    '__builtins__' vazio (bloqueia 'import', 'open', 'exec' etc.) e só
+    os nomes explicitamente listados em 'namespace_seguro', então
+    mesmo um bug de token não vira uma porta pra executar código
+    arbitrário.
 
     Levanta ValueError com uma mensagem amigável (pra virar mensagem
     do mago) se a expressão estiver vazia, malformada, ou não
     referenciar coluna nenhuma dando um resultado que não é uma
     Series/array do mesmo tamanho do df.
     """
+    from src.core.plotting.plotter import resolver_eixo_x
+
     codigo = (codigo or '').strip()
     if not codigo:
         raise ValueError('a expressão está vazia.')
 
-    col = {nome: arquivo.df_editado[nome] for nome in arquivo.df_editado.columns}
-    namespace_seguro = {'col': col, 'np': np}
+    df = arquivo.df_editado
+    n_linhas = len(df)
+    col = {nome: df[nome] for nome in df.columns}
+
+    def _como_serie(valor):
+        """Normaliza o argumento de Media/Maximo/Minimo/Derivada/
+        Integral pra uma pd.Series alinhada ao índice do df — aceita
+        tanto uma coluna direta (col['X']) quanto uma sub-expressão
+        já resolvida pelo eval (col['X']+col['Y'], np.sin(col['X']),
+        um escalar puro etc.)."""
+        if isinstance(valor, pd.Series):
+            return valor
+        if np.isscalar(valor):
+            return pd.Series([valor] * n_linhas, index=df.index)
+        return pd.Series(valor, index=df.index)
+
+    def Media(valor):
+        serie = _como_serie(valor)
+        return pd.Series(serie.mean(), index=df.index)
+
+    def Maximo(valor):
+        serie = _como_serie(valor)
+        return pd.Series(serie.max(), index=df.index)
+
+    def Minimo(valor):
+        serie = _como_serie(valor)
+        return pd.Series(serie.min(), index=df.index)
+
+    def Derivada(valor):
+        serie = _como_serie(valor)
+        coluna_x = resolver_eixo_x(estado, df)
+        x = df[coluna_x].to_numpy(dtype=float)
+        y = serie.to_numpy(dtype=float)
+        return pd.Series(np.gradient(y, x), index=df.index)
+
+    def Integral(valor):
+        # Trapézio cumulativo — mesmo espírito de
+        # 'integral_coluna(..., retorno="cumulativa")' em
+        # src/core/operations/math.py, só reimplementado aqui direto
+        # em numpy porque opera sobre uma Series/sub-expressão
+        # qualquer, não um NOME de coluna (a função de math.py só
+        # aceita nomes de coluna, não uma expressão arbitrária já
+        # calculada).
+        serie = _como_serie(valor)
+        coluna_x = resolver_eixo_x(estado, df)
+        x = df[coluna_x].to_numpy(dtype=float)
+        y = serie.to_numpy(dtype=float)
+        if len(x) < 2:
+            return pd.Series(np.zeros(n_linhas), index=df.index)
+        area = np.concatenate(([0.0], np.cumsum(np.diff(x) * (y[:-1] + y[1:]) / 2.0)))
+        return pd.Series(area, index=df.index)
+
+    namespace_seguro = {
+        'col': col, 'np': np,
+        'Media': Media, 'Maximo': Maximo, 'Minimo': Minimo,
+        'Derivada': Derivada, 'Integral': Integral,
+    }
 
     try:
         resultado = eval(codigo, {'__builtins__': {}}, namespace_seguro)  # noqa: S307 — namespace restrito, ver docstring
@@ -118,104 +199,12 @@ def avaliar_expressao_calculadora(codigo, arquivo):
     except Exception as e:
         raise ValueError(f'expressão inválida ({e}).')
 
-    n_linhas = len(arquivo.df_editado)
     if np.isscalar(resultado) or isinstance(resultado, (int, float, np.number)):
         # Expressão sem coluna nenhuma (ex: '2+2') — permite, mas
         # espalha o mesmo valor em todas as linhas, pra virar uma
         # coluna de verdade (constante) em vez de recusar.
-        import pandas as pd
-        resultado = pd.Series([resultado] * n_linhas, index=arquivo.df_editado.index)
+        resultado = pd.Series([resultado] * n_linhas, index=df.index)
     elif len(resultado) != n_linhas:
         raise ValueError('o resultado não tem o mesmo número de linhas do arquivo.')
 
     return resultado
-
-
-def nomes_colunas_da_expressao(tokens_expressao):
-    """
-    Extrai só os NOMES INTERNOS das colunas referenciadas na expressão
-    atual — ignora operadores/funções/números, olhando só os tokens
-    cujo 'codigo' bate com o formato 'col[<repr>]' que os botões de
-    coluna geram (ver renderizar_calculadora_barra, renderizadores.py).
-    Usado por 'aplicar_operacao_rapida' (Derivada/Integral/Média/
-    Máximo/Mínimo, logo abaixo), que operam sobre COLUNAS inteiras,
-    não sobre uma expressão livre — clicar 'Canal_A' e depois 'Média'
-    não deveria exigir o usuário montar 'col[...]+col[...]' primeiro,
-    só clicar as colunas que quer combinar, na ordem que quiser.
-
-    Ordem PRESERVADA (não usa set) — importa pra Derivada/Integral,
-    onde só a PRIMEIRA coluna clicada conta como Y.
-    """
-    import ast
-    nomes = []
-    for t in (tokens_expressao or []):
-        codigo = t.get('codigo', '')
-        if codigo.startswith('col[') and codigo.endswith(']'):
-            try:
-                nomes.append(ast.literal_eval(codigo[4:-1]))
-            except (ValueError, SyntaxError):
-                continue
-    return nomes
-
-
-def aplicar_operacao_rapida(operacao_id, arquivo, estado, tokens_expressao):
-    """
-    Ponto de entrada das 'Operações rápidas' (Derivada/Integral/Média/
-    Máximo/Mínimo — ver OPERACOES_RAPIDAS acima). Diferente de
-    'avaliar_expressao_calculadora', NÃO lê 'codigo' livre — olha só
-    quais COLUNAS estão referenciadas na expressão atual (via
-    'nomes_colunas_da_expressao') e chama a função de
-    src/core/operations/math.py correspondente.
-
-    Devolve (valores, sugestao_nome, descricao):
-      - valores: lista de números, pronta pra virar a nova coluna.
-      - sugestao_nome: pré-preenche o campo de nome da barra — o
-        usuário ainda pode trocar antes de 'Criar'.
-      - descricao: texto curto mostrado na barra no lugar da expressão
-        (ex: 'Derivada(Pressão)'), já que o resultado de uma operação
-        rápida não é mais uma expressão editável token a token.
-
-    Levanta ValueError (mensagem amigável, vira mensagem do mago) se
-    a quantidade de colunas selecionadas não bater com o que a
-    operação espera.
-    """
-    from src.core.operations.math import derivada_coluna, integral_coluna, combinar_colunas
-    from src.core.plotting.plotter import resolver_eixo_x
-
-    colunas = nomes_colunas_da_expressao(tokens_expressao)
-    df = arquivo.df_editado
-
-    if operacao_id in ('derivada', 'integral'):
-        if len(colunas) != 1:
-            raise ValueError(f'clique em EXATAMENTE 1 coluna antes de "{operacao_id.capitalize()}" '
-                              f'(cliquei {len(colunas)}).')
-        coluna_y = colunas[0]
-        coluna_x = resolver_eixo_x(estado, df)
-        if coluna_x == coluna_y:
-            raise ValueError('a coluna escolhida é o próprio eixo X do arquivo — escolha outra.')
-        rotulo_y = arquivo.rotulo(coluna_y)
-        if operacao_id == 'derivada':
-            df_novo = derivada_coluna(df, coluna_y, coluna_x, nome_saida='__calc_temp__')
-            descricao = f'Derivada({rotulo_y})'
-            sugestao_nome = f'Derivada de {rotulo_y}'
-        else:
-            df_novo = integral_coluna(df, coluna_y, coluna_x, nome_saida='__calc_temp__', retorno='cumulativa')
-            descricao = f'Integral({rotulo_y})'
-            sugestao_nome = f'Integral de {rotulo_y}'
-        valores = df_novo['__calc_temp__'].tolist()
-
-    elif operacao_id in ('media', 'maximo', 'minimo'):
-        if len(colunas) < 2:
-            raise ValueError(f'clique em 2 OU MAIS colunas antes de "{operacao_id.capitalize()}" '
-                              f'(cliquei {len(colunas)}).')
-        rotulos = [arquivo.rotulo(c) for c in colunas]
-        df_novo = combinar_colunas(df, colunas, '__calc_temp__', operacao=operacao_id)
-        valores = df_novo['__calc_temp__'].tolist()
-        nome_op = {'media': 'Média', 'maximo': 'Máximo', 'minimo': 'Mínimo'}[operacao_id]
-        descricao = f'{nome_op}({", ".join(rotulos)})'
-        sugestao_nome = f'{nome_op} de {", ".join(rotulos)}'
-
-    else:
-        raise ValueError(f'operação rápida desconhecida: {operacao_id}.')
-
-    return valores, sugestao_nome, descricao

@@ -4,7 +4,7 @@ from dash import Input, Output, State, ctx, ALL, MATCH, no_update
 from dash.exceptions import PreventUpdate
 
 from src.core.operations.sampling import aparar_dados, excluir_dados
-from src.core.operations.calculadora import avaliar_expressao_calculadora, aplicar_operacao_rapida
+from src.core.operations.calculadora import avaliar_expressao_calculadora
 from src.core.plotting.plotter import (
     construir_figura_serie_temporal, resolver_eixo_x, colunas_plotadas, cor_da_coluna,
     aplicar_guias_corte,
@@ -502,27 +502,26 @@ def registrar_callbacks(app, estado):
                 conteudo_barra, conteudo_botoes)
 
     # ------------------------------------------------------------------
-    # Calculadora — 5 callbacks:
-    #   1) registrar_token_calculadora: clique em token de OPERADOR/
-    #      FUNÇÃO/COLUNA (todos usam o MESMO padrão de id, ver
-    #      _botao_token_calculadora em renderizadores.py) anexa esse
-    #      token na expressão. Só atualiza a BARRA (não os botões — que
-    #      não mudam com a expressão, ver renderizar_calculadora_botoes)
-    #      — diferente da versão anterior, que reconstruía a
-    #      calculadora inteira a cada clique.
-    #   2) aplicar_operacao_rapida_calculadora: clique em Derivada/
-    #      Integral/Média/Máximo/Mínimo — NÃO anexa token, dispara um
-    #      cálculo de verdade (ver aplicar_operacao_rapida, src/core/
-    #      operations/calculadora.py) sobre as colunas já referenciadas
-    #      na expressão, guardando o resultado em
-    #      'calc-resultado-pendente-store' até o usuário confirmar com
-    #      'Criar'.
-    #   3) apagar_ultimo_token_calculadora: '⌫' remove o ÚLTIMO token,
-    #      ou descarta um resultado de operação rápida pendente
-    #      (voltando a poder editar a expressão token a token).
-    #   4) limpar_expressao_calculadora: 'Limpar' zera tudo.
-    #   5) criar_canal_calculado_calculadora: 'Criar' — usa o resultado
-    #      pendente (se houver) ou avalia a expressão livre, e GRAVA o
+    # Calculadora — 4 callbacks (era 5 — 'aplicar_operacao_rapida_
+    # calculadora' foi removida: Derivada/Integral/Média/Máximo/Mínimo
+    # viraram tokens comuns, mesma forma de sin(/cos(, não mais um
+    # mecanismo de "resultado pendente" à parte — ver OPERACOES_
+    # RAPIDAS/avaliar_expressao_calculadora em
+    # src/core/operations/calculadora.py):
+    #   1) registrar_token_calculadora: clique em QUALQUER token
+    #      (número/operador/função/operação/coluna — todos usam o
+    #      MESMO padrão de id, ver _botao_token_calculadora em
+    #      renderizadores.py) anexa esse token na expressão. Só
+    #      atualiza a BARRA (não os botões — que não mudam com a
+    #      expressão, ver renderizar_calculadora_botoes).
+    #   2) apagar_ultimo_token_calculadora: '⌫' remove o ÚLTIMO token —
+    #      2 botões idênticos disparam (o da barra e o duplicado no
+    #      topo do teclado, ver renderizar_calculadora_botoes).
+    #   3) limpar_expressao_calculadora: 'Limpar'/'C' zera tudo — mesmo
+    #      esquema de 2 botões.
+    #   4) criar_canal_calculado_calculadora: 'Criar' — avalia a
+    #      expressão (agora sempre via avaliar_expressao_calculadora,
+    #      nunca mais um resultado pré-calculado à parte) e GRAVA o
     #      resultado como coluna NOVA ou SOBRESCREVENDO uma existente,
     #      conforme o seletor 'calc-tipo-destino' no início da barra.
     # ------------------------------------------------------------------
@@ -561,9 +560,8 @@ def registrar_callbacks(app, estado):
     @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
-        Output('calc-resultado-pendente-store', 'data', allow_duplicate=True),
         Output('nclicks-padrao-store', 'data', allow_duplicate=True),
-        Input({'type': 'calc-token', 'display': ALL, 'codigo': ALL}, 'n_clicks'),
+        Input({'type': 'calc-token', 'display': ALL, 'codigo': ALL, 'classe': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('calc-expressao-store', 'data'),
         State('calc-tipo-destino', 'value'),
@@ -584,118 +582,79 @@ def registrar_callbacks(app, estado):
         if gatilho_id is None:
             raise PreventUpdate
 
-        novo_token = {'display': gatilho_id.get('display'), 'codigo': gatilho_id.get('codigo')}
+        # 'classe' (ver _botao_token_calculadora, renderizadores.py)
+        # viaja junto no id só pra a barra desenhar este token como um
+        # "chip" com a MESMA cor do botão original (ver
+        # renderizar_calculadora_barra) — pedido explícito, em vez de
+        # texto solto sem cor nenhuma.
+        novo_token = {
+            'display': gatilho_id.get('display'),
+            'codigo': gatilho_id.get('codigo'),
+            'classe': gatilho_id.get('classe', ''),
+        }
         novos_tokens = (tokens_atuais or []) + [novo_token]
 
-        # Continuar montando a expressão token a token DESCARTA
-        # qualquer resultado de operação rápida pendente — os dois
-        # modos (expressão livre / resultado de operação rápida) são
-        # mutuamente exclusivos na barra (ver renderizar_calculadora_
-        # barra, renderizadores.py, que mostra UM ou OUTRO).
-        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino, None)
-        return conteudo, novos_tokens, None, novo_mapa
-
-    @app.callback(
-        Output('area-modo-nova-analise', 'children', allow_duplicate=True),
-        Output('calc-resultado-pendente-store', 'data', allow_duplicate=True),
-        Output('rodape-status', 'children', allow_duplicate=True),
-        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
-        Input({'type': 'calc-op-rapida', 'operacao': ALL}, 'n_clicks'),
-        State('aba-ativa-store', 'data'),
-        State('calc-expressao-store', 'data'),
-        State('calc-tipo-destino', 'value'),
-        State('calc-coluna-destino', 'value'),
-        State('nclicks-padrao-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def aplicar_operacao_rapida_calculadora(_n_clicks_list, aba_ativa, tokens_atuais, tipo_destino,
-                                             coluna_destino, nclicks_anteriores):
-        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
-        if gatilho_id is None:
-            raise PreventUpdate
-
-        arquivo = estado.arquivos.get(aba_ativa)
-        if not arquivo:
-            raise PreventUpdate
-
-        operacao_id = gatilho_id.get('operacao')
-        try:
-            valores, sugestao_nome, descricao = aplicar_operacao_rapida(operacao_id, arquivo, estado, tokens_atuais)
-        except ValueError as e:
-            mensagem = f'🧙‍♂️: " Não deu pra calcular: {e} "'
-            return no_update, no_update, mensagem, novo_mapa
-
-        resultado_pendente = {'valores': valores, 'sugestao_nome': sugestao_nome, 'descricao': descricao}
-        conteudo = renderizar_area_calculadora_completa(
-            estado, aba_ativa, tokens_atuais, tipo_destino, coluna_destino, resultado_pendente)
-        return conteudo, resultado_pendente, no_update, novo_mapa
+        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino)
+        return conteudo, novos_tokens, novo_mapa
 
     @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
-        Output('calc-resultado-pendente-store', 'data', allow_duplicate=True),
         Input('calc-apagar', 'n_clicks'),
+        Input('calc-apagar-teclado', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('calc-expressao-store', 'data'),
-        State('calc-resultado-pendente-store', 'data'),
         State('calc-tipo-destino', 'value'),
         State('calc-coluna-destino', 'value'),
         prevent_initial_call=True,
     )
-    def apagar_ultimo_token_calculadora(n_clicks, aba_ativa, tokens_atuais, resultado_pendente,
-                                         tipo_destino, coluna_destino):
-        if not n_clicks:
+    def apagar_ultimo_token_calculadora(_n1, _n2, aba_ativa, tokens_atuais, tipo_destino, coluna_destino):
+        """
+        '⌫' remove o ÚLTIMO token — 2 botões idênticos disparam este
+        callback: o da barra ('calc-apagar') e o duplicado no topo do
+        teclado ('calc-apagar-teclado', ver renderizar_calculadora_
+        botoes) — pedido explícito, pra poder apagar sem precisar
+        olhar pra barra lá em cima.
+        """
+        if not ctx.triggered or not tokens_atuais:
             raise PreventUpdate
-        # Um resultado de operação rápida pendente conta como "o último
-        # passo dado" — apagar descarta ELE primeiro (volta a poder
-        # editar a expressão token a token), só depois passa a remover
-        # tokens um a um.
-        if resultado_pendente:
-            novos_tokens = tokens_atuais or []
-            novo_resultado_pendente = None
-        elif tokens_atuais:
-            novos_tokens = tokens_atuais[:-1]
-            novo_resultado_pendente = None
-        else:
-            raise PreventUpdate
-
-        conteudo = renderizar_area_calculadora_completa(
-            estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino, novo_resultado_pendente)
-        return conteudo, novos_tokens, novo_resultado_pendente
+        novos_tokens = tokens_atuais[:-1]
+        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino)
+        return conteudo, novos_tokens
 
     @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
-        Output('calc-resultado-pendente-store', 'data', allow_duplicate=True),
         Input('calc-limpar', 'n_clicks'),
+        Input('calc-limpar-teclado', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('calc-tipo-destino', 'value'),
         State('calc-coluna-destino', 'value'),
         prevent_initial_call=True,
     )
-    def limpar_expressao_calculadora(n_clicks, aba_ativa, tipo_destino, coluna_destino):
-        if not n_clicks:
+    def limpar_expressao_calculadora(_n1, _n2, aba_ativa, tipo_destino, coluna_destino):
+        """'Limpar'/'C' zera tudo — mesmo esquema de 2 botões
+        idênticos de 'apagar_ultimo_token_calculadora' acima."""
+        if not ctx.triggered:
             raise PreventUpdate
-        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, [], tipo_destino, coluna_destino, None)
-        return conteudo, [], None
+        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, [], tipo_destino, coluna_destino)
+        return conteudo, []
 
     @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
-        Output('calc-resultado-pendente-store', 'data', allow_duplicate=True),
         Output('lista-canais-aba', 'children', allow_duplicate=True),
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
         Input('calc-criar', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('calc-expressao-store', 'data'),
-        State('calc-resultado-pendente-store', 'data'),
         State('calc-tipo-destino', 'value'),
         State('calc-coluna-destino', 'value'),
         State('calc-nome-input', 'value'),
         prevent_initial_call=True,
     )
-    def criar_canal_calculado_calculadora(n_clicks, aba_ativa, tokens_atuais, resultado_pendente,
+    def criar_canal_calculado_calculadora(n_clicks, aba_ativa, tokens_atuais,
                                            tipo_destino, coluna_destino, nome_novo_canal):
         if not n_clicks:
             raise PreventUpdate
@@ -705,25 +664,16 @@ def registrar_callbacks(app, estado):
             raise PreventUpdate
 
         def _sem_mudanca_de_conteudo(mensagem):
-            """Devolve os 6 valores desta callback quando SÓ a mensagem
+            """Devolve os 5 valores desta callback quando SÓ a mensagem
             do rodapé muda (erro de validação) — a barra/expressão/
             listas continuam exatamente como estavam."""
-            return no_update, no_update, no_update, no_update, no_update, mensagem
+            return no_update, no_update, no_update, no_update, mensagem
 
-        # 1) Resultado de uma Operação rápida pendente tem PRIORIDADE
-        #    sobre a expressão livre (os dois são mutuamente
-        #    exclusivos, ver renderizar_calculadora_barra) — se
-        #    existir, usa ele direto, sem reavaliar 'codigo' nenhum.
-        if resultado_pendente:
-            valores = resultado_pendente['valores']
-            formula_ou_descricao = resultado_pendente['descricao']
-        else:
-            codigo = ''.join(t['codigo'] for t in (tokens_atuais or []))
-            try:
-                valores = avaliar_expressao_calculadora(codigo, arquivo).tolist()
-            except ValueError as e:
-                return _sem_mudanca_de_conteudo(f'🧙‍♂️: " Não deu pra criar: {e} "')
-            formula_ou_descricao = codigo
+        codigo = ''.join(t['codigo'] for t in (tokens_atuais or []))
+        try:
+            valores = avaliar_expressao_calculadora(codigo, arquivo, estado).tolist()
+        except ValueError as e:
+            return _sem_mudanca_de_conteudo(f'🧙‍♂️: " Não deu pra criar: {e} "')
 
         area_grafico = no_update
 
@@ -735,7 +685,7 @@ def registrar_callbacks(app, estado):
             arquivo.df_editado[coluna_destino] = valores
             canal = arquivo.canais.get(coluna_destino) or arquivo.registrar_canal(coluna_destino)
             canal.origem = 'calculado'
-            canal.formula = formula_ou_descricao
+            canal.formula = codigo
             # AGORA SIM invalida o cache — sobrescrever os DADOS de uma
             # coluna que já existe pode mudar uma curva JÁ desenhada no
             # gráfico (diferente de criar uma coluna nova, que nasce
@@ -768,13 +718,13 @@ def registrar_callbacks(app, estado):
             # nasce OCULTO da seleção (como qualquer canal recém-
             # registrado), não afeta nenhuma curva já desenhada.
             arquivo.registrar_canal(nome_interno_final, rotulo=nome_novo_canal,
-                                     origem='calculado', formula=formula_ou_descricao)
-            mensagem = f'🧙‍♂️: " Canal \'{nome_novo_canal}\' criado ({formula_ou_descricao}). "'
+                                     origem='calculado', formula=codigo)
+            mensagem = f'🧙‍♂️: " Canal \'{nome_novo_canal}\' criado ({codigo}). "'
 
-        # Limpa a expressão/resultado pendente depois de criar (mesmo
-        # espírito de um formulário que reseta após salvar).
-        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, [], tipo_destino, None, None)
-        return (conteudo, [], None,
+        # Limpa a expressão depois de criar (mesmo espírito de um
+        # formulário que reseta após salvar).
+        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, [], tipo_destino, None)
+        return (conteudo, [],
                 renderizar_colunas_da_aba_ativa(estado, aba_ativa),
                 area_grafico, mensagem)
 
@@ -1182,13 +1132,19 @@ def registrar_callbacks(app, estado):
         Output('toolbar-icones', 'className'),
         Output('container-grafico', 'className'),
         Output('rodape-status', 'children', allow_duplicate=True),
+        Output('modo-nova-analise-store', 'data', allow_duplicate=True),
+        Output('nova-analise', 'className', allow_duplicate=True),
+        Output('area-grafico-normal', 'style', allow_duplicate=True),
+        Output('area-modo-nova-analise', 'style', allow_duplicate=True),
+        Output('area-modo-nova-analise-edicao', 'style', allow_duplicate=True),
         Input('aparar-dados', 'n_clicks'),
         Input('excluir-dados', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('painel-direito', 'className'),
+        State('modo-nova-analise-store', 'data'),
         prevent_initial_call=True,
     )
-    def iniciar_selecao_corte(n_clicks_aparar, n_clicks_excluir, aba_ativa, classe_painel_atual):
+    def iniciar_selecao_corte(n_clicks_aparar, n_clicks_excluir, aba_ativa, classe_painel_atual, modo_calculadora_ativo):
         """
         Liga o modo de seleção — de 'Aparar dados' OU 'Excluir dados'
         (mesmo mecanismo de 2 cliques pros dois; 'ctx.triggered_id' diz
@@ -1215,6 +1171,16 @@ def registrar_callbacks(app, estado):
         ícones sem problema, só o className do Graph em si fica
         parado). scripts_js.py já sabe ler a classe daqui e olhar o
         elemento do Plotly separadamente.
+
+        DESLIGA o modo 'Nova Análise' se estiver ativo — a seleção de
+        corte depende de clicar de verdade no gráfico PRINCIPAL
+        ('#grafico-plotly-real', dentro de '#area-grafico-normal'), que
+        fica 'display:none' enquanto o modo calculadora está ligado
+        (ver alternar_modo_nova_analise). Sem isso, clicar em 'Aparar
+        dados'/'Excluir dados' com a calculadora aberta armava a
+        seleção mas nunca recebia clique nenhum, porque o gráfico que
+        precisa ser clicado estava escondido — os botões nunca ficaram
+        desabilitados nesse caso, só ficavam praticamente inúteis.
         """
         gatilho = ctx.triggered_id
         if gatilho not in ('aparar-dados', 'excluir-dados'):
@@ -1240,6 +1206,22 @@ def registrar_callbacks(app, estado):
         else:
             mensagem = '🧙‍♂️: " Clique no gráfico para marcar o INÍCIO do trecho a excluir. "'
 
+        # Desliga o modo calculadora se estava ligado — ver docstring
+        # acima. 'no_update' nos 5 valores quando já estava desligado,
+        # pra não reconstruir/tocar em nada à toa.
+        if modo_calculadora_ativo:
+            modo_novo = False
+            classe_botao_calc = 'toolbar-upload'
+            estilo_grafico_normal = {'display': 'block'}
+            estilo_area_calc = {'display': 'none'}
+            estilo_area_edicao = {'display': 'none'}
+        else:
+            modo_novo = no_update
+            classe_botao_calc = no_update
+            estilo_grafico_normal = no_update
+            estilo_area_calc = no_update
+            estilo_area_edicao = no_update
+
         return (
             dados_selecao,
             'sidebar area-inativa-selecao',
@@ -1247,6 +1229,7 @@ def registrar_callbacks(app, estado):
             'toolbar-icones inativo ferramenta-' + tipo,
             'area-grafico-container corte-ativo',
             mensagem,
+            modo_novo, classe_botao_calc, estilo_grafico_normal, estilo_area_calc, estilo_area_edicao,
         )
 
     @app.callback(

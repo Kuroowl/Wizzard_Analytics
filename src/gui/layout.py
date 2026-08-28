@@ -111,21 +111,6 @@ def montar_layout(estado):
         # 'sin(') em vez de um caractere por vez.
         dcc.Store(id='calc-expressao-store', data=[]),
 
-        # 'calc-resultado-pendente-store': None a maior parte do tempo;
-        # vira {'valores': [...], 'sugestao_nome': ..., 'descricao':
-        # ...} depois de clicar numa 'Operação rápida' (Derivada/
-        # Integral/Média/Máximo/Mínimo — ver aplicar_operacao_rapida,
-        # src/core/operations/calculadora.py, e
-        # aplicar_operacao_rapida_calculadora em callbacks.py). Os DOIS
-        # modos — expressão livre token a token ('calc-expressao-
-        # store') OU resultado de operação rápida — são mutuamente
-        # exclusivos: continuar clicando um token descarta este Store
-        # (volta pro modo expressão), e vice-versa (uma operação rápida
-        # ignora o 'codigo' dos tokens, só olha quais COLUNAS estão
-        # referenciadas). 'Criar' usa este Store, se presente, em vez
-        # de reavaliar a expressão.
-        dcc.Store(id='calc-resultado-pendente-store', data=None),
-
         # 'corte-selecao-store': None enquanto nenhuma seleção de corte
         # está em andamento; durante 'Aparar dados' (e, no futuro,
         # 'Excluir dados' — mesma mecânica, ver aparar_dados/excluir_dados

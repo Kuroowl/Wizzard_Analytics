@@ -317,11 +317,34 @@
   line-height: 18px;
   display: flex;
   align-items: center;
+  gap: 4px;
   /* Expressão pode crescer bastante (várias colunas + funções
      aninhadas) — rola de lado em vez de quebrar linha e destruir o
      alinhamento da barra. */
   overflow-x: auto;
   white-space: nowrap;
+}
+
+.calculadora-chip-vazio {
+  color: var(--cor-texto-mudo);
+}
+
+/* Cada token clicado vira um CHIP na barra — reaproveita as MESMAS
+   classes do botão que o gerou ('calculadora-token' + a cor
+   específica, ex: 'calculadora-token-coluna', gravadas junto do token
+   em 'calc-expressao-store' — ver registrar_token_calculadora,
+   callbacks.py) — pedido explícito, em vez do texto solto sem cor
+   nenhuma de antes. '.calculadora-token.calculadora-chip' (as DUAS
+   classes juntas, mais específico que '.calculadora-token' sozinho)
+   é só o encolhimento de ESCALA — a cor de fundo/borda continua vindo
+   da classe específica (ex: '.calculadora-token-coluna'), que o chip
+   também carrega. */
+.calculadora-token.calculadora-chip {
+  padding: 2px 7px;
+  font-size: 11px;
+  min-width: 0;
+  cursor: default;
+  flex: 0 0 auto;
 }
 
 /* Reduzido de 220px pra 130px (pedido explícito — "faça o box nome

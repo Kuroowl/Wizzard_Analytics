@@ -1006,15 +1006,6 @@
   gap: 6px;
 }
 
-/* Operações rápidas (Derivada/Integral/Média/Máximo/Mínimo) — MESMA
-   grade que os outros 3 grupos agora (flex-wrap, não empilhado numa
-   coluna vertical de largura total como antes) — cabem confortável
-   com os rótulos curtos (símbolo + palavra, ver OPERACOES_RAPIDAS em
-   calculadora.py) sem precisar de uma linha inteira cada um. */
-.calculadora-token-rapido {
-  white-space: nowrap;
-}
-
 .calculadora-token {
   font-family: var(--fonte-dado);
   font-size: 13px;
@@ -1037,16 +1028,76 @@
   transform: scale(0.97);
 }
 
+/* ==========================================================================
+   Teclado unificado (Funções + Números + Operadores + C/⌫) — layout
+   MAIS PARECIDO com uma calculadora científica de verdade, pedido
+   explícito com imagem de referência: coluna de funções à esquerda,
+   grade de números no meio, coluna de operadores à direita, e C/⌫
+   destacados no topo. Antes 'Funções' era um grupo solto embaixo,
+   longe de números/operadores.
+   ========================================================================== */
+
+.calculadora-teclado-topo {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+/* C/⌫ duplicados aqui (mesma ação de 'Limpar'/'Apagar' da barra lá em
+   cima, ver limpar_expressao_calculadora/apagar_ultimo_token_
+   calculadora em callbacks.py, que agora escutam OS DOIS pares de
+   botões) — vermelho pra se destacar dos botões de VALOR abaixo
+   (mesmo espírito de "ação destrutiva/de limpeza" já usado no resto
+   do app pra corte/exclusão). */
+.calculadora-btn-c,
+.calculadora-btn-del {
+  font-family: var(--fonte-ui);
+  font-size: 13px;
+  font-weight: 700;
+  color: #C0392B;
+  background-color: rgba(217, 83, 79, 0.1);
+  border: 1px solid rgba(217, 83, 79, 0.35);
+  border-radius: 5px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.calculadora-btn-c:hover,
+.calculadora-btn-del:hover {
+  background-color: rgba(217, 83, 79, 0.22);
+  border-color: #C0392B;
+}
+
+.calculadora-teclado-corpo {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* Funções (sin/cos/tan/√/log₁₀/ln/exp/abs) — coluna estreita à
+   ESQUERDA do teclado, mesma posição da coluna de funções científicas
+   numa calculadora física de referência. Empilhada (não em grade),
+   já que os rótulos ('log₁₀(' etc.) são mais largos que um dígito
+   só. */
+.calculadora-funcoes-coluna {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.calculadora-token-funcao {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 /* Números x Operadores — layout de calculadora física de verdade
    (teclado numérico + coluna de operadores ao lado), com cor
    DIFERENTE pra cada grupo (pedido explícito) — antes viviam
    misturados numa grade só ('Operações básicas'), sem distinção
    visual nenhuma entre dígito e símbolo. */
-.calculadora-basicas-linha {
-  display: flex;
-  gap: 8px;
-}
-
 .calculadora-numeros-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1109,39 +1160,41 @@
   border-color: #B45309;
 }
 
-/* Colunas usam a fonte de UI (não a monoespaçada dos operadores) —
-   são rótulos livres do usuário (podem ter acento, espaço, qualquer
-   texto), não símbolos matemáticos, então a fonte de dado
-   (--fonte-dado) não faz sentido semântico aqui. Cor de fundo lilás
-   suave (o mesmo tom de '--cor-accent-divisao', mas bem diluído —
-   MESMA cor usada pro marcador 'ƒ' de canal calculado, ver
-   file_menu.css) deixa claro visualmente "isto vem do arquivo",
-   diferente dos operadores/funções fixos. */
+/* Azul — trocado de propósito (era roxo/rosado, ver --cor-accent-
+   divisao, mas ficava parecendo rosa em telas/monitores mais
+   saturados) — pedido explícito. Só os tokens de coluna da
+   calculadora mudam; a marca 'ƒ'/borda de canal CALCULADO na lista
+   de canais (file_menu.css) usa a mesma variável --cor-accent-divisao
+   mas é uma feature diferente, sem relação com este pedido, e
+   continua roxa. */
 .calculadora-token-coluna {
   font-family: var(--fonte-ui);
-  background-color: rgba(127, 75, 196, 0.08);
-  border-color: rgba(127, 75, 196, 0.3);
+  background-color: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.35);
 }
 
 .calculadora-token-coluna:hover {
-  background-color: rgba(127, 75, 196, 0.18);
-  border-color: var(--cor-accent-divisao);
+  background-color: rgba(37, 99, 235, 0.18);
+  border-color: #2563EB;
 }
 
-/* Operações rápidas usam o mesmo lilás das colunas (também "operam
-   sobre dados do arquivo"), mas SÓLIDO em vez de diluído — reforça
-   que são um tipo de ação diferente (disparam um cálculo imediato),
-   não um token que só se anexa à expressão. */
+/* Verde — Operações rápidas (Derivada/Integral/Média/Máximo/Mínimo)
+   MUDARAM DE COMPORTAMENTO (eram ações imediatas, agora são tokens de
+   função iguais a sin(/cos(, ver OPERACOES_RAPIDAS em calculadora.py)
+   — cor PRÓPRIA (nem o roxo de antes, nem o azul novo de colunas)
+   pra continuar reconhecível como categoria separada de 'Funções'
+   básicas, sem reusar uma cor já emprestada por outro grupo. */
 .calculadora-token-rapido {
   font-family: var(--fonte-ui);
-  background-color: rgba(127, 75, 196, 0.1);
-  border-color: rgba(127, 75, 196, 0.35);
+  background-color: rgba(47, 158, 91, 0.1);
+  border-color: rgba(47, 158, 91, 0.35);
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .calculadora-token-rapido:hover {
-  background-color: rgba(127, 75, 196, 0.22);
-  border-color: var(--cor-accent-divisao);
+  background-color: rgba(47, 158, 91, 0.22);
+  border-color: var(--cor-accent-subdivisao);
 }
 
 .calculadora-colunas-vazio {
