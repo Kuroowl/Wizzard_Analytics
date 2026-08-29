@@ -386,13 +386,19 @@ def registrar_callbacks(app, estado):
         Output('rodape-alerta-popup', 'children', allow_duplicate=True),
         Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
         Output('nclicks-padrao-store', 'data', allow_duplicate=True),
+        Output('modo-nova-analise-store', 'data', allow_duplicate=True),
+        Output('nova-analise', 'className', allow_duplicate=True),
+        Output('area-grafico-normal', 'style', allow_duplicate=True),
+        Output('area-modo-nova-analise', 'style', allow_duplicate=True),
+        Output('area-modo-nova-analise-edicao', 'style', allow_duplicate=True),
         Input({'type': 'aba-item', 'arquivo': ALL}, 'n_clicks'),
         Input({'type': 'botao-fechar-aba', 'arquivo': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('nclicks-padrao-store', 'data'),
+        State('modo-nova-analise-store', 'data'),
         prevent_initial_call=True,
     )
-    def gerenciar_abas(_c_item, _c_fechar, aba_ativa, nclicks_anteriores):
+    def gerenciar_abas(_c_item, _c_fechar, aba_ativa, nclicks_anteriores, modo_calculadora_ativo):
         gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
         if gatilho_id is None:
             raise PreventUpdate
@@ -428,6 +434,29 @@ def registrar_callbacks(app, estado):
 
         sem_arquivo, sem_2_arquivos, sem_grafico_da_aba = _estados_toolbar(estado, aba_ativa)
 
+        # Trocar/fechar aba SEMPRE desliga o modo 'Nova Análise' se
+        # estava ligado — mesmo princípio já aplicado ao painel de
+        # edição logo abaixo ('_classe_painel_direito(ativo=False)'):
+        # o estado da calculadora (expressão em andamento, miniatura do
+        # gráfico) é sobre UM arquivo específico, não faz sentido
+        # continuar mostrando por cima de uma aba DIFERENTE. Sem isto,
+        # fechar o arquivo com a calculadora aberta deixava a área da
+        # calculadora visível (cobrindo o gráfico normal, que nem existe
+        # mais se o arquivo foi fechado) e o botão 'nova-analise' preso
+        # no visual "ativo" — nada se fechava sozinho.
+        if modo_calculadora_ativo:
+            modo_novo = False
+            classe_botao_calc = 'toolbar-upload'
+            estilo_grafico_normal = {'display': 'block'}
+            estilo_area_calc = {'display': 'none'}
+            estilo_area_edicao = {'display': 'none'}
+        else:
+            modo_novo = no_update
+            classe_botao_calc = no_update
+            estilo_grafico_normal = no_update
+            estilo_area_calc = no_update
+            estilo_area_edicao = no_update
+
         return (aba_ativa, renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa),
                 mensagem, sem_arquivo, sem_2_arquivos, area_grafico,
                 sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
@@ -438,7 +467,8 @@ def registrar_callbacks(app, estado):
                 # e popup do rodapé precisam refletir a NOVA aba, e qualquer
                 # mensagem temporária pendente da aba anterior é cancelada.
                 *_valores_rodape(estado, aba_ativa),
-                True, novo_mapa)
+                True, novo_mapa,
+                modo_novo, classe_botao_calc, estilo_grafico_normal, estilo_area_calc, estilo_area_edicao)
 
     @app.callback(
         Output('rodape-status', 'children', allow_duplicate=True),
@@ -1128,15 +1158,30 @@ def registrar_callbacks(app, estado):
         Output('painel-direito', 'className', allow_duplicate=True),
         Output('painel-direito-conteudo', 'children', allow_duplicate=True),
         Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
+        Output('corte-selecao-store', 'data', allow_duplicate=True),
+        Output('sidebar-principal', 'className', allow_duplicate=True),
+        Output('toolbar-icones', 'className', allow_duplicate=True),
+        Output('toolbar-confirmacao-corte', 'style', allow_duplicate=True),
         Input('fechar-grafico', 'n_clicks'),
         State('aba-ativa-store', 'data'),
+        State('corte-selecao-store', 'data'),
         prevent_initial_call=True,
     )
-    def fechar_grafico(n_clicks, aba_ativa):
+    def fechar_grafico(n_clicks, aba_ativa, dados_selecao):
         """
         Fecha só a VISUALIZAÇÃO do gráfico, voltando pra grade de opções —
         não fecha arquivo nenhum (isso é o botão 'X' da aba, que já reseta
         tudo sozinho quando não sobra arquivo carregado).
+
+        Se uma seleção de corte ('Aparar dados'/'Excluir dados') estiver
+        EM ANDAMENTO (esperando o 2º clique no gráfico) na hora de fechar
+        — 'dados_selecao' não-vazio — cancela ela TAMBÉM: sem isso, o
+        gráfico sumia mas 'corte-selecao-store' continuava "armado"
+        esperando um clique que nunca mais vai vir (o gráfico que
+        precisava ser clicado não existe mais), e a sidebar/toolbar
+        ficavam travadas no visual borrado/inativo pra sempre, sem
+        nenhum jeito de destravar (o botão 'Cancelar' do prompt também
+        estava escondido, já que o gráfico sumiu junto com ele).
         """
         if not n_clicks or not aba_ativa:
             raise PreventUpdate
@@ -1156,6 +1201,20 @@ def registrar_callbacks(app, estado):
         area_grafico = renderizar_area_grafico(estado)
         mensagem = '🧙‍♂️: " Gráfico fechado. Escolha outra opção. "'
 
+        # Cancela uma seleção de corte em andamento, se houver — ver
+        # docstring acima. 'no_update' quando não havia seleção nenhuma,
+        # pra não sobrescrever a sidebar/toolbar à toa.
+        if dados_selecao:
+            corte_store = None
+            classe_sidebar = 'sidebar'
+            classe_toolbar_icones = 'toolbar-icones'
+            estilo_prompt_corte = {'display': 'none'}
+        else:
+            corte_store = no_update
+            classe_sidebar = no_update
+            classe_toolbar_icones = no_update
+            estilo_prompt_corte = no_update
+
         # O arquivo continua carregado (só o gráfico foi fechado), então
         # 'nova-amostra' e 'exportar-dados' NÃO devem voltar a ficar
         # desabilitados aqui — só 'aparar-dados'/'excluir-dados'/
@@ -1167,7 +1226,8 @@ def registrar_callbacks(app, estado):
         return (area_grafico, lista_canais, mensagem,
                 sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
                 sem_grafico_da_aba, _classe_painel_direito(ativo=False),
-                renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba), True)
+                renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba), True,
+                corte_store, classe_sidebar, classe_toolbar_icones, estilo_prompt_corte)
 
     # ------------------------------------------------------------------
     # Modo de seleção de corte ('Aparar dados') — 4 callbacks formam o
