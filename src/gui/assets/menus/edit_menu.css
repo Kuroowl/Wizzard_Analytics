@@ -1070,9 +1070,19 @@
   border-color: #C0392B;
 }
 
+/* Sem 'justify-content' explícito, o padrão ('flex-start') deixava o
+   teclado colado na ESQUERDA — o espaço sobrando ao arrastar a
+   divisória do painel pra deixar ele mais largo ia se acumulando só
+   do lado direito. Com 'center', o teclado INTEIRO (funções + números
+   + operadores, cada um com tamanho FIXO agora — ver
+   '.calculadora-numeros-grid' abaixo) fica centralizado, e o espaço
+   extra vira distância igual dos dois lados até a parede do painel —
+   pedido explícito: só a distância até a parede deveria mudar,
+   NUNCA o espaçamento entre os botões em si. */
 .calculadora-teclado-corpo {
   display: flex;
   align-items: flex-start;
+  justify-content: center;
   gap: 8px;
 }
 
@@ -1100,20 +1110,25 @@
    visual nenhuma entre dígito e símbolo. */
 .calculadora-numeros-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  /* 'justify-items: center' é o que faltava — por padrão, CSS Grid
-     ESTICA os itens pra preencher a célula inteira ('stretch'), o que
-     ignorava completamente o 'min-width: 32px' de '.calculadora-
-     token-numero' (min-width só trava um MÍNIMO, nunca impede esticar
-     além dele) — é por isso que os números apareciam bem maiores que
-     os operadores ao lado (que estão num flex column, sem esse
-     comportamento de esticar por padrão). Com 'center', cada botão
-     volta a ficar do tamanho do próprio conteúdo/min-width, só
-     centralizado dentro da célula da grade. */
+  /* Colunas com largura FIXA em px (era 'repeat(3, 1fr)', que
+     ESTICAVA as 3 colunas pra preencher toda a largura disponível do
+     grid — como o grid também tinha 'flex: 1 1 auto' logo abaixo,
+     ele crescia junto com o painel, e as colunas '1fr' cresciam
+     junto, afastando os botões um do outro conforme o painel ficava
+     mais largo. 32px é o mesmo 'min-width' de '.calculadora-token-
+     numero'/'.calculadora-token-operador' — bate exatamente com o
+     tamanho natural do botão, sem sobrar nem faltar espaço na
+     célula). */
+  grid-template-columns: repeat(3, 32px);
   justify-items: center;
   align-items: center;
   gap: 5px;
-  flex: 1 1 auto;
+  /* 'flex: 0 0 auto' (era '1 1 auto') — o grid NÃO cresce mais junto
+     com o painel; fica sempre do tamanho natural dos botões. Quem
+     absorve o espaço extra do painel agora é o 'justify-content:
+     center' de '.calculadora-teclado-corpo' acima, centralizando o
+     teclado inteiro em vez de esticar o miolo dele. */
+  flex: 0 0 auto;
 }
 
 .calculadora-operadores-coluna {
@@ -1171,6 +1186,20 @@
   font-family: var(--fonte-ui);
   background-color: rgba(37, 99, 235, 0.08);
   border-color: rgba(37, 99, 235, 0.35);
+  /* Largura FIXA pra TODO botão de coluna ter o MESMO tamanho, não
+     importa o nome do canal — pedido explícito. O texto já vem
+     truncado do lado do Python (ver renderizar_calculadora_botoes,
+     renderizadores.py: nomes com mais de 8 caracteres viram os 6
+     primeiros + '..'), então 'width' fixo + 'overflow: hidden' aqui é
+     só uma rede de segurança, nunca deveria precisar cortar nada na
+     prática. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 70px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .calculadora-token-coluna:hover {

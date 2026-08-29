@@ -1023,7 +1023,7 @@ def renderizar_grafico_com_fechar(fig):
         dcc.Graph(id='grafico-plotly-real', figure=fig, className='grafico-plotly'),
     ])
 
-def _botao_token_calculadora(display, codigo, classe_extra=''):
+def _botao_token_calculadora(display, codigo, classe_extra='', titulo=None):
     """
     Um botão de token (número/operador/função/operação/coluna) — todos
     usam o MESMO padrão de id, {'type': 'calc-token', 'display':...,
@@ -1038,13 +1038,36 @@ def _botao_token_calculadora(display, codigo, classe_extra=''):
     'calc-expressao-store' — é o que permite a barra (ver
     renderizar_calculadora_barra) desenhar cada pedaço da expressão
     como um "chip" colorido igual ao botão original, não texto solto.
+
+    'titulo' vira o tooltip nativo (atributo 'title' do HTML) — usado
+    pelos botões de COLUNA (ver colunas_pares em
+    renderizar_calculadora_botoes) pra mostrar o nome COMPLETO do canal
+    ao passar o mouse, já que o texto visível do botão pode estar
+    truncado (nomes longos viram '6 primeiros caracteres + ..', pra
+    todo botão de coluna manter o MESMO tamanho fixo).
     """
     return html.Button(
         display,
         id={'type': 'calc-token', 'display': display, 'codigo': codigo, 'classe': classe_extra},
         className='calculadora-token ' + classe_extra,
         n_clicks=0,
+        title=titulo,
     )
+
+
+def _truncar_nome_coluna_calculadora(rotulo, limite=8):
+    """
+    Todo botão de COLUNA na calculadora precisa ter o MESMO tamanho
+    fixo, não importa o nome do canal (pedido explícito) — nomes até
+    'limite' (8) caracteres aparecem inteiros; nomes maiores viram os
+    6 PRIMEIROS caracteres + '..' (dois pontos, não reticências de
+    3 pontos) — sempre no máximo 8 caracteres visíveis, então a
+    largura fixa do botão (ver '.calculadora-token-coluna' em
+    edit_menu.css) nunca precisa cortar/cabe sempre confortável.
+    """
+    if len(rotulo) > limite:
+        return rotulo[:6] + '..'
+    return rotulo
 
 
 def _grupo_calculadora(titulo, pares_display_codigo, classe_extra=''):
@@ -1218,7 +1241,12 @@ def renderizar_calculadora_botoes(estado, aba_ativa):
     if arquivo:
         for nome_interno in arquivo.colunas_visiveis():
             rotulo = arquivo.rotulo(nome_interno)
-            colunas_pares.append((rotulo, f'col[{nome_interno!r}]'))
+            # 'display' é o texto TRUNCADO (o que aparece no botão e no
+            # chip da barra — ver _truncar_nome_coluna_calculadora
+            # acima); 'rotulo' (o nome COMPLETO) vira o tooltip do
+            # botão, pra quem precisar conferir o nome inteiro sem
+            # precisar abrir a lista de canais.
+            colunas_pares.append((_truncar_nome_coluna_calculadora(rotulo), f'col[{nome_interno!r}]', rotulo))
 
     return html.Div(className='calculadora-botoes', children=[
         html.Div(className='calculadora-grupo', children=[
@@ -1262,8 +1290,8 @@ def renderizar_calculadora_botoes(estado, aba_ativa):
         html.Div(className='calculadora-grupo calculadora-grupo-colunas', children=[
             html.Div('Colunas', className='calculadora-grupo-titulo'),
             html.Div(className='calculadora-grupo-botoes', children=(
-                [_botao_token_calculadora(display, codigo, 'calculadora-token-coluna')
-                 for display, codigo in colunas_pares]
+                [_botao_token_calculadora(display, codigo, 'calculadora-token-coluna', titulo=rotulo_completo)
+                 for display, codigo, rotulo_completo in colunas_pares]
                 if colunas_pares else
                 [html.Div('Abra um arquivo pra ver as colunas aqui.', className='calculadora-colunas-vazio')]
             )),
