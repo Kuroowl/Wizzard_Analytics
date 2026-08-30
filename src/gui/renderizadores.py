@@ -1142,7 +1142,20 @@ def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
         # explícito pra a barra ter uma identificação igual a
         # 'Operações básicas' e os outros containers.
         html.Div('Barra de cálculo', className='calculadora-grupo-titulo calculadora-barra-titulo'),
-        html.Div(className='calculadora-barra-linha', children=[
+        # Grade 3x3 (pedido explícito, com posições a_ij nomeadas):
+        #   a11 = tipo-destino     a12 = nome/coluna-destino   a13 = Criar
+        #   a21/a22/a31/a32 = expressão (bloco 2x2, canto inferior-esq.)
+        #                            a23 = Apagar
+        #                            a33 = C (Limpar)
+        # 'calc-grade-*' definem a POSIÇÃO de cada item na grade (ver
+        # 'calculadora-barra-grade' e as classes 'calc-grade-*' em
+        # central_menu.css) — a11/a12 mantêm o MESMO tamanho de antes
+        # (largura fixa de cada coluna), a área de cálculo agora ocupa
+        # um bloco 2x2 (bem maior, alta e larga), e Criar/Apagar/C
+        # ficam alinhados à direita, empilhados na coluna 3, cada um no
+        # seu próprio "andar" da grade — mesmo tamanho de sempre entre
+        # eles (classe 'calculadora-btn-acao').
+        html.Div(className='calculadora-barra-grade', children=[
             dcc.Dropdown(
                 id='calc-tipo-destino',
                 options=[
@@ -1150,49 +1163,41 @@ def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
                     {'label': 'Coluna existente', 'value': 'existente'},
                 ],
                 value=tipo_destino, clearable=False, searchable=False,
-                className='calculadora-tipo-destino',
+                className='calculadora-tipo-destino calc-grade-a11',
             ),
-            html.Div(conteudo_expressao, id='calc-expressao-display', className='calculadora-expressao'),
             dcc.Input(
                 id='calc-nome-input', type='text', placeholder='nova coluna',
-                className='calculadora-nome-input' + ('' if modo_nova else ' calculadora-oculto'),
+                className='calculadora-nome-input calc-grade-a12'
+                          + ('' if modo_nova else ' calculadora-oculto'),
                 maxLength=80,
             ),
             dcc.Dropdown(
                 id='calc-coluna-destino',
                 options=opcoes_colunas_destino, value=coluna_destino,
                 placeholder='sobrescrever qual coluna?',
-                className='calculadora-coluna-destino' + ('' if not modo_nova else ' calculadora-oculto'),
+                className='calculadora-coluna-destino calc-grade-a12'
+                          + ('' if not modo_nova else ' calculadora-oculto'),
             ),
-            # Criar/Apagar/Limpar agora moram numa SUBDIVISÃO própria
-            # dentro da barra ('.calculadora-barra-acoes') — a barra
-            # continua horizontal, mas esta subdivisão empilha os TRÊS
-            # botões na VERTICAL (um em cima do outro, coluna estreita),
-            # em vez de lado a lado — libera espaço horizontal pra
-            # '.calculadora-expressao' crescer (pedido explícito).
-            # 'calculadora-btn-acao' (classe extra, além da cor própria
-            # de cada um) garante que os três tenham o MESMO tamanho.
-            html.Div(className='calculadora-barra-acoes', children=[
-                html.Button('Criar', id='calc-criar',
-                            className='calculadora-btn-criar calculadora-btn-acao', n_clicks=0),
-                # '⌫' remove só o ÚLTIMO token inteiro (não um caractere
-                # — ver docstring de 'calc-expressao-store', layout.py)
-                # — separado de 'C' (que zera tudo de uma vez), pra
-                # corrigir um clique errado sem perder a expressão
-                # inteira. Vermelho — mesmo tom de alerta já usado no
-                # teclado duplicado (ver '.calculadora-btn-del',
-                # edit_menu.css) pra ações destrutivas/de limpeza.
-                html.Button('⌫', id='calc-apagar',
-                            className='calculadora-btn-apagar calculadora-btn-acao', n_clicks=0,
-                            title='Apagar último'),
-                # Era 'Limpar' por extenso — trocado só pra 'C' (de
-                # "clear"), mesmo texto já usado no botão duplicado do
-                # teclado ('calc-limpar-teclado' abaixo); o título
-                # ('title=') guarda a descrição completa como tooltip.
-                html.Button('C', id='calc-limpar',
-                            className='calculadora-btn-limpar calculadora-btn-acao', n_clicks=0,
-                            title='Limpar tudo'),
-            ]),
+            html.Button('Criar', id='calc-criar',
+                        className='calculadora-btn-criar calculadora-btn-acao calc-grade-a13', n_clicks=0),
+            # Bloco 2x2 (a21/a22/a31/a32) — a área de cálculo em si,
+            # agora bem maior (mais larga E mais alta que antes).
+            html.Div(conteudo_expressao, id='calc-expressao-display',
+                     className='calculadora-expressao calc-grade-expressao'),
+            # '⌫' remove só o ÚLTIMO token inteiro (não um caractere —
+            # ver docstring de 'calc-expressao-store', layout.py) —
+            # separado de 'C' (que zera tudo de uma vez), pra corrigir
+            # um clique errado sem perder a expressão inteira.
+            html.Button('⌫', id='calc-apagar',
+                        className='calculadora-btn-apagar calculadora-btn-acao calc-grade-a23', n_clicks=0,
+                        title='Apagar último'),
+            # Era 'Limpar' por extenso — trocado só pra 'C' (de
+            # "clear"), mesmo texto já usado no botão duplicado do
+            # teclado ('calc-limpar-teclado' abaixo); o título
+            # ('title=') guarda a descrição completa como tooltip.
+            html.Button('C', id='calc-limpar',
+                        className='calculadora-btn-limpar calculadora-btn-acao calc-grade-a33', n_clicks=0,
+                        title='Limpar tudo'),
         ]),
     ])
 
