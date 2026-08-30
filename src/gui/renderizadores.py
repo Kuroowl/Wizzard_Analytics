@@ -1164,13 +1164,35 @@ def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
                 placeholder='sobrescrever qual coluna?',
                 className='calculadora-coluna-destino' + ('' if not modo_nova else ' calculadora-oculto'),
             ),
-            html.Button('Criar', id='calc-criar', className='calculadora-btn-criar', n_clicks=0),
-            # '⌫' remove só o ÚLTIMO token inteiro (não um caractere —
-            # ver docstring de 'calc-expressao-store', layout.py) —
-            # separado de 'Limpar' (que zera tudo de uma vez), pra
-            # corrigir um clique errado sem perder a expressão inteira.
-            html.Button('⌫', id='calc-apagar', className='calculadora-btn-apagar', n_clicks=0, title='Apagar último'),
-            html.Button('Limpar', id='calc-limpar', className='calculadora-btn-limpar', n_clicks=0),
+            # Criar/Apagar/Limpar agora moram numa SUBDIVISÃO própria
+            # dentro da barra ('.calculadora-barra-acoes') — a barra
+            # continua horizontal, mas esta subdivisão empilha os TRÊS
+            # botões na VERTICAL (um em cima do outro, coluna estreita),
+            # em vez de lado a lado — libera espaço horizontal pra
+            # '.calculadora-expressao' crescer (pedido explícito).
+            # 'calculadora-btn-acao' (classe extra, além da cor própria
+            # de cada um) garante que os três tenham o MESMO tamanho.
+            html.Div(className='calculadora-barra-acoes', children=[
+                html.Button('Criar', id='calc-criar',
+                            className='calculadora-btn-criar calculadora-btn-acao', n_clicks=0),
+                # '⌫' remove só o ÚLTIMO token inteiro (não um caractere
+                # — ver docstring de 'calc-expressao-store', layout.py)
+                # — separado de 'C' (que zera tudo de uma vez), pra
+                # corrigir um clique errado sem perder a expressão
+                # inteira. Vermelho — mesmo tom de alerta já usado no
+                # teclado duplicado (ver '.calculadora-btn-del',
+                # edit_menu.css) pra ações destrutivas/de limpeza.
+                html.Button('⌫', id='calc-apagar',
+                            className='calculadora-btn-apagar calculadora-btn-acao', n_clicks=0,
+                            title='Apagar último'),
+                # Era 'Limpar' por extenso — trocado só pra 'C' (de
+                # "clear"), mesmo texto já usado no botão duplicado do
+                # teclado ('calc-limpar-teclado' abaixo); o título
+                # ('title=') guarda a descrição completa como tooltip.
+                html.Button('C', id='calc-limpar',
+                            className='calculadora-btn-limpar calculadora-btn-acao', n_clicks=0,
+                            title='Limpar tudo'),
+            ]),
         ]),
     ])
 
