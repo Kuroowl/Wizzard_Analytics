@@ -210,8 +210,8 @@
    dos dois lados, então faz mais sentido visual como um cartão
    inteiro, não mais uma barra colada no topo.
 
-   Virou COLUNA (título em cima, grade de controles embaixo — ver
-   '.calculadora-barra-titulo'/'.calculadora-barra-grade' logo
+   Virou COLUNA (título em cima, linha de controles embaixo — ver
+   '.calculadora-barra-titulo'/'.calculadora-barra-linha' logo
    abaixo) — antes era uma única linha, sem identificação nenhuma;
    'flex: 0 0 auto' (era '0 0 56px' fixo) porque a altura agora
    depende do título + a linha, não é mais um valor fixo só. */
@@ -239,56 +239,54 @@
   margin-bottom: 0;
 }
 
-/* Grade 3x3 da barra (pedido explícito, ver renderizar_calculadora_barra
-   em renderizadores.py pra que fica em cada célula):
-     a11 tipo-destino | a12 nome/coluna-destino | a13 Criar
-     a21/a22/a31/a32 = expressão (bloco 2x2)    | a23 Apagar
-                                                 | a33 C (Limpar)
-   Colunas 1-2 em 'fr' (dividem o espaço sobrando igualmente) — dão
-   espaço de sobra pra baixo virar a área de cálculo bem maior; os
-   próprios campos a11/a12 continuam com a largura FIXA de sempre
-   (170px/130px, ver '.calculadora-tipo-destino'/'.calculadora-nome-
-   input' abaixo), só "flutuando" alinhados à esquerda dentro da
-   coluna mais larga. Coluna 3 é fixa (64px, mesma largura dos
-   botões) — é essa coluna, por ser a ÚLTIMA à direita, que deixa
-   Criar/Apagar/C alinhados à direita (pedido explícito). Linha 1 tem
-   a altura de um controle normal (36px); linhas 2-3 são a área de
-   cálculo — bem mais altas que a antiga barra de uma linha só. */
-.calculadora-barra-grade {
-  display: grid;
-  grid-template-columns: 1fr 1fr 64px;
-  grid-template-rows: 36px 52px 52px;
+/* Voltamos pro design ORIGINAL: '.calculadora-barra-linha' de novo é
+   uma linha horizontal única (desfaz a grade 3x3 do patch anterior,
+   pedido explícito: "voltar para o design original em linha"). */
+.calculadora-barra-linha {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.calc-grade-a11 {
-  grid-column: 1;
-  grid-row: 1;
+/* Botão Criar + os dois botões que ele revela no hover — 'position:
+   relative' aqui é só a ÂNCORA de posicionamento do popover abaixo
+   ('position:absolute' relativo A ESTE wrapper, não à barra inteira).
+   'display:inline-flex' (não 'block') pra o wrapper ocupar só o
+   espaço do próprio botão Criar dentro da linha, sem esticar. */
+.calculadora-criar-wrapper {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
 }
 
-.calc-grade-a12 {
-  grid-column: 2;
-  grid-row: 1;
+/* Some por padrão (visibility+opacity, não 'display:none' — assim dá
+   pra animar a transição e o popover continua no fluxo do layout
+   pra 'top:100%' funcionar direito). Aparece só com
+   '.calculadora-criar-wrapper:hover' (pedido explícito: "se o mouse
+   passar por cima do botão criar, os outros 2 botões aparecem pra
+   clique abaixo dele") — o hover é no WRAPPER (botão + área do
+   popover), não só no botão sozinho, senão o popover sumiria assim
+   que o mouse saísse do botão em direção a ele. */
+.calculadora-criar-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px; /* estende a área "hoverável" pra cobrir o vão até aqui */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 20;
 }
 
-.calc-grade-a13 {
-  grid-column: 3;
-  grid-row: 1;
-}
-
-.calc-grade-expressao {
-  grid-column: 1 / 3;
-  grid-row: 2 / 4;
-}
-
-.calc-grade-a23 {
-  grid-column: 3;
-  grid-row: 2;
-}
-
-.calc-grade-a33 {
-  grid-column: 3;
-  grid-row: 3;
+.calculadora-criar-wrapper:hover .calculadora-criar-popover {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 /* Miniatura do gráfico — mostra 'arquivo.figura' (o último estado já
@@ -329,7 +327,7 @@
 }
 
 .calculadora-tipo-destino {
-  width: 170px;
+  flex: 0 0 170px;
   font-family: var(--fonte-ui);
   font-size: 13px;
 }
@@ -344,16 +342,16 @@
   border-color: var(--cor-borda);
 }
 
-/* Bloco 2x2 da grade (ver '.calculadora-barra-grade' acima) — área de
-   cálculo bem maior que antes (largura das colunas 1-2 + ALTURA de 2
-   linhas, não mais uma faixa fina de uma linha só). Com mais altura
-   sobrando, os chips agora QUEBRAM linha ('flex-wrap: wrap') em vez
-   de só rolar de lado — aproveita o espaço vertical de verdade; ainda
-   rola ('overflow-y: auto') se a expressão for grande o bastante pra
-   não caber nem quebrando linha. */
+/* Design original em linha única: '.calculadora-expressao' volta a
+   ser o espaço FLEXÍVEL entre 'tipo-destino' e 'nome/coluna-destino'
+   ('flex: 1 1 auto'), com Apagar/C agora escondidos no popover do
+   'Criar' (ver '.calculadora-criar-popover' acima) — não mais
+   dividindo espaço com eles na mesma linha, então essa área já fica
+   maior por padrão sem precisar de grade. Expressão de uma linha só
+   de novo — rola de lado ('overflow-x') em vez de quebrar. */
 .calculadora-expressao {
-  width: 100%;
-  height: 100%;
+  flex: 1 1 auto;
+  min-width: 160px;
   font-family: var(--fonte-dado);
   font-size: 14px;
   color: var(--cor-texto-escuro);
@@ -361,13 +359,13 @@
   border: 1px solid var(--cor-borda);
   border-radius: 5px;
   padding: 8px 10px;
+  height: 36px;
+  line-height: 18px;
   display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  align-items: flex-start;
+  align-items: center;
   gap: 4px;
-  overflow-y: auto;
-  box-sizing: border-box;
+  overflow-x: auto;
+  white-space: nowrap;
 }
 
 .calculadora-chip-vazio {
@@ -375,6 +373,7 @@
 }
 
 /* Cada token clicado vira um CHIP na barra — reaproveita as MESMAS
+
    classes do botão que o gerou ('calculadora-token' + a cor
    específica, ex: 'calculadora-token-coluna', gravadas junto do token
    em 'calc-expressao-store' — ver registrar_token_calculadora,
@@ -392,8 +391,11 @@
   flex: 0 0 auto;
 }
 
+/* Base 130px, mas pode encolher ('flex: 0 1 130px') se a barra ficar
+   apertada, cedendo espaço pra '.calculadora-expressao' nunca ficar
+   espremida abaixo do seu 'min-width'. */
 .calculadora-nome-input {
-  width: 130px;
+  flex: 0 1 130px;
   font-family: var(--fonte-ui);
   font-size: 13px;
   color: var(--cor-texto-escuro);
@@ -413,9 +415,9 @@
 
 /* Mesmo raciocínio de '.calculadora-nome-input' acima — os dois se
    revezam no mesmo espaço (ver 'calculadora-oculto'), então precisam
-   da MESMA largura fixa. */
+   do MESMO comportamento de encolher/basis. */
 .calculadora-coluna-destino {
-  width: 130px;
+  flex: 0 1 130px;
 }
 
 /* 'Nova coluna'/'Coluna existente' (ver 'calc-tipo-destino' na barra)
@@ -431,23 +433,9 @@
   display: none !important;
 }
 
-/* Tamanho ÚNICO pros três botões (Criar/Apagar/C) — pedido explícito
-   de "todos com o mesmo tamanho" — cada um agora vive na sua própria
-   célula da grade ('calc-grade-a13'/'a23'/'a33'), então só precisam
-   de largura/altura fixas iguais; 'align-self/justify-self: center'
-   centraliza o botão dentro da célula (as células de Apagar/C são
-   mais altas que o próprio botão, ver 'grid-template-rows' acima). */
-.calculadora-btn-acao {
-  width: 64px;
-  height: 26px;
-  padding: 0;
-  align-self: center;
-  justify-self: center;
-}
-
-.calculadora-btn-criar,
-.calculadora-btn-apagar,
-.calculadora-btn-limpar {
+.calculadora-btn-criar {
+  height: 36px;
+  padding: 0 14px;
   border-radius: 5px;
   border: 1px solid var(--cor-borda);
   font-family: var(--fonte-ui);
@@ -455,12 +443,10 @@
   font-weight: 600;
   cursor: pointer;
   transition: background 0.1s, border-color 0.1s;
-}
-
-/* 'Criar' é a única ação que GRAVA de verdade (coluna nova ou
-   sobrescrita) — cor de accent SÓLIDA (fundo cheio + texto branco),
-   se destacando dos outros dois botões. */
-.calculadora-btn-criar {
+  /* 'Criar' é a única ação que GRAVA de verdade (coluna nova ou
+     sobrescrita) — cor de accent sólida, se destacando de Apagar/C
+     (que agora só aparecem no popover, ver '.calculadora-criar-
+     popover' acima). */
   background-color: var(--cor-accent);
   border-color: var(--cor-accent);
   color: #FFFFFF;
@@ -468,24 +454,4 @@
 
 .calculadora-btn-criar:hover {
   background-color: #268F8A;
-}
-
-/* Apagar (⌫) e C (Limpar) são as DUAS ações que apagam algo —
-   vermelhas (pedido explícito), mas agora SÓLIDAS igual ao 'Criar'
-   (fundo cheio + texto branco), não mais translúcidas/esbranquiçadas
-   como antes (aquele estilo era o mesmo do teclado duplicado do
-   painel de edição — ver '.calculadora-btn-c'/'.calculadora-btn-del',
-   edit_menu.css — que continua com o visual translúcido de propósito;
-   só os botões DESTA barra passaram a ser sólidos, pra bater com o
-   aspecto do 'Criar' ao lado). */
-.calculadora-btn-apagar,
-.calculadora-btn-limpar {
-  background-color: #C0392B;
-  border-color: #C0392B;
-  color: #FFFFFF;
-}
-
-.calculadora-btn-apagar:hover,
-.calculadora-btn-limpar:hover {
-  background-color: #A5311F;
 }

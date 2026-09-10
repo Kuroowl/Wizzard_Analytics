@@ -1142,20 +1142,14 @@ def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
         # explícito pra a barra ter uma identificação igual a
         # 'Operações básicas' e os outros containers.
         html.Div('Barra de cálculo', className='calculadora-grupo-titulo calculadora-barra-titulo'),
-        # Grade 3x3 (pedido explícito, com posições a_ij nomeadas):
-        #   a11 = tipo-destino     a12 = nome/coluna-destino   a13 = Criar
-        #   a21/a22/a31/a32 = expressão (bloco 2x2, canto inferior-esq.)
-        #                            a23 = Apagar
-        #                            a33 = C (Limpar)
-        # 'calc-grade-*' definem a POSIÇÃO de cada item na grade (ver
-        # 'calculadora-barra-grade' e as classes 'calc-grade-*' em
-        # central_menu.css) — a11/a12 mantêm o MESMO tamanho de antes
-        # (largura fixa de cada coluna), a área de cálculo agora ocupa
-        # um bloco 2x2 (bem maior, alta e larga), e Criar/Apagar/C
-        # ficam alinhados à direita, empilhados na coluna 3, cada um no
-        # seu próprio "andar" da grade — mesmo tamanho de sempre entre
-        # eles (classe 'calculadora-btn-acao').
-        html.Div(className='calculadora-barra-grade', children=[
+        # Voltamos pro design ORIGINAL em linha única (desfaz a grade
+        # 3x3 do patch anterior) — ORDEM pedida explicitamente:
+        # tipo-destino -> área de cálculo -> nome/coluna-destino ->
+        # Criar. Apagar/C não ficam mais soltos na linha: agora moram
+        # dentro de '.calculadora-criar-popover', que só aparece
+        # quando o mouse passa por cima de 'Criar' (pedido explícito)
+        # — ver '.calculadora-criar-wrapper' em central_menu.css.
+        html.Div(className='calculadora-barra-linha', children=[
             dcc.Dropdown(
                 id='calc-tipo-destino',
                 options=[
@@ -1163,43 +1157,50 @@ def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
                     {'label': 'Coluna existente', 'value': 'existente'},
                 ],
                 value=tipo_destino, clearable=False, searchable=False,
-                className='calculadora-tipo-destino calc-grade-a11',
+                className='calculadora-tipo-destino',
             ),
+            html.Div(conteudo_expressao, id='calc-expressao-display', className='calculadora-expressao'),
             dcc.Input(
                 id='calc-nome-input', type='text', placeholder='nova coluna',
-                className='calculadora-nome-input calc-grade-a12'
-                          + ('' if modo_nova else ' calculadora-oculto'),
+                className='calculadora-nome-input' + ('' if modo_nova else ' calculadora-oculto'),
                 maxLength=80,
             ),
             dcc.Dropdown(
                 id='calc-coluna-destino',
                 options=opcoes_colunas_destino, value=coluna_destino,
                 placeholder='sobrescrever qual coluna?',
-                className='calculadora-coluna-destino calc-grade-a12'
-                          + ('' if not modo_nova else ' calculadora-oculto'),
+                className='calculadora-coluna-destino' + ('' if not modo_nova else ' calculadora-oculto'),
             ),
-            html.Button('Criar', id='calc-criar',
-                        className='calculadora-btn-criar calculadora-btn-acao calc-grade-a13', n_clicks=0),
-            # Bloco 2x2 (a21/a22/a31/a32) — a área de cálculo em si,
-            # agora bem maior (mais larga E mais alta que antes).
-            html.Div(conteudo_expressao, id='calc-expressao-display',
-                     className='calculadora-expressao calc-grade-expressao'),
-            # '⌫' remove só o ÚLTIMO token inteiro (não um caractere —
-            # ver docstring de 'calc-expressao-store', layout.py) —
-            # separado de 'C' (que zera tudo de uma vez), pra corrigir
-            # um clique errado sem perder a expressão inteira.
-            html.Button('⌫', id='calc-apagar',
-                        className='calculadora-btn-apagar calculadora-btn-acao calc-grade-a23', n_clicks=0,
-                        title='Apagar último'),
-            # Era 'Limpar' por extenso — trocado só pra 'C' (de
-            # "clear"), mesmo texto já usado no botão duplicado do
-            # teclado ('calc-limpar-teclado' abaixo); o título
-            # ('title=') guarda a descrição completa como tooltip.
-            html.Button('C', id='calc-limpar',
-                        className='calculadora-btn-limpar calculadora-btn-acao calc-grade-a33', n_clicks=0,
-                        title='Limpar tudo'),
+            # 'calculadora-criar-wrapper': só existe pra dar um
+            # 'position:relative' de referência pro popover — o
+            # ':hover' que revela Apagar/C é neste wrapper (cobre o
+            # botão Criar + a área do popover), não só no botão Criar
+            # sozinho, senão o popover sumiria assim que o mouse saísse
+            # de cima do botão pra descer até ele.
+            html.Div(className='calculadora-criar-wrapper', children=[
+                html.Button('Criar', id='calc-criar', className='calculadora-btn-criar', n_clicks=0),
+                # Apagar/C — mesmo par de ações que já existe duplicado
+                # no teclado do menu ao lado ('calc-apagar-teclado'/
+                # 'calc-limpar-teclado', mais abaixo nesta função) —
+                # aqui usam as MESMAS classes visuais deles
+                # ('calculadora-btn-c'/'calculadora-btn-del', ver
+                # edit_menu.css), pedido explícito pra terem o mesmo
+                # aspecto (fundo vermelho translúcido, não sólido).
+                html.Div(className='calculadora-criar-popover', children=[
+                    # '⌫' remove só o ÚLTIMO token inteiro (não um
+                    # caractere — ver docstring de 'calc-expressao-
+                    # store', layout.py) — separado de 'C' (que zera
+                    # tudo de uma vez), pra corrigir um clique errado
+                    # sem perder a expressão inteira.
+                    html.Button('⌫', id='calc-apagar', className='calculadora-btn-del', n_clicks=0,
+                                title='Apagar último'),
+                    html.Button('C', id='calc-limpar', className='calculadora-btn-c', n_clicks=0,
+                                title='Limpar tudo'),
+                ]),
+            ]),
         ]),
     ])
+
 
 
 def renderizar_area_calculadora_completa(estado, aba_ativa, tokens_expressao=None,
