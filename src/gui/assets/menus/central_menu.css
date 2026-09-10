@@ -266,16 +266,35 @@
    passar por cima do botão criar, os outros 2 botões aparecem pra
    clique abaixo dele") — o hover é no WRAPPER (botão + área do
    popover), não só no botão sozinho, senão o popover sumiria assim
-   que o mouse saísse do botão em direção a ele. */
+   que o mouse saísse do botão em direção a ele.
+
+   CORREÇÃO: antes havia 'margin-top: 4px' SEPARADO do
+   'padding-top: 4px' — margin fica FORA da caixa do elemento (não
+   conta pra hover/hit-test), então esses 4px de margin eram uma
+   "terra de ninguém": nem dentro do botão Criar (que termina onde o
+   wrapper termina, já que o popover é 'position:absolute' e não
+   empurra a altura do wrapper), nem dentro do popover (o padding só
+   entra em vigor DEPOIS da margin). Resultado: o mouse saindo do
+   Criar em direção aos botões escondidos cruzava esse vão morto,
+   perdia o ':hover' do wrapper, e o popover sumia (pointer-events:
+   none aplicado na hora, mesmo com o fade de opacity ainda rolando)
+   antes do cursor chegar lá — por isso não dava pra clicar.
+   Removendo o 'margin-top' e deixando SÓ o 'padding-top' (agora 8px,
+   pra manter a mesma distância visual de antes: 4+4), a "terra de
+   ninguém" desaparece: o padding é parte da caixa do próprio
+   popover, então é hoverável, e como o popover é filho do wrapper no
+   DOM, ficar em cima dele mantém o wrapper inteiro em ':hover' — a
+   região INTEIRA (botão + espaço + popover) vira uma coisa só que só
+   fecha quando o mouse sai dela por completo, não mais ao sair de
+   cima do botão especificamente. */
 .calculadora-criar-popover {
   position: absolute;
   top: 100%;
   left: 0;
-  margin-top: 4px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding-top: 4px; /* estende a área "hoverável" pra cobrir o vão até aqui */
+  padding-top: 8px; /* cobre o vão até o botão Criar — agora faz parte da área hoverável */
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
