@@ -136,8 +136,23 @@ def _intervalo_arredondado(vmin, vmax):
     """
     if vmin is None or vmax is None or vmin == vmax:
         return vmin, vmax
+    # Guarda contra +inf/-inf/NaN — pode acontecer com dados calculados
+    # na calculadora (ex: np.log(0) = -inf, np.log(negativo) = NaN,
+    # divisão por zero em alguma linha = inf) que passaram pela
+    # validação de 'avaliar_expressao_calculadora' (que só barra
+    # ZeroDivisionError de verdade, não os infinitos "silenciosos" que
+    # o numpy devolve). Sem este guard, 'math.log10(span)' com
+    # span=inf devolvia inf, e 'math.floor(inf)' estourava
+    # OverflowError ao tentar virar int — travava o gráfico inteiro,
+    # não só a curva com o valor ruim. Aqui, se qualquer um dos dois
+    # bordos não for finito, desiste do arredondamento "bonito" e
+    # devolve os valores originais (o Plotly ainda consegue desenhar
+    # um range com esses valores; quem não desenha nada sensato é o
+    # 'magnitude = 10 ** ...' com infinito no meio da conta).
+    if not (math.isfinite(vmin) and math.isfinite(vmax)):
+        return vmin, vmax
     span = vmax - vmin
-    if span <= 0:
+    if span <= 0 or not math.isfinite(span):
         return vmin, vmax
     magnitude = 10 ** math.floor(math.log10(span))
     vmin_novo = math.floor(vmin / magnitude) * magnitude
@@ -163,8 +178,19 @@ def _range_dos_dados(fig, eixo):
         dados = getattr(traco, eixo, None)
         if dados is None or len(dados) == 0:
             continue
-        valores_min.append(np.nanmin(dados))
-        valores_max.append(np.nanmax(dados))
+        # Filtra +inf/-inf além de NaN (np.nanmin/nanmax já ignoram
+        # NaN sozinhos, mas NÃO ignoram infinito — um único -inf numa
+        # coluna calculada, ex: np.log(0), vira o vmin do eixo INTEIRO
+        # e explode '_intervalo_arredondado' logo abaixo com
+        # 'OverflowError: cannot convert float infinity to integer').
+        # 'np.asarray(..., dtype=float)' cobre tanto listas normais
+        # quanto os arrays do Plotly.
+        dados_finitos = np.asarray(dados, dtype=float)
+        dados_finitos = dados_finitos[np.isfinite(dados_finitos)]
+        if dados_finitos.size == 0:
+            continue
+        valores_min.append(dados_finitos.min())
+        valores_max.append(dados_finitos.max())
     if not valores_min:
         return None, None
     return min(valores_min), max(valores_max)
