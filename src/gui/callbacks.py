@@ -4,7 +4,7 @@ from dash import Input, Output, State, ctx, ALL, MATCH, no_update
 from dash.exceptions import PreventUpdate
 
 from src.core.operations.sampling import aparar_dados, excluir_dados
-from src.core.operations.calculadora import avaliar_expressao_calculadora
+from src.core.operations.calculadora import avaliar_expressao_calculadora, calc_criar_desabilitado
 from src.core.plotting.plotter import (
     construir_figura_serie_temporal, resolver_eixo_x, colunas_plotadas, cor_da_coluna,
     aplicar_guias_corte,
@@ -620,6 +620,33 @@ def registrar_callbacks(app, estado):
         return classe_nome, classe_coluna
 
     @app.callback(
+        Output('calc-criar', 'disabled', allow_duplicate=True),
+        Output('calc-criar', 'className', allow_duplicate=True),
+        Input('calc-nome-input', 'value'),
+        Input('calc-coluna-destino', 'value'),
+        Input('calc-tipo-destino', 'value'),
+        State('calc-expressao-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def atualizar_estado_botao_criar_calculadora(nome_novo_canal, coluna_destino, tipo_destino, tokens_atuais):
+        """
+        Leve DE PROPÓSITO — só troca 'disabled'/'className' de
+        'calc-criar', sem reconstruir a barra inteira (diferente de
+        registrar_token_calculadora/apagar/limpar, que precisam
+        reconstruir porque mexem na lista de chips). Existe pra
+        digitar um nome (ou trocar a coluna a sobrescrever) já
+        reativar/desativar 'Criar' NA HORA, sem precisar clicar em
+        outro token pra isso.
+
+        Mesma regra de calc_criar_desabilitado (calculadora.py) usada
+        na reconstrução completa — as duas PRECISAM concordar, senão
+        um dá um resultado e o outro reverte no próximo render.
+        """
+        desabilitado = calc_criar_desabilitado(tokens_atuais, tipo_destino, nome_novo_canal, coluna_destino)
+        classe = 'calculadora-btn-criar' + (' calculadora-btn-criar-desabilitado' if desabilitado else '')
+        return desabilitado, classe
+
+    @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
         Output('nclicks-padrao-store', 'data', allow_duplicate=True),
@@ -628,11 +655,12 @@ def registrar_callbacks(app, estado):
         State('calc-expressao-store', 'data'),
         State('calc-tipo-destino', 'value'),
         State('calc-coluna-destino', 'value'),
+        State('calc-nome-input', 'value'),
         State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
     def registrar_token_calculadora(_n_clicks_list, aba_ativa, tokens_atuais, tipo_destino,
-                                     coluna_destino, nclicks_anteriores):
+                                     coluna_destino, nome_novo_canal, nclicks_anteriores):
         # Mesmo cuidado de gerenciar_selecao_canais/gerenciar_abas: os
         # botões de token são padrão coringa, e a barra É reconstruída
         # por outro callback (alternar_modo_nova_analise, ao ligar, e
@@ -656,7 +684,16 @@ def registrar_callbacks(app, estado):
         }
         novos_tokens = (tokens_atuais or []) + [novo_token]
 
-        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino)
+        # 'nome_novo_canal' (lido aqui via State, só pra passar adiante)
+        # é o que permite 'renderizar_calculadora_barra' decidir se
+        # 'Criar' nasce desabilitado (ver calc_criar_desabilitado,
+        # calculadora.py) já considerando o nome digitado ANTES deste
+        # clique de token — sem isso, clicar num token depois de já
+        # ter digitado um nome reativaria 'Criar' incorretamente com
+        # base só no parêntese, ignorando o nome.
+        conteudo = renderizar_area_calculadora_completa(
+            estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino, nome_novo_canal,
+        )
         return conteudo, novos_tokens, novo_mapa
 
     @app.callback(
@@ -669,11 +706,12 @@ def registrar_callbacks(app, estado):
         State('calc-expressao-store', 'data'),
         State('calc-tipo-destino', 'value'),
         State('calc-coluna-destino', 'value'),
+        State('calc-nome-input', 'value'),
         State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
     def apagar_ultimo_token_calculadora(_n1, _n2, aba_ativa, tokens_atuais, tipo_destino,
-                                         coluna_destino, nclicks_anteriores):
+                                         coluna_destino, nome_novo_canal, nclicks_anteriores):
         """
         '⌫' remove o ÚLTIMO token — 2 botões idênticos disparam este
         callback: o da barra ('calc-apagar') e o duplicado no topo do
@@ -693,7 +731,9 @@ def registrar_callbacks(app, estado):
         if gatilho_id is None or not tokens_atuais:
             raise PreventUpdate
         novos_tokens = tokens_atuais[:-1]
-        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino)
+        conteudo = renderizar_area_calculadora_completa(
+            estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino, nome_novo_canal,
+        )
         return conteudo, novos_tokens, novo_mapa
 
     @app.callback(
@@ -705,10 +745,12 @@ def registrar_callbacks(app, estado):
         State('aba-ativa-store', 'data'),
         State('calc-tipo-destino', 'value'),
         State('calc-coluna-destino', 'value'),
+        State('calc-nome-input', 'value'),
         State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
-    def limpar_expressao_calculadora(_n1, _n2, aba_ativa, tipo_destino, coluna_destino, nclicks_anteriores):
+    def limpar_expressao_calculadora(_n1, _n2, aba_ativa, tipo_destino, coluna_destino,
+                                      nome_novo_canal, nclicks_anteriores):
         """'Limpar'/'C' zera tudo — mesmo esquema de 2 botões
         idênticos e mesmo guard anti-fantasma de
         'apagar_ultimo_token_calculadora' acima ('calc-limpar' também
@@ -716,7 +758,9 @@ def registrar_callbacks(app, estado):
         gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
         if gatilho_id is None:
             raise PreventUpdate
-        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, [], tipo_destino, coluna_destino)
+        conteudo = renderizar_area_calculadora_completa(
+            estado, aba_ativa, [], tipo_destino, coluna_destino, nome_novo_canal,
+        )
         return conteudo, [], novo_mapa
 
     @app.callback(
@@ -724,6 +768,7 @@ def registrar_callbacks(app, estado):
         Output('calc-expressao-store', 'data', allow_duplicate=True),
         Output('lista-canais-aba', 'children', allow_duplicate=True),
         Output('container-grafico', 'children', allow_duplicate=True),
+        Output('area-modo-nova-analise-edicao', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
         Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input('calc-criar', 'n_clicks'),
@@ -753,10 +798,10 @@ def registrar_callbacks(app, estado):
             raise PreventUpdate
 
         def _sem_mudanca_de_conteudo(mensagem):
-            """Devolve os 6 valores desta callback quando SÓ a mensagem
+            """Devolve os 7 valores desta callback quando SÓ a mensagem
             do rodapé muda (erro de validação) — a barra/expressão/
             listas continuam exatamente como estavam."""
-            return no_update, no_update, no_update, no_update, mensagem, novo_mapa
+            return no_update, no_update, no_update, no_update, no_update, mensagem, novo_mapa
 
         codigo = ''.join(t['codigo'] for t in (tokens_atuais or []))
         try:
@@ -803,19 +848,49 @@ def registrar_callbacks(app, estado):
                 nome_interno_final = f'{nome_interno}_{sufixo}'
 
             arquivo.df_editado[nome_interno_final] = valores
-            # SEM invalidar o gráfico aqui de propósito — o canal novo
-            # nasce OCULTO da seleção (como qualquer canal recém-
-            # registrado), não afeta nenhuma curva já desenhada.
             arquivo.registrar_canal(nome_interno_final, rotulo=nome_novo_canal,
                                      origem='calculado', formula=codigo)
+
+            # SELECIONA a coluna nova pro gráfico e já REDESENHA (pedido
+            # explícito: "ao gerar a nova coluna, atualizar o gráfico
+            # com a nova coluna exibida, carregar a miniatura pra que
+            # ela seja atualizada") — antes o canal nascia OCULTO da
+            # seleção de propósito, exigindo marcar a caixinha na
+            # sidebar manualmente depois. Só redesenha de verdade se
+            # JÁ existe um gráfico montado nesta aba (mesmo cuidado de
+            # 'gerenciar_selecao_canais' logo abaixo: se o usuário
+            # ainda nem gerou o primeiro gráfico, marcar a seleção não
+            # deve empurrar ele direto pra visualização sozinho — só
+            # garante que a curva já nasce marcada pra quando ele
+            # gerar).
+            estado.canais_selecionados.add((aba_ativa, nome_interno_final))
+            if arquivo.grafico_gerado:
+                arquivo.invalidar_grafico()
+                fig = construir_figura_serie_temporal(estado, aba_ativa)
+                arquivo.figura = fig
+                area_grafico = renderizar_grafico_com_fechar(fig)
             mensagem = f'🧙‍♂️: " Canal \'{nome_novo_canal}\' criado ({codigo}). "'
 
         # Limpa a expressão depois de criar (mesmo espírito de um
-        # formulário que reseta após salvar).
-        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, [], tipo_destino, None)
+        # formulário que reseta após salvar) — 'nome_novo_canal=None'
+        # aqui é só pro CÁLCULO de 'disabled' de 'Criar' na barra
+        # reconstruída (ver calc_criar_desabilitado); o campo de nome
+        # em si é 'uncontrolled' (sem 'value=' fixo, ver
+        # renderizar_calculadora_barra) e o navegador some com o texto
+        # digitado sozinho quando o nó reconstruído tiver a mesma
+        # estrutura — não precisa de um reset explícito aqui.
+        conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, [], tipo_destino, None, None)
+        # 'area-modo-nova-analise-edicao' (grupo 'Colunas' do teclado,
+        # ver renderizar_calculadora_botoes) — SEM isto, a coluna
+        # recém-criada só aparecia como botão clicável depois de
+        # recarregar a página inteira (pedido explícito: "quando eu
+        # crio uma nova coluna, ela já aparece no espaço das colunas
+        # pra poder ser operada de novo", ex: usar o resultado de um
+        # cálculo como argumento de outro).
+        botoes_calculadora = renderizar_calculadora_botoes(estado, aba_ativa)
         return (conteudo, [],
                 renderizar_colunas_da_aba_ativa(estado, aba_ativa),
-                area_grafico, mensagem, novo_mapa)
+                area_grafico, botoes_calculadora, mensagem, novo_mapa)
 
     # ------------------------------------------------------------------
     # Lista de canais (sidebar) — 2 callbacks:

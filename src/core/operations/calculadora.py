@@ -111,6 +111,35 @@ def balanco_parenteses_calculadora(tokens_expressao):
     return codigo.count('(') - codigo.count(')')
 
 
+def calc_criar_desabilitado(tokens_expressao, tipo_destino, nome_novo_canal, coluna_destino):
+    """
+    TUDO que faz o botão 'Criar' nascer/ficar desabilitado — usada
+    tanto pela reconstrução completa da barra (renderizar_calculadora_
+    barra, chamada a cada token clicado/apagado/limpo) quanto por uma
+    callback LEVE à parte (atualizar_estado_botao_criar_calculadora,
+    callbacks.py) que reage a digitação no nome/troca do dropdown sem
+    precisar reconstruir a barra inteira — as duas PRECISAM concordar
+    nesta mesma regra, senão o botão pisca entre habilitado/desabilitado
+    dependendo de qual callback rodou por último.
+
+    Três motivos pra desabilitar (qualquer um já basta):
+      1) parêntese aberto sem fechar (ver balanco_parenteses_
+         calculadora acima) — expressão ainda incompleta;
+      2) modo 'Nova coluna' com o campo de nome vazio — não dá pra
+         criar uma coluna sem nome (pedido explícito: antes o botão
+         ficava clicável mesmo vazio, só falhava DEPOIS do clique com
+         uma mensagem de erro);
+      3) modo 'Coluna existente' sem nenhuma coluna escolhida no
+         dropdown pra sobrescrever — mesmo raciocínio do (2).
+    """
+    if balanco_parenteses_calculadora(tokens_expressao) != 0:
+        return True
+    modo_nova = (tipo_destino or 'nova') != 'existente'
+    if modo_nova:
+        return not (nome_novo_canal or '').strip()
+    return not coluna_destino
+
+
 def avaliar_expressao_calculadora(codigo, arquivo, estado):
     """
     Avalia 'codigo' (a concatenação dos 'codigo' de cada token
@@ -238,6 +267,21 @@ def avaliar_expressao_calculadora(codigo, arquivo, estado):
         resultado = eval(codigo, {'__builtins__': {}}, namespace_seguro)  # noqa: S307 — namespace restrito, ver docstring
     except ZeroDivisionError:
         raise ValueError('divisão por zero na expressão.')
+    except KeyError as e:
+        # Só acontece se o token de coluna referenciar um nome que não
+        # existe (mais) em 'df_editado' — ex: a coluna foi excluída
+        # entre o clique no botão e o 'Criar', ou (antes da correção
+        # em criar_canal_calculado_calculadora, callbacks.py) o botão
+        # da coluna ficava "preso" desatualizado no painel até um
+        # recarregamento de página. Mensagem separada da genérica
+        # abaixo porque este caso tem uma AÇÃO clara pro usuário
+        # tomar (recarregar a lista de colunas), diferente de um erro
+        # de sintaxe.
+        raise ValueError(
+            f'a coluna {e} não foi encontrada nos dados atuais desta aba '
+            "— se ela acabou de ser criada, tente montar a expressão de novo "
+            "(a lista de colunas foi atualizada)."
+        )
     except Exception as e:
         raise ValueError(f'expressão inválida ({e}).')
 

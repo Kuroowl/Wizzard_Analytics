@@ -4,6 +4,7 @@ from src.gui.components import icone_colorido
 from src.core.plotting.plotter import cor_da_coluna, colunas_plotadas, PALETA_CORES
 from src.core.operations.calculadora import (
     NUMEROS, OPERADORES, FUNCOES, OPERACOES_RAPIDAS, balanco_parenteses_calculadora,
+    calc_criar_desabilitado,
 )
 
 
@@ -1082,7 +1083,8 @@ def _grupo_calculadora(titulo, pares_display_codigo, classe_extra=''):
 
 
 def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
-                                  tipo_destino='nova', coluna_destino=None):
+                                  tipo_destino='nova', coluna_destino=None,
+                                  nome_novo_canal=None):
     """
     A BARRA de cálculo — o pedaço de CIMA de '#area-modo-nova-analise'
     (ver renderizar_area_calculadora_completa logo abaixo, que embrulha
@@ -1180,24 +1182,28 @@ def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
             # sozinho, senão o popover sumiria assim que o mouse saísse
             # de cima do botão pra descer até ele.
             html.Div(className='calculadora-criar-wrapper', children=[
-                # 'disabled' + classe extra quando sobra parêntese
-                # aberto (ver balanco_parenteses_calculadora,
-                # calculadora.py) — pedido indireto: em vez de deixar
-                # o usuário clicar 'Criar' com a expressão incompleta
-                # e só descobrir com um erro (ex: 'np.log(col[...'
-                # sem o ')' final), o botão já nasce visualmente
-                # apagado/travado enquanto isso não for corrigido. A
-                # VALIDAÇÃO DE VERDADE continua em avaliar_expressao_
-                # calculadora (defesa em profundidade — 'disabled' no
-                # HTML não impede um clique disparado por outro meio),
-                # isto aqui é só o aviso visual antecipado.
+                # 'disabled' + classe extra quando a expressão ainda
+                # não está pronta pra virar coluna (ver
+                # calc_criar_desabilitado, calculadora.py — parêntese
+                # aberto OU nome/coluna-destino vazio) — pedido
+                # explícito: antes só o parêntese travava o botão;
+                # faltava cobrir o caso de tentar 'Criar' sem ter
+                # escrito um nome pra coluna nova (ou sem escolher qual
+                # sobrescrever no modo 'Coluna existente'), que hoje só
+                # falhava DEPOIS do clique com mensagem de erro. A
+                # VALIDAÇÃO DE VERDADE continua em criar_canal_
+                # calculado_calculadora/avaliar_expressao_calculadora
+                # (defesa em profundidade — 'disabled' no HTML não
+                # impede um clique disparado por outro meio), isto
+                # aqui é só o aviso visual antecipado.
                 html.Button(
                     'Criar', id='calc-criar',
                     className='calculadora-btn-criar' + (
                         ' calculadora-btn-criar-desabilitado'
-                        if balanco_parenteses_calculadora(tokens_expressao) != 0 else ''
+                        if calc_criar_desabilitado(tokens_expressao, tipo_destino, nome_novo_canal, coluna_destino)
+                        else ''
                     ),
-                    disabled=balanco_parenteses_calculadora(tokens_expressao) != 0,
+                    disabled=calc_criar_desabilitado(tokens_expressao, tipo_destino, nome_novo_canal, coluna_destino),
                     n_clicks=0,
                 ),
                 # Apagar/C — mesmo par de ações que já existe duplicado
@@ -1225,7 +1231,8 @@ def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
 
 
 def renderizar_area_calculadora_completa(estado, aba_ativa, tokens_expressao=None,
-                                          tipo_destino='nova', coluna_destino=None):
+                                          tipo_destino='nova', coluna_destino=None,
+                                          nome_novo_canal=None):
     """
     Conteúdo INTEIRO de '#area-modo-nova-analise' — a barra (topo,
     'renderizar_calculadora_barra' acima) + uma MINIATURA do gráfico
@@ -1245,7 +1252,8 @@ def renderizar_area_calculadora_completa(estado, aba_ativa, tokens_expressao=Non
     não precisa das mesmas interações do gráfico grande. Se nenhum
     gráfico foi gerado ainda, mostra um aviso no lugar.
     """
-    barra = renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao, tipo_destino, coluna_destino)
+    barra = renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao, tipo_destino, coluna_destino,
+                                          nome_novo_canal)
 
     arquivo = estado.arquivos.get(aba_ativa) if aba_ativa else None
     if arquivo and arquivo.grafico_gerado and arquivo.figura is not None:
