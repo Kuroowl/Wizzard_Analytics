@@ -85,6 +85,32 @@ OPERACOES_RAPIDAS = [
 ]
 
 
+def balanco_parenteses_calculadora(tokens_expressao):
+    """
+    Soma quantos '(' a mais (ou a menos) existem no 'codigo' acumulado
+    dos tokens já clicados — usada pra:
+      1) desabilitar visualmente 'Criar' (ver '.calculadora-btn-criar-
+         desabilitado', central_menu.css / renderizar_calculadora_
+         barra) enquanto a expressão tiver parêntese aberto, ANTES de
+         deixar o usuário tentar (e tomar um erro cru do Python tipo
+         "'(' was never closed" — foi exatamente isso que aconteceu:
+         a expressão 'np.log(col[...' sem o ')' final);
+      2) a validação amigável em 'avaliar_expressao_calculadora'
+         abaixo, que troca esse erro cru por uma mensagem que explica
+         o problema de verdade.
+
+    Cada token de FUNÇÃO ('np.log(' etc.) ou o '(' solto de OPERADORES
+    conta como abertura; o ')' solto conta como fechamento — não
+    precisamos olhar dentro de 'col[...]' porque colunas usam colchete,
+    nunca parêntese (ver _botao_token_calculadora/colunas_pares,
+    renderizadores.py). Devolve 0 se balanceado, >0 se falta fechar,
+    <0 se sobrou ')' (nunca deveria acontecer clicando só pelos
+    botões, mas o cálculo cobre o caso mesmo assim).
+    """
+    codigo = ''.join(t.get('codigo', '') for t in (tokens_expressao or []))
+    return codigo.count('(') - codigo.count(')')
+
+
 def avaliar_expressao_calculadora(codigo, arquivo, estado):
     """
     Avalia 'codigo' (a concatenação dos 'codigo' de cada token
@@ -133,6 +159,22 @@ def avaliar_expressao_calculadora(codigo, arquivo, estado):
     codigo = (codigo or '').strip()
     if not codigo:
         raise ValueError('a expressão está vazia.')
+
+    # Checagem amigável ANTES do eval — sem isso, esquecer de fechar um
+    # parêntese (clicar em 'sin(' e não clicar em ')' depois) estourava
+    # direto o SyntaxError cru do Python ("'(' was never closed
+    # (<string>, line 1)") na cara do usuário. Mesma conta de
+    # balanco_parenteses_calculadora acima, só que sobre a STRING
+    # final (cobre igual, já que 'codigo' é a concatenação exata dos
+    # 'codigo' de cada token).
+    faltando = codigo.count('(') - codigo.count(')')
+    if faltando > 0:
+        raise ValueError(
+            f"faltou fechar {faltando} parêntese{'s' if faltando > 1 else ''} "
+            "— clique em ')' antes de Criar."
+        )
+    if faltando < 0:
+        raise ValueError("tem um ')' sobrando sem um '(' pra combinar.")
 
     df = arquivo.df_editado
     n_linhas = len(df)

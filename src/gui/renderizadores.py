@@ -2,7 +2,9 @@ from dash import dcc, html
 
 from src.gui.components import icone_colorido
 from src.core.plotting.plotter import cor_da_coluna, colunas_plotadas, PALETA_CORES
-from src.core.operations.calculadora import NUMEROS, OPERADORES, FUNCOES, OPERACOES_RAPIDAS
+from src.core.operations.calculadora import (
+    NUMEROS, OPERADORES, FUNCOES, OPERACOES_RAPIDAS, balanco_parenteses_calculadora,
+)
 
 
 def renderizar_info_rodape(estado, aba_ativa):
@@ -1178,7 +1180,26 @@ def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
             # sozinho, senão o popover sumiria assim que o mouse saísse
             # de cima do botão pra descer até ele.
             html.Div(className='calculadora-criar-wrapper', children=[
-                html.Button('Criar', id='calc-criar', className='calculadora-btn-criar', n_clicks=0),
+                # 'disabled' + classe extra quando sobra parêntese
+                # aberto (ver balanco_parenteses_calculadora,
+                # calculadora.py) — pedido indireto: em vez de deixar
+                # o usuário clicar 'Criar' com a expressão incompleta
+                # e só descobrir com um erro (ex: 'np.log(col[...'
+                # sem o ')' final), o botão já nasce visualmente
+                # apagado/travado enquanto isso não for corrigido. A
+                # VALIDAÇÃO DE VERDADE continua em avaliar_expressao_
+                # calculadora (defesa em profundidade — 'disabled' no
+                # HTML não impede um clique disparado por outro meio),
+                # isto aqui é só o aviso visual antecipado.
+                html.Button(
+                    'Criar', id='calc-criar',
+                    className='calculadora-btn-criar' + (
+                        ' calculadora-btn-criar-desabilitado'
+                        if balanco_parenteses_calculadora(tokens_expressao) != 0 else ''
+                    ),
+                    disabled=balanco_parenteses_calculadora(tokens_expressao) != 0,
+                    n_clicks=0,
+                ),
                 # Apagar/C — mesmo par de ações que já existe duplicado
                 # no teclado do menu ao lado ('calc-apagar-teclado'/
                 # 'calc-limpar-teclado', mais abaixo nesta função) —
@@ -1279,20 +1300,6 @@ def renderizar_calculadora_botoes(estado, aba_ativa):
     return html.Div(className='calculadora-botoes', children=[
         html.Div(className='calculadora-grupo', children=[
             html.Div('Calculadora', className='calculadora-grupo-titulo'),
-            # Topo: C/⌫ DUPLICADOS aqui (mesma ação de 'Limpar'/'Apagar'
-            # da barra lá em cima — ids DIFERENTES, mas os DOIS viram
-            # Input do MESMO callback, ver limpar_expressao_calculadora/
-            # apagar_ultimo_token_calculadora em callbacks.py) — pedido
-            # explícito, pra não precisar olhar pra barra só pra
-            # limpar/apagar. Vermelho (mesmo tom de alerta usado em
-            # corte/exclusão no resto do app) pra se destacar dos
-            # botões de valor abaixo.
-            html.Div(className='calculadora-teclado-topo', children=[
-                html.Button('C', id='calc-limpar-teclado', className='calculadora-btn-c',
-                            n_clicks=0, title='Limpar tudo'),
-                html.Button('⌫', id='calc-apagar-teclado', className='calculadora-btn-del',
-                            n_clicks=0, title='Apagar último'),
-            ]),
             # Teclado tipo calculadora CIENTÍFICA de verdade — Funções
             # (coluna estreita à esquerda) + Números (grade 3 colunas,
             # no meio) + Operadores (coluna estreita à direita), mesma
@@ -1305,9 +1312,33 @@ def renderizar_calculadora_botoes(estado, aba_ativa):
                     _botao_token_calculadora(display, codigo, 'calculadora-token-funcao')
                     for display, codigo in FUNCOES
                 ]),
-                html.Div(className='calculadora-numeros-grid', children=[
-                    _botao_token_calculadora(display, codigo, 'calculadora-token-numero')
-                    for display, codigo in NUMEROS
+                # 'calculadora-numeros-coluna': C/⌫ + a grade de números
+                # AGORA moram dentro do MESMO wrapper (pedido explícito
+                # — antes 'calculadora-teclado-topo' era uma linha
+                # SOLTA, largura cheia do grupo, alinhada com
+                # 'justify-content: flex-end'; como a grade de números
+                # fica CENTRALIZADA dentro de 'calculadora-teclado-
+                # corpo' — e sua posição horizontal muda conforme a
+                # largura da coluna de Funções à esquerda — C/⌫
+                # ficavam desalinhados dela, coladas na borda direita
+                # do grupo em vez de alinhadas com os números que
+                # servem). Com os dois dentro do MESMO wrapper de
+                # largura igual à grade (ver '.calculadora-numeros-
+                # coluna'/'.calculadora-teclado-topo' em edit_menu.css
+                # — mesma largura calculada: 3 botões de 32px + 2 gaps
+                # de 5px), C/⌫ ficam sempre exatamente acima da grade,
+                # não importa quanto a coluna de Funções cresça/encolha.
+                html.Div(className='calculadora-numeros-coluna', children=[
+                    html.Div(className='calculadora-teclado-topo', children=[
+                        html.Button('C', id='calc-limpar-teclado', className='calculadora-btn-c',
+                                    n_clicks=0, title='Limpar tudo'),
+                        html.Button('⌫', id='calc-apagar-teclado', className='calculadora-btn-del',
+                                    n_clicks=0, title='Apagar último'),
+                    ]),
+                    html.Div(className='calculadora-numeros-grid', children=[
+                        _botao_token_calculadora(display, codigo, 'calculadora-token-numero')
+                        for display, codigo in NUMEROS
+                    ]),
                 ]),
                 html.Div(className='calculadora-operadores-coluna', children=[
                     _botao_token_calculadora(display, codigo, 'calculadora-token-operador')

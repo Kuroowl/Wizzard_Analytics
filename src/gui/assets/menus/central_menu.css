@@ -452,7 +452,16 @@
   display: none !important;
 }
 
+/* Largura FIXA (era 'auto', só 'padding' definindo o tamanho) —
+   pedido explícito: Apagar/Limpar dentro do popover (ver
+   '.calculadora-criar-popover .calculadora-btn-c/.calculadora-btn-del'
+   abaixo) precisam ter o MESMO TAMANHO EXATO deste botão, não só um
+   parecido. Com 'width' fixo aqui E no popover (mesmo valor), os 3
+   botões ficam pixel-a-pixel idênticos em tamanho, só o texto/cor
+   mudando. 'box-sizing: border-box' garante que o padding não estoure
+   essa largura fixa. */
 .calculadora-btn-criar {
+  width: 76px;
   height: 36px;
   padding: 0 14px;
   border-radius: 5px;
@@ -461,7 +470,8 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
+  box-sizing: border-box;
+  transition: background 0.1s, border-color 0.1s, opacity 0.1s;
   /* 'Criar' é a única ação que GRAVA de verdade (coluna nova ou
      sobrescrita) — cor de accent sólida, se destacando de Apagar/C
      (que agora só aparecem no popover, ver '.calculadora-criar-
@@ -473,4 +483,38 @@
 
 .calculadora-btn-criar:hover {
   background-color: #268F8A;
+}
+
+/* Aparece enquanto a expressão tem parêntese aberto sem fechar (ver
+   'balanco_parenteses_calculadora', calculadora.py, e o 'disabled'
+   condicional em renderizar_calculadora_barra) — pedido indireto: é
+   exatamente essa situação ('sin(', clica a coluna, esquece o ')')
+   que estourava o erro cru "'(' was never closed" ao clicar 'Criar'.
+   Com o botão visivelmente apagado + cursor bloqueado, fica óbvio
+   ANTES do clique que falta fechar alguma coisa. 'disabled' do HTML
+   já impede o clique de verdade; isto aqui é só o styling. */
+.calculadora-btn-criar-desabilitado,
+.calculadora-btn-criar-desabilitado:hover {
+  background-color: var(--cor-texto-mudo);
+  border-color: var(--cor-texto-mudo);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Apagar/Limpar dentro do popover de 'Criar' — MESMO tamanho exato
+   dele (pedido explícito: "os botões do popup têm que ter o mesmo
+   tamanho do Criar pra ficarem todos iguais"). Note que isto é
+   diferente do C/⌫ que moram no teclado numérico do painel da
+   direita (ver '.calculadora-teclado-topo' em edit_menu.css) — lá o
+   pedido foi o OPOSTO (acompanhar o tamanho dos números, não do
+   Criar) — por isso a regra é escopada aqui, só dentro do popover,
+   nunca solta em '.calculadora-btn-c'/'.calculadora-btn-del' puro
+   (que continua só cuidando da COR, compartilhada nos dois lugares). */
+.calculadora-criar-popover .calculadora-btn-c,
+.calculadora-criar-popover .calculadora-btn-del {
+  width: 76px;
+  height: 36px;
+  padding: 0;
+  box-sizing: border-box;
+  text-align: center;
 }

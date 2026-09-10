@@ -1037,11 +1037,39 @@
    longe de números/operadores.
    ========================================================================== */
 
-.calculadora-teclado-topo {
+/* 'calculadora-numeros-coluna': wrapper NOVO que junta C/⌫ + a grade
+   de números na mesma coluna vertical (ver renderizar_calculadora_
+   botoes, renderizadores.py — os dois viviam soltos antes, C/⌫ numa
+   linha de largura cheia do grupo, alinhada à direita, enquanto a
+   grade ficava centralizada no meio do teclado — desalinhados um do
+   outro sempre que a coluna de Funções à esquerda mudasse de
+   largura). Sem 'width' explícito aqui: o filho '.calculadora-
+   numeros-grid' já tem largura INTRÍNSECA fixa (3 colunas de 32px,
+   ver abaixo) — este wrapper naturalmente encolhe pra esse tamanho
+   ('flex: 0 0 auto' no pai 'calculadora-teclado-corpo' já impede
+   esticar), e '.calculadora-teclado-topo' abaixo usa a MESMA largura
+   fixa (106px) pra garantir alinhamento pixel-a-pixel mesmo que algo
+   mude no cálculo de 'auto'. */
+.calculadora-numeros-coluna {
   display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  margin-bottom: 8px;
+  flex-direction: column;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+/* Largura FIXA = EXATAMENTE a largura da grade de números logo
+   abaixo (3 botões de 32px + 2 vãos de 5px = 106px, ver
+   '.calculadora-numeros-grid') — é isso que garante o alinhamento
+   pedido, em vez do 'justify-content: flex-end' de antes (que
+   colava os botões na borda direita do GRUPO inteiro, não da grade).
+   Grid de 2 colunas iguais preenchendo essa largura — cada botão do
+   MESMO tamanho, os dois juntos ocupando a largura toda da grade
+   abaixo deles. */
+.calculadora-teclado-topo {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+  width: 106px;
 }
 
 /* C/⌫ duplicados aqui (mesma ação de 'Limpar'/'Apagar' da barra lá em
@@ -1056,7 +1084,13 @@
    translúcido com texto colorido de antes) — essa mesma classe
    também é reaproveitada nos botões ⌫/C que moram dentro do popover
    de 'Criar' (ver '.calculadora-criar-popover', central_menu.css),
-   então o ajuste vale pros dois lugares de uma vez. */
+   então o ajuste de COR vale pros dois lugares de uma vez — mas o
+   TAMANHO/padding é escopado separadamente em cada contexto (ver
+   '.calculadora-criar-popover .calculadora-btn-c/.calculadora-btn-del'
+   em central_menu.css, pra ficar do tamanho do 'Criar', e
+   '.calculadora-teclado-topo .calculadora-btn-c/.calculadora-btn-del'
+   logo abaixo, pra ficar do tamanho dos números — pedidos opostos
+   nos dois lugares). */
 .calculadora-btn-c,
 .calculadora-btn-del {
   font-family: var(--fonte-ui);
@@ -1066,15 +1100,36 @@
   background-color: #D9534F;
   border: 1px solid #D9534F;
   border-radius: 5px;
-  padding: 6px 12px;
   cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
+  box-sizing: border-box;
+  transition: background 0.1s, border-color 0.1s, transform 0.05s;
+}
+
+/* Mesmo "peso" visual dos botões de número (mesmo padding/font-size/
+   border-radius de '.calculadora-token-numero') — pedido explícito:
+   "os botões C/⌫ têm que ter o mesmo comportamento do teclado
+   numérico". Sem 'width' fixo aqui — o grid de 2 colunas do pai
+   ('.calculadora-teclado-topo' acima) já reparte a largura igual
+   pros dois. */
+.calculadora-teclado-topo .calculadora-btn-c,
+.calculadora-teclado-topo .calculadora-btn-del {
+  padding: 5px 8px;
+  text-align: center;
 }
 
 .calculadora-btn-c:hover,
 .calculadora-btn-del:hover {
   background-color: #C0392B;
   border-color: #C0392B;
+}
+
+/* Mesmo "feedback de clique" que os botões de valor do teclado (ver
+   '.calculadora-token:active' acima) — pedido explícito: C/⌫ do
+   painel direito devem se comportar igual aos números, não só ter a
+   MESMA cor de antes. */
+.calculadora-btn-c:active,
+.calculadora-btn-del:active {
+  transform: scale(0.97);
 }
 
 /* Sem 'justify-content' explícito, o padrão ('flex-start') deixava o
