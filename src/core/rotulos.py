@@ -83,24 +83,104 @@ def renderizar_texto_grafico(texto):
     """
     Prepara um texto (título do gráfico, título de eixo, rótulo de
     coluna) pro Plotly renderizar como LaTeX quando fizer sentido —
-    embrulha em '$...$' SE 'is_math(texto)' for verdadeiro, e só
-    funciona de fato se o componente Graph tiver sido criado com
-    'mathjax=True' (ver renderizadores.py). Texto comum (sem sintaxe
-    LaTeX detectada) passa direto, sem nenhuma mudança — é assim que
-    o texto ORIGINAL fica preservado (não existe conversão permanente
-    pra Unicode nem pra nenhuma outra forma: o que está guardado em
-    'Canal.rotulo'/'PreferenciasTexto.texto' continua sendo
-    exatamente o que o usuário digitou; só na hora de montar a figura
-    é que decidimos como apresentar).
+    RENDERER da arquitetura TextManager -> TextParser -> Renderer.
 
-    Não faz nada se o texto já vier embrulhado em '$...$' (o usuário
-    delimitou na mão) — embrulhar de novo quebraria a sintaxe.
+    Diferente da v1 (que classificava o texto INTEIRO como "é tudo
+    matemática" ou "não é nada"): o Plotly troca de comportamento na
+    hora que encontra QUALQUER '$...$' — tudo que estiver fora dos
+    delimitadores é descartado (bug conhecido/documentado do próprio
+    Plotly.js, não algo que dava pra contornar então). Um texto como
+    'differential pressure, \\Delta P_{12}' virava TUDO matemática
+    (a vírgula/espaço/palavras comuns iam pro modo matemático junto,
+    resultado ilegível) — pedido explícito pra corrigir: fragmentar,
+    não tratar como bloco único.
+
+    Agora '_fragmentar_texto' (abaixo) quebra o texto em pedaços
+    comuns e matemáticos, e cada pedaço COMUM vira um bloco '\\text
+    {...}' DENTRO de uma única expressão matemática — differente de
+    tentar vários pares de '$...$' soltos (que é exatamente o que o
+    Plotly não suporta bem, ver docstring de _fragmentar_texto): como
+    tudo fica dentro de UM SÓ par de '$...$', o Plotly nunca perde
+    texto nenhum, e '\\text{}' é o comando padrão do LaTeX pra
+    escrever texto comum (fonte reta, não itálico de variável) DENTRO
+    do modo matemático — é assim que o resultado final ainda parece
+    "texto normal, com uma fórmula no meio", que é o que o usuário via
+    numa ferramenta LaTeX de verdade.
+
+    Sem NENHUM pedaço reconhecido como matemática, devolve o texto
+    ORIGINAL sem tocar em nada (nem embrulha em '$...$' à toa).
     """
     if not texto:
         return texto
     texto = str(texto)
     if texto.startswith('$') and texto.endswith('$') and len(texto) > 1:
         return texto
-    if is_math(texto):
-        return f'${texto}$'
-    return texto
+
+    partes = _fragmentar_texto(texto)
+    if not any(tipo == 'math' for tipo, _ in partes):
+        return texto
+
+    pedacos_finais = []
+    for tipo, pedaco in partes:
+        if tipo == 'math':
+            pedacos_finais.append(pedaco)
+        else:
+            # Escapa só '{'/'}' (os únicos caracteres que quebrariam o
+            # balanceamento do '\text{...}' se aparecessem soltos num
+            # trecho comum) — o resto do texto comum passa intacto.
+            pedaco_seguro = pedaco.replace('{', r'\{').replace('}', r'\}')
+            pedacos_finais.append('\\text{' + pedaco_seguro + '}')
+    return '$' + ''.join(pedacos_finais) + '$'
+
+
+_SEPARADOR_CLAUSULA = re.compile(r'([,;]\s*)')
+
+
+def _fragmentar_texto(texto):
+    """
+    TextParser da arquitetura TextManager -> TextParser -> Renderer:
+    quebra 'texto' numa lista de (tipo, pedaço) — tipo 'math' ou
+    'plain' — SEM decidir isso pro texto inteiro de uma vez.
+
+    Corta nas VÍRGULAS/PONTOS-E-VÍRGULA (não em cada espaço/palavra):
+    uma expressão como '\\Delta P_{12}' — ou até só '\\Delta P', um
+    dos exemplos originais — tem VÁRIAS palavras que precisam ficar
+    JUNTAS no mesmo bloco matemático; cortar em todo espaço quebraria
+    isso ao meio (o '\\Delta' sozinho reconhecido como matemática, o
+    'P' sozinho — sem comando LaTeX nem chave — caindo como texto
+    comum por engano). A vírgula, em compensação, é o separador
+    natural que o próprio usuário já usa pra separar "descrição
+    solta" de "fórmula" (ex: 'differential pressure, \\Delta P_{12}',
+    caso relatado) — cada trecho ENTRE vírgulas é classificado como
+    UM BLOCO com 'is_math()', não palavra por palavra.
+
+    Pedaços ADJACENTES do MESMO tipo são unidos num só (preservando a
+    vírgula/espaço original entre eles) — evita fragmentar à toa uma
+    frase inteiramente comum, ou uma fórmula com vírgula interna.
+    """
+    brutos = _SEPARADOR_CLAUSULA.split(texto)
+    # 'brutos' alterna: cláusula, separador (',' ou ';' + espaços
+    # seguintes, capturados JUNTOS pelo grupo), cláusula, separador...
+    # — índices pares são cláusulas, ímpares são separadores.
+    partes = []
+    tipo_atual = None
+    buffer = ''
+    for indice, pedaco in enumerate(brutos):
+        if not pedaco:
+            continue
+        if indice % 2 == 1:
+            # Separador — sempre cola no bloco ANTERIOR (não abre um
+            # bloco novo sozinho, e não decide tipo nenhum).
+            buffer += pedaco
+            continue
+        tipo = 'math' if is_math(pedaco) else 'plain'
+        if tipo != tipo_atual:
+            if buffer:
+                partes.append((tipo_atual, buffer))
+            buffer = pedaco
+            tipo_atual = tipo
+        else:
+            buffer += pedaco
+    if buffer:
+        partes.append((tipo_atual, buffer))
+    return partes
