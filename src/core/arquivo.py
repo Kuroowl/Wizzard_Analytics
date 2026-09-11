@@ -312,6 +312,40 @@ class Arquivo:
         """Canais que devem aparecer na lista lateral e podem ser plotados."""
         return [nome for nome, canal in self.canais.items() if canal.status == StatusCanal.VISIVEL]
 
+    def colunas_disponiveis_calculo(self) -> list:
+        """
+        Canais que podem ser usados na CALCULADORA — nos botões de
+        'Colunas' (ver renderizar_calculadora_botoes, renderizadores.py)
+        e no dropdown de 'Coluna existente' pra sobrescrever.
+
+        DIFERENTE de colunas_visiveis(): inclui também os canais
+        atribuídos ao eixo X ou a algum eixo Y do gráfico (ver
+        mover_para_eixo_x/mover_para_eixo_y abaixo) — esses ficam
+        OCULTOS da lista lateral 'Dados do arquivo:' de propósito, mas
+        estar sendo plotado não deve impedir usar o mesmo dado numa
+        conta (pedido explícito: "posso estar exibindo P1 no gráfico e
+        querer fazer contas com P1" — antes a lista da calculadora
+        seguia a mesma visibilidade da barra lateral, então um canal
+        que tinha acabado de virar X/Y sumia dali também, o que não
+        fazia sentido: a disponibilidade pra CÁLCULO nunca deveria
+        depender de o quê está sendo mostrado no gráfico AGORA).
+
+        NÃO inclui os outros OCULTOS (ex: colunas não-numéricas
+        escondidas no carregamento, ver colunas_ocultas_iniciais em
+        EstadoApp.adicionar_arquivo) — essas continuam de fora porque
+        não servem pra conta nenhuma mesmo, incluí-las só poluiria a
+        lista de botões com colunas que sempre dariam erro ao usar.
+        Nem EXCLUÍDOS (soft-delete) — esses realmente não devem
+        aparecer em lugar nenhum.
+        """
+        atribuidas_a_eixo = set(self.eixos_y_manual)
+        if self.eixo_x_manual:
+            atribuidas_a_eixo.add(self.eixo_x_manual)
+        return [
+            nome for nome, canal in self.canais.items()
+            if canal.status == StatusCanal.VISIVEL or nome in atribuidas_a_eixo
+        ]
+
     def excluir_canal(self, nome_interno: str) -> None:
         """
         Soft-delete: o canal some da lista/seleção, mas o dado permanece no df_editado.

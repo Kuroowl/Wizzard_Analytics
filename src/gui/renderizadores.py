@@ -285,14 +285,27 @@ def renderizar_selecao_eixos(estado, aba_ativa, canal_em_edicao=None):
     ocupando a largura TOTAL da caixa e empilhadas (não mais um "chip"
     pequeno lado a lado — pedido explícito também).
 
-    Sempre renderizada (mesmo com X/Y vazios) — nasce junto com a
-    lista de colunas, ANTES de qualquer gráfico existir (pedido
-    explícito: os dois slots já aparecem em branco assim que o
-    arquivo é carregado, não só depois de clicar em 'Plotar Seleção').
+    SÓ aparece depois que 'Plotar Seleção' foi clicado pelo menos uma
+    vez nesta aba (checa 'arquivo.grafico_gerado') — pedido explícito,
+    revisando a versão anterior: "essa nova seção... só deve ser
+    exibida quando clicamos em plotar seleção". Antes de clicar, a
+    atribuição de X/Y ainda pode acontecer nos bastidores (clicar um
+    nome na lista já registra em Arquivo.eixo_x_manual/eixos_y_manual),
+    só não tem uma seção própria mostrando isso até existir um gráfico
+    de verdade. Fechar o gráfico ('fechar_grafico', callbacks.py)
+    também esconde esta seção de novo (mesmo sinal: 'grafico_gerado'
+    vira False) — reabrir com 'Plotar Seleção' a traz de volta com a
+    MESMA atribuição de antes (ela não é perdida ao fechar).
+
+    Título 'Variáveis do gráfico:' na MESMA classe de 'Dados do
+    arquivo:' (ver layout.py) — pedido explícito, pra ficar visualmente
+    no mesmo padrão de separação de seção.
     """
     if not aba_ativa or aba_ativa not in estado.arquivos:
         return []
     arquivo = estado.arquivos[aba_ativa]
+    if not arquivo.grafico_gerado:
+        return []
 
     def _linha(coluna, eixo):
         return _linha_canal_lateral(
@@ -310,12 +323,15 @@ def renderizar_selecao_eixos(estado, aba_ativa, canal_em_edicao=None):
         else [html.Span('clique nos canais que quer plotar', className='eixo-caixa-vazia')]
     )
 
-    return html.Div(className='selecao-eixos-container', children=[
-        html.Div('X:', className='eixo-rotulo'),
-        html.Div(conteudo_x, className='eixo-caixa'),
-        html.Div('Y:', className='eixo-rotulo'),
-        html.Div(conteudo_y, className='eixo-caixa'),
-    ])
+    return [
+        html.Div('Variáveis do gráfico:', className='sidebar-secao-titulo'),
+        html.Div(className='selecao-eixos-container', children=[
+            html.Div('X:', className='eixo-rotulo'),
+            html.Div(conteudo_x, className='eixo-caixa'),
+            html.Div('Y:', className='eixo-rotulo'),
+            html.Div(conteudo_y, className='eixo-caixa'),
+        ]),
+    ]
 
 
 # Nomes dos ícones das 6 opções de tipo de gráfico — placeholders genéricos,
@@ -1194,8 +1210,12 @@ def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
     arquivo = estado.arquivos.get(aba_ativa) if aba_ativa else None
     opcoes_colunas_destino = []
     if arquivo:
+        # 'colunas_disponiveis_calculo' (não 'colunas_visiveis') — pra
+        # poder sobrescrever até um canal que esteja atribuído a X/Y
+        # do gráfico agora (ver docstring completa em Arquivo.
+        # colunas_disponiveis_calculo, src/core/arquivo.py).
         opcoes_colunas_destino = [
-            {'label': arquivo.rotulo(nome), 'value': nome} for nome in arquivo.colunas_visiveis()
+            {'label': arquivo.rotulo(nome), 'value': nome} for nome in arquivo.colunas_disponiveis_calculo()
         ]
 
     # Nome-input e dropdown-de-coluna-existente nascem OS DOIS sempre
@@ -1379,7 +1399,16 @@ def renderizar_calculadora_botoes(estado, aba_ativa):
     arquivo = estado.arquivos.get(aba_ativa) if aba_ativa else None
     colunas_pares = []
     if arquivo:
-        for nome_interno in arquivo.colunas_visiveis():
+        # 'colunas_disponiveis_calculo' (não 'colunas_visiveis') — os
+        # botões de coluna da calculadora precisam continuar oferecendo
+        # um canal mesmo depois dele virar X/Y do gráfico (ver
+        # docstring completa em Arquivo.colunas_disponiveis_calculo,
+        # src/core/arquivo.py — pedido explícito: "posso estar exibindo
+        # P1 no gráfico e querer fazer contas com P1"). Antes seguia
+        # 'colunas_visiveis()', a MESMA lista da barra lateral — um
+        # canal virar X/Y não deveria também tirá-lo da disponibilidade
+        # de cálculo, são preocupações diferentes.
+        for nome_interno in arquivo.colunas_disponiveis_calculo():
             rotulo = arquivo.rotulo(nome_interno)
             # 'display' é o texto TRUNCADO (o que aparece no botão e no
             # chip da barra — ver _truncar_nome_coluna_calculadora

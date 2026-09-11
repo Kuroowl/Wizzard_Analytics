@@ -159,9 +159,12 @@
    gerenciar_atribuicao_eixos (callbacks.py). Mesma linguagem visual
    do '.canais-cartao' logo abaixo (cartão claro com sombra sutil
    sobre o fundo com watermark da sidebar), pra parecer parte do
-   mesmo "grupo de controles de coluna", só que ACIMA — pedido
-   explícito: os dois slots ficam visíveis desde o carregamento do
-   arquivo, antes mesmo de qualquer gráfico existir. */
+   mesmo "grupo de controles de coluna", só que ACIMA. Título próprio
+   ('Variáveis do gráfico:', mesma classe '.sidebar-secao-titulo' de
+   'Dados do arquivo:') fica de fora do container em si — é o PRIMEIRO
+   filho devolvido por renderizar_selecao_eixos, junto com o container,
+   os dois aparecendo/somendo juntos (só depois de 'Plotar Seleção' ser
+   clicado pelo menos uma vez — ver docstring completa da função). */
 .selecao-eixos-container {
   display: flex;
   flex-direction: column;
@@ -171,7 +174,13 @@
   border-radius: 8px;
   box-shadow: 0 1px 4px rgba(27, 36, 48, 0.10);
   padding: 8px;
-  margin: 8px 8px 4px 8px;
+  /* Mesma margem horizontal de '.canais-cartao' (2px) — antes tinha
+     8px dos dois lados, uma sobra maior que a do cartão de 'Dados do
+     arquivo:' logo abaixo, quebrando o alinhamento entre as duas
+     seções. Margem de CIMA reduzida pra 0 — agora tem um título
+     próprio ('.sidebar-secao-titulo', ver renderizar_selecao_eixos)
+     logo acima, que já traz seus 16px/6px de respiro sozinho. */
+  margin: 0 2px 12px 2px;
 }
 
 .eixo-rotulo {

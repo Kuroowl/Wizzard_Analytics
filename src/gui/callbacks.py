@@ -1324,6 +1324,7 @@ def registrar_callbacks(app, estado):
     @app.callback(
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('lista-canais-aba', 'children', allow_duplicate=True),
+        Output('selecao-eixos-container', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
         Output('aparar-dados', 'disabled', allow_duplicate=True),
         Output('excluir-dados', 'disabled', allow_duplicate=True),
@@ -1363,6 +1364,7 @@ def registrar_callbacks(app, estado):
             raise PreventUpdate
 
         lista_canais = no_update
+        selecao_eixos = no_update
         if aba_ativa in estado.arquivos:
             estado.arquivos[aba_ativa].invalidar_grafico()
             # ANTES: o canal do eixo X só ficava oculto ENQUANTO o
@@ -1370,10 +1372,16 @@ def registrar_callbacks(app, estado):
             # (exibir_canal_eixo). Desde o rework do 'Plotar Seleção',
             # a atribuição de X/Y é uma escolha PERSISTENTE do usuário
             # (Arquivo.eixo_x_manual/eixos_y_manual) — fechar só a
-            # VISUALIZAÇÃO não deve desfazer essa escolha; ela continua
-            # valendo pra próxima vez que ele clicar em 'Plotar
-            # Seleção' de novo. Por isso não mexemos mais em X/Y (nem
-            # em 'lista_canais'/'selecao-eixos-container') aqui.
+            # VISUALIZAÇÃO não desfaz essa escolha; ela continua valendo
+            # pra próxima vez que ele clicar em 'Plotar Seleção' de novo
+            # (não mexemos em 'lista_canais' aqui). A SEÇÃO 'Variáveis
+            # do gráfico:' em si, porém, PRECISA sumir junto (pedido
+            # explícito: só aparece "quando clicamos em Plotar
+            # Seleção") — 'renderizar_selecao_eixos' já esconde
+            # sozinha quando 'arquivo.grafico_gerado' é False (que
+            # 'invalidar_grafico()' logo acima acabou de tornar
+            # verdade), então só precisa chamar de novo aqui.
+            selecao_eixos = renderizar_selecao_eixos(estado, aba_ativa)
 
         area_grafico = renderizar_area_grafico(estado)
         mensagem = '🧙‍♂️: " Gráfico fechado. Escolha outra opção. "'
@@ -1400,7 +1408,7 @@ def registrar_callbacks(app, estado):
         # estado normal, já que não faz sentido continuar "em edição" de
         # um gráfico que não existe mais).
         sem_arquivo, _, sem_grafico_da_aba = _estados_toolbar(estado, aba_ativa)
-        return (area_grafico, lista_canais, mensagem,
+        return (area_grafico, lista_canais, selecao_eixos, mensagem,
                 sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
                 sem_grafico_da_aba, _classe_painel_direito(ativo=False),
                 renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba), True,
