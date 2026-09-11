@@ -347,7 +347,25 @@
   white-space: nowrap;
 }
 
-.painel-edicao-campo-linha > .painel-edicao-dropdown-largura,
+.painel-edicao-campo-linha > .painel-edicao-dropdown-largura {
+  /* 'flex: 1 1 0%' (basis ZERO, não 'auto') — BUG corrigido de novo:
+     com 'auto', o flex-basis parte do tamanho de CONTEÚDO do wrapper
+     antes de distribuir o espaço sobrando, e algum filho lá dentro
+     ainda carregava uma largura intrínseca própria que vencia o
+     grow — comparando com '.painel-edicao-campo' (usado por 'Dado:',
+     seção 'Curva', que SEMPRE ocupa a largura toda): lá o dropdown
+     nem precisa de flex-grow nenhum, porque é filho único de um
+     container em COLUNA (default 'align-items: stretch' já estica
+     qualquer bloco pra largura toda, sem depender do conteúdo).
+     'flex-basis: 0%' replica esse mesmo efeito aqui dentro de uma
+     linha (row): o wrapper passa a tirar 100% do seu tamanho da
+     distribuição de espaço do flex, IGNORANDO por completo qualquer
+     largura de conteúdo interna — não sobra brecha pra nada por
+     dentro "vencer" o grow. */
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
 .painel-edicao-campo-linha > .painel-edicao-segmentado-wrapper {
   flex: 1 1 auto;
   min-width: 0;
@@ -365,13 +383,40 @@
    direto desta linha, o flex:1 sempre tem onde grudar — o dropdown
    em si só precisa encher esse wrapper (regra descendente logo
    abaixo, não filho direto, então funciona não importa quantos
-   níveis o componente insira por dentro). */
+   níveis o componente insira por dentro).
+
+   'display: block' aqui (não mais 'flex') — o wrapper virar TAMBÉM
+   um flex container (row, por padrão) só empilhava mais uma camada de
+   flexbox sem necessidade: quem precisa esticar é o WRAPPER dentro da
+   LINHA de fora (isso o 'flex: 1 1 0%' acima já resolve sozinho); o
+   dropdown lá dentro só precisa de 'width: 100%' contra um bloco
+   comum, igual funcionaria em qualquer <div> simples. */
 .painel-edicao-dropdown-largura {
-  display: flex;
+  display: block;
 }
 
 .painel-edicao-dropdown-largura .painel-edicao-dropdown {
   width: 100%;
+  box-sizing: border-box;
+}
+
+/* Reforço em CADA nível da estrutura interna (ver comentário completo
+   com a árvore real do componente, algumas linhas abaixo) — 'width:
+   100%' só no elemento raiz ('.painel-edicao-dropdown' acima) não é
+   suficiente se ALGUM nível no meio do caminho até a caixa visível
+   ('.dash-dropdown-content', que tem a borda/raio) usar 'display:
+   inline-block' ou algo parecido por padrão (sizing pelo conteúdo,
+   não pelo pai) — nesse caso a largura 100% do pai simplesmente para
+   de "descer" nesse ponto e não chega na caixa que o usuário
+   realmente VÊ. Repetir 'width: 100%' em cada nível garante que
+   nenhum deles decida sozinho voltar a se ajustar pelo texto
+   selecionado, não importa qual comportamento padrão a biblioteca
+   usa em cada um. */
+.painel-edicao-dropdown-largura .painel-edicao-dropdown .dash-dropdown-wrapper,
+.painel-edicao-dropdown-largura .painel-edicao-dropdown .dash-dropdown-content,
+.painel-edicao-dropdown-largura .painel-edicao-dropdown .dash-dropdown-trigger {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* 'cor:' + 'Style:' + 'Marker:' viram uma linha só, as 3 caixas com a
