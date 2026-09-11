@@ -271,6 +271,16 @@ def montar_layout(estado):
                     html.Div(id='container-abas-chrome', className='tabs-chrome-container'),
                     html.Button('›', id='aba-nav-direita', className='aba-nav-btn', n_clicks=0),
                 ]),
+                # Slots de atribuição manual de eixo X/Y do botão
+                # 'Plotar Seleção' (era 'Gerar Série Temporal') — ver
+                # renderizar_selecao_eixos, renderizadores.py, e
+                # gerenciar_atribuicao_eixos, callbacks.py. Nasce
+                # VAZIO (populado assim que há uma aba ativa, mesmo
+                # espírito de 'lista-canais-aba' logo abaixo) — fica
+                # ACIMA de 'Dados do arquivo:' de propósito (pedido
+                # explícito): é o primeiro lugar que o olho encontra,
+                # antes da lista de colunas ainda não atribuídas.
+                html.Div(id='selecao-eixos-container'),
                 html.Div('Dados do arquivo:', className='sidebar-secao-titulo'),
                 html.Div(id='lista-canais-aba', className='menu-canais-container')
             ]),

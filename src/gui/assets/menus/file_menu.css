@@ -153,6 +153,97 @@
 
 .aba-nav-btn:hover { background: rgba(47, 165, 160, 0.25); }
 
+/* --- seleção manual de eixos (botão 'Plotar Seleção') ---
+   Dois "slots" (X:/Y:) entre as abas e a lista 'Dados do arquivo:' —
+   ver renderizar_selecao_eixos (renderizadores.py) e
+   gerenciar_atribuicao_eixos (callbacks.py). Mesma linguagem visual
+   do '.canais-cartao' logo abaixo (cartão claro com sombra sutil
+   sobre o fundo com watermark da sidebar), pra parecer parte do
+   mesmo "grupo de controles de coluna", só que ACIMA — pedido
+   explícito: os dois slots ficam visíveis desde o carregamento do
+   arquivo, antes mesmo de qualquer gráfico existir. */
+.selecao-eixos-container {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background-color: var(--cor-fundo);
+  border: 1px solid var(--cor-borda);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(27, 36, 48, 0.10);
+  padding: 8px;
+  margin: 8px 8px 4px 8px;
+}
+
+.eixo-rotulo {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cor-texto-mudo);
+  padding: 2px 2px 0 2px;
+}
+
+/* Caixa que recebe os chips — 'flex-wrap' porque Y pode acumular
+   VÁRIAS colunas (X é sempre uma só, mas a caixa usa a mesma
+   aparência pros dois por consistência visual). Altura mínima
+   garante que a caixa não "pisque" de tamanho ao ficar vazia
+   (clicando um chip pra tirar) vs. com 1 chip só. */
+.eixo-caixa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 3px 4px;
+  border: 1px dashed var(--cor-borda);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.eixo-caixa-vazia {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--cor-texto-mudo);
+  padding: 2px 4px;
+  user-select: none;
+}
+
+/* Chip de coluna já atribuída — clicar nele devolve a coluna pra
+   lista 'Dados do arquivo:' (ver Arquivo.remover_da_selecao_eixos).
+   Cor sólida diferenciando X (accent, a mesma cor de destaque
+   principal do app) de Y (verde, mesmo tom de --cor-accent-
+   subdivisao já usado em outros cantos pra "dado calculado/plotado")
+   — reforça visualmente qual slot cada chip ocupa, não só a posição
+   na caixa. Um 'x' apareceria redundante já que TODO o chip é
+   clicável pra remover; o título (tooltip) explica a ação. */
+.eixo-chip {
+  font-family: var(--fonte-dado);
+  font-size: 11px;
+  font-weight: 600;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 0.1s;
+}
+
+.eixo-chip:hover {
+  opacity: 0.8;
+}
+
+.eixo-chip-x {
+  background-color: var(--cor-accent);
+}
+
+.eixo-chip-y {
+  background-color: var(--cor-accent-subdivisao);
+}
+
 /* --- canais/colunas --- */
 .sidebar-secao-titulo {
   font-size: 10px;
@@ -219,20 +310,15 @@
   color: var(--cor-texto-escuro);
   padding: 5px 8px;
   border-radius: 4px;
-  /* SEM 'cursor: pointer' aqui de propósito — a linha em si não é
-     mais um alvo de clique único (ver docstring de
-     renderizar_colunas_da_aba_ativa, renderizadores.py): o clique que
-     (des)marca o canal agora vive SÓ em '.canal-checkbox' (a
-     caixinha ☐/✓), não na linha inteira. 'user-select: none'
-     permanece — ainda não queremos que um clique/arraste sobre o
-     texto do rótulo (fora do modo de edição) selecione a string à
-     toa. */
+  /* SEM 'cursor: pointer' AQUI de propósito — quem é clicável é o
+     rótulo (ver '.canal-rotulo-btn' abaixo), não a linha inteira.
+     'user-select: none' permanece — ainda não queremos que um
+     clique/arraste sobre o texto do rótulo (fora do modo de edição)
+     selecione a string à toa. */
   user-select: none;
 }
 
 .coluna-item:hover { background: rgba(0, 0, 0, 0.045); }
-
-.coluna-item.selecionada { background: rgba(47, 165, 160, 0.2); }
 
 /* Canal CALCULADO (ver 'canal.origem' em src/core/arquivo.py e
    'calculado' em renderizar_colunas_da_aba_ativa, renderizadores.py)
@@ -259,41 +345,32 @@
   margin-right: 4px;
 }
 
-/* Caixinha de seleção (☐/✓) — ÚNICO alvo de clique que (des)marca o
-   canal (ver 'id={"type": "linha-canal", ...}' em
-   renderizar_colunas_da_aba_ativa, renderizadores.py, e
-   gerenciar_selecao_canais em callbacks.py, cujo Input pattern-
-   matching não mudou, só QUEM carrega esse id). Antes esse clique
-   reativo vivia na linha INTEIRA ('.coluna-item'), com lápis/lixeira/
-   campo-de-renomear morando DENTRO dela — qualquer clique nesses
-   filhos borbulhava e também contava como clique na linha,
-   desmarcando/marcando o canal como efeito colateral (e no caso do
-   campo de renomear, fechando a edição no instante em que o usuário
-   tentava usá-la). Isolar o clique reativo só nesta caixinha (agora
-   um <button> de verdade, era um <span>) resolve isso na raiz: os
-   outros controles da linha passam a ser IRMÃOS dela, não
-   descendentes — sem ancestral clicável por perto, não tem
+/* Rótulo clicável (era um <span> estático + uma caixinha ☐/✓ à
+   parte) — ÚNICO alvo de clique que atribui a coluna a X/Y (ver
+   'id={"type": "linha-canal", ...}' em renderizar_colunas_da_aba_
+   ativa, renderizadores.py, e gerenciar_atribuicao_eixos em
+   callbacks.py). Reset de aparência de <button> nativo (fundo/borda/
+   fonte do sistema) pra ficar visualmente idêntico ao antigo <span>
+   — só ganha 'cursor: pointer' e um hover sutil, avisando que agora
+   é clicável. Lápis/lixeira continuam como IRMÃOS dele (não
+   descendentes) — sem ancestral clicável por perto, não tem
    borbulhamento nenhum pra se preocupar. */
-.canal-checkbox {
-  flex: 0 0 auto;
+.canal-rotulo-btn {
   border: none;
   background: transparent;
-  padding: 0;
+  padding: 2px 4px;
+  margin: -2px -4px;
   border-radius: 3px;
-  font-family: var(--fonte-dado);
-  font-size: 12px;
-  color: var(--cor-accent);
-  width: 20px;
-  height: 20px;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   transition: background 0.1s;
 }
 
-.canal-checkbox:hover {
-  background: rgba(0, 0, 0, 0.06);
+.canal-rotulo-btn:hover {
+  background: rgba(47, 165, 160, 0.16);
 }
 
 .canal-rotulo {

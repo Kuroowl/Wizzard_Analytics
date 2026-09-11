@@ -112,22 +112,24 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao=None):
     nasce com um <input> editável no lugar do rótulo estático (ver
     alternar_edicao_canal/confirmar_edicao_canal em callbacks.py, que
     escrevem/leem 'canal-em-edicao-store'). Qualquer outra linha
-    continua no modo normal (Span + lápis + lixeira).
+    continua no modo normal (Span/Button + lápis + lixeira).
 
-    ATENÇÃO À ÁREA DE CLIQUE — 'id={'type': 'linha-canal', ...}' (que
-    (des)marca o canal, ver gerenciar_selecao_canais em callbacks.py)
-    vive SÓ no botão da caixinha de seleção (☐/✓) agora, não mais no
-    <div> da linha inteira. Antes a linha INTEIRA era um alvo de
-    clique, com o lápis/lixeira/campo-de-renomear vivendo DENTRO dela
-    — clicar em qualquer um desses filhos borbulhava e também contava
-    como clique na linha (desmarcando/marcando o canal como efeito
-    colateral de só querer editar o nome ou excluir), então dava pra
-    "fechar" o campo de renomear sem querer no instante em que o
-    usuário clicava nele pra digitar. Restringindo o clique reativo só
-    à caixinha, o lápis/lixeira/campo de texto ficam como IRMÃOS dela
-    (não descendentes) — sem ancestral clicável nenhum por perto, não
-    tem borbulhamento nenhum pra se preocupar, e nenhum truque de
-    'stopPropagation' é necessário.
+    Só lista canais VISÍVEIS (Arquivo.colunas_visiveis) — desde o
+    rework do 'Plotar Seleção', um canal atribuído a X ou Y (ver
+    Arquivo.mover_para_eixo_x/mover_para_eixo_y, src/core/arquivo.py)
+    SOME desta lista e passa a aparecer na caixa X:/Y: acima (ver
+    renderizar_selecao_eixos logo abaixo) — não tem mais "linha
+    marcada" dentro desta lista (o antigo ☐/✓), só colunas ainda NÃO
+    atribuídas a nada.
+
+    ÁREA DE CLIQUE — 'id={'type': 'linha-canal', ...}' agora vive no
+    PRÓPRIO rótulo (um <button>, não mais um <span>): clicar no NOME
+    da coluna é o que manda ela pra X (se ainda não há X) ou pro fim
+    de Y (ver gerenciar_atribuicao_eixos, callbacks.py) — substituiu a
+    antiga caixinha ☐/✓ separada, que só (des)marcava a coluna sem
+    tirá-la da lista. Lápis/lixeira continuam como IRMÃOS do rótulo
+    (não descendentes), então cliques neles não borbulham pro clique
+    de atribuição.
     """
     if not aba_ativa or aba_ativa not in estado.arquivos:
         return html.Div('Abra um arquivo.', className='abas-placeholder', style={'padding': '14px'})
@@ -137,8 +139,6 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao=None):
     lista_canais = []
     for coluna in arquivo.colunas_visiveis():
         rotulo = arquivo.rotulo(coluna)
-        par_canal = (aba_ativa, coluna)
-        selecionado = par_canal in estado.canais_selecionados
 
         em_edicao = bool(canal_em_edicao) and canal_em_edicao.get('arquivo') == aba_ativa \
             and canal_em_edicao.get('coluna') == coluna
@@ -162,54 +162,52 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao=None):
         # tinha UI nenhuma lendo ele até agora).
         calculado = arquivo.canais.get(coluna) and arquivo.canais[coluna].origem == 'calculado'
         classe_canal = ('coluna-item'
-                         + (' selecionada' if selecionado else '')
                          + (' editando' if em_edicao else '')
                          + (' calculado' if calculado else ''))
-        marcador_check = '✓' if selecionado else '☐'
 
         if em_edicao:
-            # Input no lugar do Span — 'autoFocus' já abre com o cursor
-            # pronto pra digitar (não precisa de um segundo clique), e
-            # o valor de partida é o rótulo ATUAL (não o nome_interno),
-            # pra edições incrementais (corrigir só um detalhe do nome)
-            # não obrigarem redigitar tudo. 'debounce=False': cada
-            # tecla já atualiza 'value' no componente, mas o callback
-            # só LÊ esse valor no Enter/blur (n_submit/n_blur, ver
-            # confirmar_edicao_canal) — debounce aqui só atrasaria o
-            # que o usuário vê digitado, sem ganho nenhum, já que
-            # ninguém reage a cada tecla.
+            # Input no lugar do botão de rótulo — 'autoFocus' já abre
+            # com o cursor pronto pra digitar (não precisa de um
+            # segundo clique), e o valor de partida é o rótulo ATUAL
+            # (não o nome_interno), pra edições incrementais (corrigir
+            # só um detalhe do nome) não obrigarem redigitar tudo.
+            # 'debounce=False': cada tecla já atualiza 'value' no
+            # componente, mas o callback só LÊ esse valor no
+            # Enter/blur (n_submit/n_blur, ver confirmar_edicao_canal)
+            # — debounce aqui só atrasaria o que o usuário vê
+            # digitado, sem ganho nenhum, já que ninguém reage a cada
+            # tecla.
             campo_rotulo = dcc.Input(
                 id={'type': 'input-editar-canal', 'arquivo': aba_ativa, 'coluna': coluna},
                 type='text', value=rotulo, autoFocus=True, debounce=False,
                 className='canal-rotulo-input',
                 maxLength=80,
             )
-        elif calculado:
-            # 'ƒ' na frente do rótulo — junto com a borda esquerda
-            # colorida (ver '.coluna-item.calculado' em file_menu.css),
-            # é a segunda metade do sinal visual "isto foi gerado, não
-            # é um dado bruto do arquivo original". 'title' expõe a
-            # fórmula de verdade (canal.formula, já guardada por
-            # criar_canal_calculado/avaliar_expressao_calculadora) no
-            # tooltip, pra quem quiser conferir como o valor foi
-            # calculado sem precisar abrir a calculadora de novo.
-            campo_rotulo = html.Span([
-                html.Span('ƒ', className='canal-calculado-marcador'),
-                rotulo,
-            ], className="canal-rotulo", title=f"Calculado: {arquivo.canais[coluna].formula or ''}")
         else:
-            campo_rotulo = html.Span(rotulo, className="canal-rotulo")
+            # Botão clicável (era um <span> estático) — clicar aqui
+            # atribui a coluna a X ou Y (ver docstring da função
+            # acima). 'ƒ' na frente do rótulo pra canais calculados,
+            # igual antes — junto com a borda esquerda colorida (ver
+            # '.coluna-item.calculado' em file_menu.css), é a segunda
+            # metade do sinal visual "isto foi gerado, não é um dado
+            # bruto do arquivo original".
+            conteudo_botao = (
+                [html.Span('ƒ', className='canal-calculado-marcador'), rotulo] if calculado else rotulo
+            )
+            titulo = "Clique para usar como eixo X (ou Y, se já houver X)"
+            if calculado:
+                titulo = f"Calculado: {arquivo.canais[coluna].formula or ''}"
+            campo_rotulo = html.Button(
+                conteudo_botao,
+                id={'type': 'linha-canal', 'arquivo': aba_ativa, 'coluna': coluna},
+                className='canal-rotulo canal-rotulo-btn',
+                title=titulo,
+                n_clicks=0,
+            )
 
         lista_canais.append(html.Div(
             className=classe_canal,
             children=[
-                html.Button(
-                    marcador_check,
-                    id={'type': 'linha-canal', 'arquivo': aba_ativa, 'coluna': coluna},
-                    className="canal-checkbox",
-                    title=('Ocultar' if selecionado else 'Mostrar') + f" canal '{rotulo}'",
-                    n_clicks=0,
-                ),
                 campo_rotulo,
                 html.Button(
                     '✏️',
@@ -240,6 +238,54 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao=None):
     return [html.Div(className='canais-cartao', children=lista_canais)]
 
 
+def renderizar_selecao_eixos(estado, aba_ativa):
+    """
+    A área de atribuição manual de eixos do botão 'Plotar Seleção'
+    (era 'Gerar Série Temporal') — dois "slots" acima da lista 'Dados
+    do arquivo:' (ver renderizar_colunas_da_aba_ativa acima).
+
+    Clicar no NOME de uma coluna na lista manda ela pra cá: a
+    PRIMEIRA coluna clicada vira X, as seguintes se acumulam em Y, na
+    ordem do clique (ver Arquivo.mover_para_eixo_x/mover_para_eixo_y,
+    src/core/arquivo.py, e gerenciar_atribuicao_eixos, callbacks.py).
+    Clicar de novo num "chip" aqui dentro devolve a coluna pra lista
+    (Arquivo.remover_da_selecao_eixos).
+
+    Sempre renderizada (mesmo com X/Y vazios) — nasce junto com a
+    lista de colunas, ANTES de qualquer gráfico existir (pedido
+    explícito: os dois slots já aparecem em branco assim que o
+    arquivo é carregado, não só depois de clicar em 'Plotar Seleção').
+    """
+    if not aba_ativa or aba_ativa not in estado.arquivos:
+        return []
+    arquivo = estado.arquivos[aba_ativa]
+
+    def _chip(nome_interno, eixo):
+        return html.Button(
+            arquivo.rotulo(nome_interno),
+            id={'type': 'remover-eixo-selecionado', 'arquivo': aba_ativa, 'coluna': nome_interno, 'eixo': eixo},
+            className=f'eixo-chip eixo-chip-{eixo}',
+            title="Clique para tirar daqui e voltar pra lista",
+            n_clicks=0,
+        )
+
+    conteudo_x = (
+        [_chip(arquivo.eixo_x_manual, 'x')] if arquivo.eixo_x_manual
+        else [html.Span('clique num canal na lista abaixo', className='eixo-caixa-vazia')]
+    )
+    conteudo_y = (
+        [_chip(coluna, 'y') for coluna in arquivo.eixos_y_manual] if arquivo.eixos_y_manual
+        else [html.Span('clique nos canais que quer plotar', className='eixo-caixa-vazia')]
+    )
+
+    return html.Div(className='selecao-eixos-container', children=[
+        html.Div('X:', className='eixo-rotulo'),
+        html.Div(conteudo_x, className='eixo-caixa'),
+        html.Div('Y:', className='eixo-rotulo'),
+        html.Div(conteudo_y, className='eixo-caixa'),
+    ])
+
+
 # Nomes dos ícones das 6 opções de tipo de gráfico — placeholders genéricos,
 # troque pelo nome de arquivo real (em assets/icones/) conforme for
 # implementando cada opção de verdade.
@@ -268,12 +314,17 @@ def renderizar_area_grafico(estado):
     for i, nome_icone in enumerate(ICONES_OPCOES_GRAFICO, start=1):
         if i == 1:
             # Único botão realmente funcional por enquanto (dispara
-            # gerar_grafico_serie_temporal) — por isso ganha um rótulo e
-            # emoji de verdade em vez do ícone-placeholder genérico que os
+            # gerar_grafico_serie_temporal — nome da função Python não
+            # mudou, só o RÓTULO visível: era 'Série temporal', agora
+            # 'Plotar Seleção', desde o rework que trocou o eixo X
+            # automático por atribuição manual de X/Y na barra lateral,
+            # ver renderizar_selecao_eixos acima e gerenciar_atribuicao_
+            # eixos em callbacks.py) — por isso ganha um rótulo e emoji
+            # de verdade em vez do ícone-placeholder genérico que os
             # outros 5 ainda usam (ver ICONES_OPCOES_GRAFICO acima).
             conteudo = [
                 html.Span('📈', className='central-btn-emoji'),
-                html.Span('Série temporal', className='toolbar-tooltip'),
+                html.Span('Plotar Seleção', className='toolbar-tooltip'),
             ]
         else:
             conteudo = [

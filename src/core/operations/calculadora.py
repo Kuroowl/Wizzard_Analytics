@@ -235,7 +235,7 @@ def avaliar_expressao_calculadora(codigo, arquivo, estado):
 
     def Derivada(valor):
         serie = _como_serie(valor)
-        coluna_x = resolver_eixo_x(estado, df)
+        coluna_x = resolver_eixo_x(estado, arquivo)
         x = df[coluna_x].to_numpy(dtype=float)
         y = serie.to_numpy(dtype=float)
         return pd.Series(np.gradient(y, x), index=df.index)
@@ -249,7 +249,7 @@ def avaliar_expressao_calculadora(codigo, arquivo, estado):
         # aceita nomes de coluna, não uma expressão arbitrária já
         # calculada).
         serie = _como_serie(valor)
-        coluna_x = resolver_eixo_x(estado, df)
+        coluna_x = resolver_eixo_x(estado, arquivo)
         x = df[coluna_x].to_numpy(dtype=float)
         y = serie.to_numpy(dtype=float)
         if len(x) < 2:

@@ -12,7 +12,7 @@ from src.core.plotting.plotter import (
 from src.core.rotulos import sanitizar_rotulo_para_nome_coluna
 from src.gui.renderizadores import (
     truncar_nome_arquivo, renderizar_abas_estilo_chrome, renderizar_colunas_da_aba_ativa,
-    renderizar_area_grafico, renderizar_grafico_com_fechar,
+    renderizar_selecao_eixos, renderizar_area_grafico, renderizar_grafico_com_fechar,
     renderizar_info_rodape, renderizar_badge_alerta, classe_badge_alerta, renderizar_popup_alerta,
     renderizar_painel_direito_padrao, renderizar_painel_edicao,
     renderizar_calculadora_barra, renderizar_area_calculadora_completa, renderizar_calculadora_botoes, _hex_para_rgb,
@@ -368,6 +368,7 @@ def registrar_callbacks(app, estado):
         Output('aba-ativa-store', 'data', allow_duplicate=True),
         Output('container-abas-chrome', 'children'),
         Output('lista-canais-aba', 'children'),
+        Output('selecao-eixos-container', 'children'),
         Output('rodape-status', 'children', allow_duplicate=True),
         Output('nova-analise', 'disabled', allow_duplicate=True),
         Output('fundir-arquivos', 'disabled', allow_duplicate=True),
@@ -458,6 +459,7 @@ def registrar_callbacks(app, estado):
             estilo_area_edicao = no_update
 
         return (aba_ativa, renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa),
+                renderizar_selecao_eixos(estado, aba_ativa),
                 mensagem, sem_arquivo, sem_2_arquivos, area_grafico,
                 sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
                 sem_grafico_da_aba,
@@ -767,6 +769,7 @@ def registrar_callbacks(app, estado):
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
         Output('lista-canais-aba', 'children', allow_duplicate=True),
+        Output('selecao-eixos-container', 'children', allow_duplicate=True),
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('area-modo-nova-analise-edicao', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
@@ -798,10 +801,10 @@ def registrar_callbacks(app, estado):
             raise PreventUpdate
 
         def _sem_mudanca_de_conteudo(mensagem):
-            """Devolve os 7 valores desta callback quando SÓ a mensagem
+            """Devolve os 8 valores desta callback quando SÓ a mensagem
             do rodapé muda (erro de validação) — a barra/expressão/
             listas continuam exatamente como estavam."""
-            return no_update, no_update, no_update, no_update, no_update, mensagem, novo_mapa
+            return no_update, no_update, no_update, no_update, no_update, no_update, mensagem, novo_mapa
 
         codigo = ''.join(t['codigo'] for t in (tokens_atuais or []))
         try:
@@ -851,21 +854,25 @@ def registrar_callbacks(app, estado):
             arquivo.registrar_canal(nome_interno_final, rotulo=nome_novo_canal,
                                      origem='calculado', formula=codigo)
 
-            # SELECIONA a coluna nova pro gráfico e já REDESENHA (pedido
+            # ATRIBUI a coluna nova ao eixo Y e já REDESENHA (pedido
             # explícito: "ao gerar a nova coluna, atualizar o gráfico
             # com a nova coluna exibida, carregar a miniatura pra que
-            # ela seja atualizada") — antes o canal nascia OCULTO da
-            # seleção de propósito, exigindo marcar a caixinha na
-            # sidebar manualmente depois. Só redesenha de verdade se
-            # JÁ existe um gráfico montado nesta aba (mesmo cuidado de
-            # 'gerenciar_selecao_canais' logo abaixo: se o usuário
-            # ainda nem gerou o primeiro gráfico, marcar a seleção não
-            # deve empurrar ele direto pra visualização sozinho — só
-            # garante que a curva já nasce marcada pra quando ele
+            # ela seja atualizada") — antes usava o antigo 'estado.
+            # canais_selecionados' (checkbox), que deixou de ser lido
+            # pelo gráfico desde o rework do 'Plotar Seleção' (ver
+            # colunas_plotadas, plotter.py); agora usa 'Arquivo.
+            # mover_para_eixo_y' (já cuida de ocultar da lista e
+            # invalidar o cache sozinho). Vai sempre pra Y, nunca vira
+            # X sozinha — faz mais sentido um canal recém-CALCULADO ser
+            # uma curva, não o eixo. Só redesenha de verdade se JÁ
+            # existe um gráfico montado nesta aba (mesmo cuidado de
+            # 'gerenciar_atribuicao_eixos' logo abaixo: se o usuário
+            # ainda nem gerou o primeiro gráfico, atribuir não deve
+            # empurrar ele direto pra visualização sozinho — só
+            # garante que a curva já nasce atribuída pra quando ele
             # gerar).
-            estado.canais_selecionados.add((aba_ativa, nome_interno_final))
+            arquivo.mover_para_eixo_y(nome_interno_final)
             if arquivo.grafico_gerado:
-                arquivo.invalidar_grafico()
                 fig = construir_figura_serie_temporal(estado, aba_ativa)
                 arquivo.figura = fig
                 area_grafico = renderizar_grafico_com_fechar(fig)
@@ -890,21 +897,27 @@ def registrar_callbacks(app, estado):
         botoes_calculadora = renderizar_calculadora_botoes(estado, aba_ativa)
         return (conteudo, [],
                 renderizar_colunas_da_aba_ativa(estado, aba_ativa),
+                renderizar_selecao_eixos(estado, aba_ativa),
                 area_grafico, botoes_calculadora, mensagem, novo_mapa)
 
     # ------------------------------------------------------------------
     # Lista de canais (sidebar) — 2 callbacks:
-    #   1) gerenciar_selecao_canais: clique na caixinha (☐/✓, id
-    #      'linha-canal') (des)marca o canal pro gráfico; clique na
-    #      lixeira ('botao-excluir-canal') exclui (soft-delete, some da
-    #      lista, o dado continua em df_editado). Os dois padrão
-    #      coringa — mesmo cuidado de sempre com _processar_cliques_padrao.
+    #   1) gerenciar_atribuicao_eixos (era 'gerenciar_selecao_canais',
+    #      renomeada porque o comportamento mudou por completo — ver
+    #      docstring completa dela abaixo): clique no NOME da coluna
+    #      (id 'linha-canal') atribui a X ou Y; clique num "chip" dentro
+    #      da caixa X:/Y: (id 'remover-eixo-selecionado') devolve a
+    #      coluna pra lista; clique na lixeira ('botao-excluir-canal')
+    #      exclui (soft-delete, some da lista, o dado continua em
+    #      df_editado). Os três padrão coringa — mesmo cuidado de
+    #      sempre com _processar_cliques_padrao.
     #   2) gerenciar_edicao_canal: lápis (✏️) pra renomear — ver
     #      docstring completa dela abaixo pro fluxo de toggle/Enter.
     # ------------------------------------------------------------------
 
     @app.callback(
         Output('lista-canais-aba', 'children', allow_duplicate=True),
+        Output('selecao-eixos-container', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('rodape-alerta-badge', 'children', allow_duplicate=True),
@@ -915,14 +928,40 @@ def registrar_callbacks(app, estado):
         Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input({'type': 'linha-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         Input({'type': 'botao-excluir-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
+        Input({'type': 'remover-eixo-selecionado', 'arquivo': ALL, 'coluna': ALL, 'eixo': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('painel-direito', 'className'),
         State('edicao-curva-dado-atual', 'data'),
         State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
-    def gerenciar_selecao_canais(n_clicks_list, _n_clicks_excluir, aba_ativa, classe_painel_direito,
-                                  coluna_em_edicao, nclicks_anteriores):
+    def gerenciar_atribuicao_eixos(n_clicks_linha, _n_clicks_excluir, _n_clicks_remover, aba_ativa,
+                                    classe_painel_direito, coluna_em_edicao, nclicks_anteriores):
+        """
+        Rework do botão 'Plotar Seleção' (era 'Gerar Série Temporal')
+        — substitui o antigo checkbox ☐/✓ (que só marcava/desmarcava
+        uma coluna pro gráfico, com o eixo X sempre fixo e adivinhado
+        sozinho em 'Tempo_decorrido_s'). Agora o clique é no NOME da
+        coluna, e o que ele faz depende de já existir ou não um eixo X
+        atribuído para este arquivo:
+
+          - Sem X ainda -> este clique vira o X (Arquivo.
+            mover_para_eixo_x).
+          - Já tem X -> este clique se ACRESCENTA ao fim de Y (Arquivo.
+            mover_para_eixo_y) — múltiplas colunas podem entrar em Y,
+            na ordem em que forem clicadas.
+
+        A coluna atribuída SOME da lista 'Dados do arquivo:' (fica
+        OCULTA) e passa a aparecer como um "chip" na caixa X:/Y' (ver
+        renderizar_selecao_eixos, renderizadores.py) — clicar nesse
+        chip (id 'remover-eixo-selecionado') devolve ela pra lista
+        (Arquivo.remover_da_selecao_eixos).
+
+        Excluir um canal (lixeira) continua igual — soft-delete, some
+        de vez — só que agora também limpa a atribuição X/Y se o
+        canal excluído estivesse atribuído (ver Arquivo.excluir_canal,
+        src/core/arquivo.py).
+        """
         if not aba_ativa:
             raise PreventUpdate
 
@@ -932,10 +971,11 @@ def registrar_callbacks(app, estado):
 
         mensagem = no_update
         area_grafico = no_update
-        # Se o painel de edição estiver aberto ('ativa'), (des)marcar ou
-        # excluir um canal pode fazer a curva que ele está mostrando na
-        # caixa 'Dado' sumir do gráfico. Sem isto, o 'Dado' ficava com um
-        # valor "fantasma" que não corresponde a nada mais selecionado.
+        # Se o painel de edição estiver aberto ('ativa'), mudar a
+        # atribuição de eixos ou excluir um canal pode fazer a curva
+        # que ele está mostrando na caixa 'Dado' sumir do gráfico. Sem
+        # isto, o 'Dado' ficava com um valor "fantasma" que não
+        # corresponde a nada mais desenhado.
         em_edicao = classe_painel_direito and 'ativa' in classe_painel_direito.split()
         painel_edicao = no_update
 
@@ -944,29 +984,34 @@ def registrar_callbacks(app, estado):
         if not arquivo:
             raise PreventUpdate
 
-        if gatilho_id.get('type') == 'botao-excluir-canal':
+        tipo = gatilho_id.get('type')
+
+        if tipo == 'botao-excluir-canal':
             rotulo = arquivo.rotulo(coluna)
-            # excluir_canal() já invalida o cache da figura (ver
-            # Arquivo.excluir_canal, src/core/arquivo.py) — soft-delete:
-            # some da lista, o dado continua no df_editado.
-            estado.canais_selecionados.discard((aba_ativa, coluna))
+            # excluir_canal() já invalida o cache da figura E limpa a
+            # atribuição X/Y se o canal excluído estivesse atribuído
+            # (ver Arquivo.excluir_canal, src/core/arquivo.py) —
+            # soft-delete: some da lista, o dado continua no df_editado.
             arquivo.excluir_canal(coluna)
-            mensagem = f'🧙‍♂️: " Canal \'{rotulo}\' excluído. ({len(estado.canais_selecionados)} selecionado(s)) "'
+            mensagem = f'🧙‍♂️: " Canal \'{rotulo}\' excluído. "'
 
             if arquivo.grafico_gerado:
                 fig = construir_figura_serie_temporal(estado, aba_ativa)
                 arquivo.figura = fig
                 area_grafico = renderizar_grafico_com_fechar(fig)
 
-        elif gatilho_id.get('type') == 'linha-canal':
-            estado.alternar_selecao_canal(aba_ativa, coluna)
-            ligado = (aba_ativa, coluna) in estado.canais_selecionados
-            acao = 'ativado' if ligado else 'desativado'
-            mensagem = f'🧙‍♂️: " Canal \'{coluna}\' {acao}. ({len(estado.canais_selecionados)} selecionado(s)) "'
+        elif tipo == 'linha-canal':
+            rotulo = arquivo.rotulo(coluna)
+            if arquivo.eixo_x_manual is None:
+                arquivo.mover_para_eixo_x(coluna)
+                mensagem = f'🧙‍♂️: " \'{rotulo}\' definido como eixo X. "'
+            else:
+                arquivo.mover_para_eixo_y(coluna)
+                mensagem = f'🧙‍♂️: " \'{rotulo}\' adicionado ao eixo Y. "'
 
             # Só redesenha o gráfico se a aba ativa já estiver com um
             # gráfico aberto (senão ainda estamos na grade de opções, e
-            # marcar um canal não deve pular direto pra visualização).
+            # atribuir um eixo não deve pular direto pra visualização).
             if arquivo.grafico_gerado:
                 # Pode empurrar o aviso de amostragem (>5000 linhas) pra
                 # lista de avisos da aba — por isso recalculamos o badge
@@ -975,11 +1020,23 @@ def registrar_callbacks(app, estado):
                 arquivo.figura = fig
                 area_grafico = renderizar_grafico_com_fechar(fig)
 
+        elif tipo == 'remover-eixo-selecionado':
+            rotulo = arquivo.rotulo(coluna)
+            arquivo.remover_da_selecao_eixos(coluna)
+            mensagem = f'🧙‍♂️: " \'{rotulo}\' voltou pra lista. "'
+
+            if arquivo.grafico_gerado:
+                fig = construir_figura_serie_temporal(estado, aba_ativa)
+                arquivo.figura = fig
+                area_grafico = renderizar_grafico_com_fechar(fig)
+
         if em_edicao and aba_ativa in estado.arquivos:
             painel_edicao = renderizar_painel_edicao(estado, aba_ativa, coluna_em_edicao)
 
         _, badge_texto, badge_classe, popup_children = _valores_rodape(estado, aba_ativa)
-        return (renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem, area_grafico,
+        return (renderizar_colunas_da_aba_ativa(estado, aba_ativa),
+                renderizar_selecao_eixos(estado, aba_ativa),
+                mensagem, area_grafico,
                 badge_texto, badge_classe, popup_children,
                 True, painel_edicao, novo_mapa)
 
@@ -1146,6 +1203,7 @@ def registrar_callbacks(app, estado):
     @app.callback(
         Output('container-abas-chrome', 'children', allow_duplicate=True),
         Output('lista-canais-aba', 'children', allow_duplicate=True),
+        Output('selecao-eixos-container', 'children', allow_duplicate=True),
         Output('area-modo-nova-analise-edicao', 'children', allow_duplicate=True),
         Input('aba-ativa-store', 'data'),
         State('modo-nova-analise-store', 'data'),
@@ -1161,11 +1219,13 @@ def registrar_callbacks(app, estado):
         if modo_calculadora_ativo:
             botoes_calculadora = renderizar_calculadora_botoes(estado, aba_ativa)
         return (renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa),
+                renderizar_selecao_eixos(estado, aba_ativa),
                 botoes_calculadora)
 
     @app.callback(
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('lista-canais-aba', 'children', allow_duplicate=True),
+        Output('selecao-eixos-container', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
         Output('aparar-dados', 'disabled', allow_duplicate=True),
         Output('excluir-dados', 'disabled', allow_duplicate=True),
@@ -1182,40 +1242,59 @@ def registrar_callbacks(app, estado):
         prevent_initial_call=True,
     )
     def gerar_grafico_serie_temporal(n_clicks, aba_ativa):
+        """
+        Botão 'Plotar Seleção' (era 'Gerar Série Temporal' — só o
+        RÓTULO/comportamento mudou; o nome da função Python ficou o
+        mesmo por simplicidade, não afeta o usuário).
+
+        ANTES: gerava o gráfico e só DEPOIS decidia o eixo X sozinho
+        (resolver_eixo_x, sempre tentando 'Tempo_decorrido_s' primeiro),
+        escondendo esse canal da lista — o usuário nunca escolhia o X
+        de propósito, só marcava quais Y queria via checkbox ☐/✓.
+
+        AGORA: X e Y já foram escolhidos ANTES de chegar aqui, clicando
+        nos nomes das colunas na barra lateral (ver
+        gerenciar_atribuicao_eixos, Arquivo.mover_para_eixo_x/
+        mover_para_eixo_y) — este botão só desenha com o que já está
+        montado. Se o usuário ainda não clicou em NADA (nenhum X
+        escolhido), resolvemos um X razoável automaticamente (mesmo
+        fallback de sempre — ver resolver_eixo_x, plotter.py) e
+        REGISTRAMOS essa escolha como se ele tivesse clicado (pra
+        'selecao-eixos-container' refletir o que está de fato
+        desenhado, e cliques seguintes na lista já caírem direto em
+        Y, sem precisar escolher X de novo).
+        """
         if not n_clicks or not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
 
         arquivo = estado.arquivos[aba_ativa]
 
-        # Gera o gráfico com os canais já marcados até agora (pode ser
-        # nenhum ainda — nesse caso nasce em branco, e o usuário vai
-        # populando ao marcar colunas na barra lateral). Se o arquivo tiver
-        # mais de 5000 linhas, essa chamada também empurra um aviso de
-        # amostragem pra lista de avisos da aba (ver plotter.py).
-        fig = construir_figura_serie_temporal(estado, aba_ativa)
+        if not arquivo.eixo_x_manual:
+            eixo_x_resolvido = resolver_eixo_x(estado, arquivo)
+            arquivo.mover_para_eixo_x(eixo_x_resolvido)
 
-        # Salva o gráfico no estado da aba ativa. 'grafico_gerado' é uma
-        # property derivada de 'figura' (ver src/core/arquivo.py) — não
-        # precisa (e não pode) ser setada à parte.
+        # Gera o gráfico com o X e os Y já atribuídos até agora (Y pode
+        # ser nenhum ainda — nesse caso nasce só com o eixo X definido,
+        # sem curva nenhuma, e o usuário vai populando ao clicar mais
+        # colunas na barra lateral, que agora caem direto em Y). Se o
+        # arquivo tiver mais de 5000 linhas, essa chamada também empurra
+        # um aviso de amostragem pra lista de avisos da aba (ver
+        # plotter.py).
+        fig = construir_figura_serie_temporal(estado, aba_ativa)
         arquivo.figura = fig
 
-        # A partir de agora esse canal ESTÁ sendo usado como eixo X deste
-        # gráfico — some da lista de canais plotáveis da barra lateral
-        # (ver Arquivo.ocultar_canal_eixo). Fechar o gráfico desfaz isso
-        # (ver fechar_grafico, abaixo).
-        eixo_x = resolver_eixo_x(estado, arquivo.df_editado)
-        arquivo.ocultar_canal_eixo(eixo_x)
-
-        tem_canal = any(arq == aba_ativa for arq, _ in estado.canais_selecionados)
+        tem_y = bool(arquivo.eixos_y_manual)
         mensagem = (
-            '🧙‍♂️: " Gráfico de série temporal gerado. Marque os canais na barra lateral. "'
-            if not tem_canal else
-            '🧙‍♂️: " Gráfico de série temporal gerado. "'
+            f'🧙‍♂️: " Gráfico gerado com X = \'{arquivo.rotulo(arquivo.eixo_x_manual)}\'. '
+            'Clique nos canais na barra lateral pra adicionar ao eixo Y. "'
+            if not tem_y else
+            '🧙‍♂️: " Gráfico gerado. "'
         )
         grafico = renderizar_grafico_com_fechar(fig)
 
         _, badge_texto, badge_classe, popup_children = _valores_rodape(estado, aba_ativa)
-        return (grafico, renderizar_colunas_da_aba_ativa(estado, aba_ativa), mensagem,
+        return (grafico, renderizar_colunas_da_aba_ativa(estado, aba_ativa),
+                renderizar_selecao_eixos(estado, aba_ativa), mensagem,
                 False, False, False, False, False, False,
                 badge_texto, badge_classe, popup_children,
                 True)
@@ -1263,15 +1342,16 @@ def registrar_callbacks(app, estado):
 
         lista_canais = no_update
         if aba_ativa in estado.arquivos:
-            arquivo = estado.arquivos[aba_ativa]
-            arquivo.invalidar_grafico()
-
-            # O canal do eixo X só ficava oculto enquanto ESTE gráfico
-            # estava aberto (ver gerar_grafico_serie_temporal) — fechando
-            # o gráfico, ele volta a aparecer normalmente na barra lateral.
-            eixo_x = resolver_eixo_x(estado, arquivo.df_editado)
-            arquivo.exibir_canal_eixo(eixo_x)
-            lista_canais = renderizar_colunas_da_aba_ativa(estado, aba_ativa)
+            estado.arquivos[aba_ativa].invalidar_grafico()
+            # ANTES: o canal do eixo X só ficava oculto ENQUANTO o
+            # gráfico estava aberto, e fechar devolvia ele pra lista
+            # (exibir_canal_eixo). Desde o rework do 'Plotar Seleção',
+            # a atribuição de X/Y é uma escolha PERSISTENTE do usuário
+            # (Arquivo.eixo_x_manual/eixos_y_manual) — fechar só a
+            # VISUALIZAÇÃO não deve desfazer essa escolha; ela continua
+            # valendo pra próxima vez que ele clicar em 'Plotar
+            # Seleção' de novo. Por isso não mexemos mais em X/Y (nem
+            # em 'lista_canais'/'selecao-eixos-container') aqui.
 
         area_grafico = renderizar_area_grafico(estado)
         mensagem = '🧙‍♂️: " Gráfico fechado. Escolha outra opção. "'
@@ -1628,7 +1708,7 @@ def registrar_callbacks(app, estado):
             raise PreventUpdate
 
         arquivo = estado.arquivos[aba_ativa]
-        eixo_x = resolver_eixo_x(estado, arquivo.df_editado)
+        eixo_x = resolver_eixo_x(estado, arquivo)
         if tipo == 'excluir':
             arquivo.df_editado = excluir_dados(arquivo.df_editado, eixo_x, primeiro, segundo)
             mensagem = '🧙‍♂️: " Trecho excluído! O que estava entre os dois cortes sumiu, o resto ficou. "'

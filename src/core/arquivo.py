@@ -247,6 +247,19 @@ class Arquivo:
     # 'colunas_nao_numericas' de 'info').
     colunas_ocultas_iniciais: list = field(default_factory=list)
 
+    # --- Atribuição manual de eixos ('Plotar Seleção') ---------------
+    # 'eixo_x_manual': nome_interno da coluna escolhida como X (None =
+    # ninguém escolheu ainda — resolver_eixo_x, plotter.py, cai pro
+    # fallback automático de sempre). 'eixos_y_manual': lista ORDENADA
+    # (ordem de clique = ordem de plotagem/cor) das colunas escolhidas
+    # como Y — substitui o antigo mecanismo de checkbox (estado.
+    # canais_selecionados, ainda existe mas não é mais lido pelo
+    # gráfico principal, ver colunas_plotadas em plotter.py). Ver os
+    # métodos mover_para_eixo_x/mover_para_eixo_y/remover_da_selecao_
+    # eixos logo abaixo.
+    eixo_x_manual: str | None = None
+    eixos_y_manual: list = field(default_factory=list)
+
     def __post_init__(self):
         # Registra um Canal pra cada coluna que já veio no df, se ainda
         # não foi passado nenhum registro explícito de canais.
@@ -300,9 +313,21 @@ class Arquivo:
         return [nome for nome, canal in self.canais.items() if canal.status == StatusCanal.VISIVEL]
 
     def excluir_canal(self, nome_interno: str) -> None:
-        """Soft-delete: o canal some da lista/seleção, mas o dado permanece no df_editado."""
+        """
+        Soft-delete: o canal some da lista/seleção, mas o dado permanece no df_editado.
+
+        Se o canal excluído estava atribuído a X ou Y (ver mover_para_
+        eixo_x/mover_para_eixo_y abaixo), limpa essa atribuição também
+        — sem isso, 'eixo_x_manual'/'eixos_y_manual' ficariam
+        apontando pra um canal excluído, e o gráfico tentaria usar um
+        eixo "fantasma".
+        """
         if nome_interno in self.canais:
             self.canais[nome_interno].excluir()
+            if self.eixo_x_manual == nome_interno:
+                self.eixo_x_manual = None
+            if nome_interno in self.eixos_y_manual:
+                self.eixos_y_manual.remove(nome_interno)
             self.invalidar_grafico()
 
     def restaurar_canal(self, nome_interno: str) -> None:
@@ -312,28 +337,92 @@ class Arquivo:
 
     def ocultar_canal_eixo(self, nome_interno: str) -> None:
         """
-        Oculta o canal usado como eixo X de um gráfico (ex:
-        'Tempo_decorrido_s') — chamado quando esse gráfico é gerado (ver
-        callbacks.gerar_grafico_serie_temporal). Diferente de
-        excluir_canal, este canal continua "vivo": não é dado plotado
-        como série, é o próprio eixo, então ocultá-lo/exibi-lo NÃO invalida
-        a figura em cache (não muda nada do que já está desenhado).
+        DEPRECATED — mantido só por compatibilidade histórica de
+        comentários antigos. O mecanismo de "ocultar o canal usado
+        como eixo X" foi substituído por 'mover_para_eixo_x' abaixo,
+        que já oculta o canal na hora da atribuição manual (rework do
+        botão 'Plotar Seleção' — antes 'Gerar Série Temporal' fixava
+        o eixo X sozinho olhando 'Tempo_decorrido_s'). Ninguém no
+        código chama mais este método.
         """
         canal = self.canais.get(nome_interno)
         if canal:
             canal.ocultar()
 
     def exibir_canal_eixo(self, nome_interno: str) -> None:
-        """
-        Contrapartida de ocultar_canal_eixo: chamado ao fechar o gráfico
-        (ver callbacks.fechar_grafico), pra o canal do eixo voltar a
-        aparecer na lista. Só mexe se ele ainda estiver OCULTO — não
-        reverte uma exclusão manual (soft-delete) que o usuário tenha
-        feito por conta própria enquanto o gráfico estava aberto.
-        """
+        """DEPRECATED — ver ocultar_canal_eixo acima. Ninguém chama mais."""
         canal = self.canais.get(nome_interno)
         if canal and canal.status == StatusCanal.OCULTO:
             canal.restaurar()
+
+    # --- Atribuição manual de eixos (botão 'Plotar Seleção') ---------
+    #
+    # Substitui o antigo fluxo "clica a caixinha ☐/✓ pra marcar uma
+    # curva Y + eixo X sempre fixo em 'Tempo_decorrido_s'" (ver
+    # docstring completa da mudança em callbacks.gerenciar_atribuicao_
+    # eixos). Agora o próprio NOME da coluna, clicado na lista lateral,
+    # é o alvo — a primeira coluna clicada vira X, as seguintes se
+    # acumulam em Y, na ordem do clique (essa ordem também é a ordem
+    # de cor/plotagem das curvas — ver colunas_plotadas, plotter.py).
+    #
+    # Uma coluna atribuída a X ou Y SOME da lista "Dados do arquivo"
+    # (fica com status OCULTO, mesmo status que canais não-numéricos
+    # já usavam por padrão — ver Arquivo.__post_init__) — ela só volta
+    # a aparecer lá se for removida da seleção (remover_da_selecao_
+    # eixos) ou excluída de vez (excluir_canal).
+
+    def mover_para_eixo_x(self, nome_interno: str) -> None:
+        """
+        Atribui 'nome_interno' como o eixo X (substitui o anterior, se
+        havia um — só existe UM X por vez; o antigo volta pra lista
+        normal). Se a coluna já estava em Y, sai de lá primeiro (não
+        faz sentido ser X e Y ao mesmo tempo).
+        """
+        if nome_interno not in self.canais or self.eixo_x_manual == nome_interno:
+            return
+        if nome_interno in self.eixos_y_manual:
+            self.eixos_y_manual.remove(nome_interno)
+        anterior = self.eixo_x_manual
+        if anterior and anterior in self.canais:
+            self.canais[anterior].restaurar()
+        self.canais[nome_interno].ocultar()
+        self.eixo_x_manual = nome_interno
+        self.invalidar_grafico()
+
+    def mover_para_eixo_y(self, nome_interno: str) -> None:
+        """
+        Acrescenta 'nome_interno' ao FIM da lista de curvas Y (ordem
+        de clique = ordem de plotagem). Se a coluna já era o X, sai de
+        lá primeiro. Não faz nada se já estiver em Y (evita duplicar
+        com um clique repetido).
+        """
+        if nome_interno not in self.canais or nome_interno in self.eixos_y_manual:
+            return
+        if self.eixo_x_manual == nome_interno:
+            self.eixo_x_manual = None
+        self.canais[nome_interno].ocultar()
+        self.eixos_y_manual.append(nome_interno)
+        self.invalidar_grafico()
+
+    def remover_da_selecao_eixos(self, nome_interno: str) -> None:
+        """
+        Tira 'nome_interno' de onde estiver (X ou Y) e devolve pra
+        lista normal "Dados do arquivo" (status volta a VISIVEL) —
+        contrapartida de mover_para_eixo_x/mover_para_eixo_y, chamada
+        ao clicar num chip dentro da caixa X:/Y: (ver 'remover-eixo-
+        selecionado' em callbacks.py).
+        """
+        mudou = False
+        if self.eixo_x_manual == nome_interno:
+            self.eixo_x_manual = None
+            mudou = True
+        if nome_interno in self.eixos_y_manual:
+            self.eixos_y_manual.remove(nome_interno)
+            mudou = True
+        if mudou:
+            if nome_interno in self.canais:
+                self.canais[nome_interno].restaurar()
+            self.invalidar_grafico()
 
     def criar_canal_calculado(self, nome_saida: str, operacao_fn, *args, **kwargs) -> None:
         """

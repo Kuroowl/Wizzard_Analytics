@@ -76,39 +76,58 @@ def _indices_amostra_uniforme(n_pontos, max_pontos=MAX_PONTOS_EXIBICAO):
 
 def colunas_plotadas(estado, aba_ativa):
     """
-    Devolve, na mesma ordem usada para desenhar as curvas, as colunas do
-    arquivo da aba ativa que estão de fato NO GRÁFICO agora (visíveis +
-    marcadas em 'estado.canais_selecionados').
+    Devolve, na mesma ordem usada para desenhar as curvas, as colunas
+    que estão de fato NO GRÁFICO agora.
 
-    Compartilhada entre `construir_figura_serie_temporal` (que desenha) e
-    o painel de edição da curva (`renderizar_painel_edicao` em
-    renderizadores.py, que precisa oferecer exatamente essas colunas na
-    caixa 'Dado') — as duas precisam concordar sobre "o que está no
-    gráfico", senão o painel deixaria escolher pra editar uma curva que
-    não está sendo exibida (ou esconderia uma que está).
+    Desde o rework do botão 'Plotar Seleção' (era 'Gerar Série
+    Temporal'), essa lista vem de 'arquivo.eixos_y_manual' — a
+    atribuição manual feita clicando nos NOMES das colunas na barra
+    lateral (ver Arquivo.mover_para_eixo_y, src/core/arquivo.py, e
+    gerenciar_atribuicao_eixos em callbacks.py) — não mais do antigo
+    'estado.canais_selecionados' (checkbox ☐/✓). 'canais_selecionados'
+    continua existindo no EstadoApp (reservado pra uma futura feature
+    de combinar canais de arquivos diferentes — 'Fundir arquivos',
+    ainda não implementada), mas o gráfico principal de um único
+    arquivo não lê mais dali.
+
+    Compartilhada com o painel de edição da curva (`renderizar_painel_
+    edicao` em renderizadores.py, que precisa oferecer exatamente
+    essas colunas na caixa 'Dado') — as duas precisam concordar sobre
+    "o que está no gráfico".
     """
     arquivo = estado.arquivos.get(aba_ativa)
     if arquivo is None:
         return []
-    return [
-        col for col in arquivo.colunas_visiveis()
-        if (aba_ativa, col) in estado.canais_selecionados
-    ]
+    return [col for col in arquivo.eixos_y_manual if col in arquivo.df_editado.columns]
 
 
-def resolver_eixo_x(estado, df):
+def resolver_eixo_x(estado, arquivo):
     """
-    Decide qual coluna de UM arquivo serve de eixo X: a preferência
-    global (`estado.coluna_x`, hoje sempre 'Tempo_decorrido_s') se ela
-    existir nesse arquivo; senão a primeira coluna numérica; senão a
-    primeira coluna de qualquer tipo (fallback pra nunca travar).
+    Decide qual coluna de UM arquivo serve de eixo X.
 
-    Compartilhada entre o plotter (que monta a figura) e a sidebar
-    (`renderizadores.renderizar_colunas_da_aba_ativa`, que precisa saber
-    qual canal NÃO oferecer como curva plotável) — as duas precisam
-    concordar sobre qual é o eixo X, senão a sidebar deixa marcar um
-    canal que o gráfico depois descarta silenciosamente.
+    ORDEM DE PRIORIDADE (mudou com o rework do 'Plotar Seleção'):
+      1. 'arquivo.eixo_x_manual' — o que o usuário escolheu clicando
+         explicitamente no nome de uma coluna na barra lateral (ver
+         Arquivo.mover_para_eixo_x, src/core/arquivo.py). Essa
+         escolha é POR ARQUIVO agora, não mais uma coluna fixa global
+         adivinhada automaticamente.
+      2. 'estado.coluna_x' (histórico: 'Tempo_decorrido_s') SE existir
+         nesse arquivo — fallback usado quando o usuário ainda não
+         atribuiu um X manualmente (ex: ferramentas que precisam de
+         "algum eixo X razoável" mesmo antes de clicar em 'Plotar
+         Seleção', como Derivada()/Integral() da calculadora, ou um
+         corte/aparo de dados).
+      3. a primeira coluna NUMÉRICA do arquivo.
+      4. a primeira coluna de qualquer tipo (nunca trava).
+
+    Compartilhada entre o plotter (que monta a figura), a calculadora
+    (Derivada/Integral, src/core/operations/calculadora.py) e o corte
+    de dados (aparar/excluir, callbacks.py) — os três precisam
+    concordar sobre qual é "o eixo X" deste arquivo.
     """
+    df = arquivo.df_editado
+    if arquivo.eixo_x_manual and arquivo.eixo_x_manual in df.columns:
+        return arquivo.eixo_x_manual
     if estado.coluna_x in df.columns:
         return estado.coluna_x
     colunas_numericas = df.select_dtypes(include='number').columns
@@ -458,7 +477,7 @@ def construir_figura_serie_temporal(estado, aba_ativa):
     houve_amostragem = False
 
     # 1. Identifica a coluna do Eixo X (deste arquivo)
-    eixo_x = resolver_eixo_x(estado, df)
+    eixo_x = resolver_eixo_x(estado, arquivo)
 
     # 2. Só entram as colunas DESTE arquivo que estão visíveis (não
     #    excluídas/ocultas — o próprio eixo X já nasce OCULTO, ver
