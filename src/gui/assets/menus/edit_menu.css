@@ -316,14 +316,40 @@
 }
 
 .painel-edicao-campo-linha > .painel-edicao-label {
-  flex: 0 0 auto;
+  /* Largura FIXA (não mais 'auto'/largura do próprio texto) — pedido
+     explícito: "pra que as barras não fiquem descasadas... a barra
+     deve começar alinhada umas com as outras em TODO O MENU".
+     'Font size:' é o rótulo mais comprido do painel 'Ticks' (10
+     caracteres) — 78px cobre ele com folga no tamanho de fonte usado
+     aqui (11px), e vira o piso comum pra 'Eixo:'/'Type:'/'Number:'/
+     'Width:'/'Length:'/'Direction:'/'Side:' também, TODOS com essa
+     MESMA largura — é isso que faz o controle de cada linha (dropdown,
+     toggle ou slider) começar sempre no mesmo x, não importa se o
+     rótulo dessa linha é curto ('Side:') ou comprido ('Font size:').
+     'flex: 0 0 78px' (não só 'width') porque isso é dentro de um
+     flex container — 'width' sozinho não impede um item flex de
+     encolher/crescer. */
+  flex: 0 0 78px;
+  width: 78px;
   white-space: nowrap;
 }
 
 .painel-edicao-campo-linha > .painel-edicao-dropdown,
-.painel-edicao-campo-linha > .painel-edicao-segmentado {
+.painel-edicao-campo-linha > .painel-edicao-segmentado-wrapper {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* 'width: 100%' reforça o 'flex: 1 1 auto' acima — sem isso, o
+   componente de dropdown (base própria, não mais dash-core-
+   components clássico) mantinha uma largura PRÓPRIA baseada no texto
+   selecionado (largo pra 'Both', estreito pra 'X') em vez de esticar
+   pra ocupar o resto da linha — flex-grow sozinho não bastou porque
+   o componente já nasce com uma largura intrínseca definida por fora
+   do fluxo flex normal; 'width: 100%' força ele a preencher o
+   container do jeito que o flex-grow já deveria ter feito. */
+.painel-edicao-campo-linha > .painel-edicao-dropdown {
+  width: 100%;
 }
 
 /* 'cor:' + 'Style:' + 'Marker:' viram uma linha só, as 3 caixas com a
@@ -572,6 +598,21 @@
   height: 24px;
   display: flex;
   align-items: center;
+}
+
+/* Sobrescreve a regra acima quando o slider está NA MESMA LINHA do
+   rótulo (ver '.painel-edicao-campo-linha', mais acima, e
+   '_campo_slider' em renderizadores.py) — sem margem de cima/baixo,
+   já que a linha inteira usa 'align-items: center' pra centralizar
+   verticalmente (a margem de 10px em cima só fazia sentido no layout
+   EMPILHADO antigo, onde o rótulo ficava sozinho numa linha acima).
+   'flex: 1 1 auto' é o que faz a barra esticar pra ocupar o resto da
+   linha (mesmo raciocínio do dropdown 'Eixo:' — ver '.painel-edicao-
+   campo-linha > .painel-edicao-dropdown'). */
+.painel-edicao-campo-linha > .dash-slider-wrapper {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0 6px;
 }
 
 .painel-edicao-campo .dash-slider-root {
@@ -890,24 +931,55 @@
   transform: translateX(14px);
 }
 
-/* Variante 'dupla' segmentada (Division <-> Subdivision, Outward <->
-   Inward, Single <-> Both — seção 'Ticks', ver _linha_toggle_dupla em
+/* Variante 'dupla' segmentada (Major <-> Minor, Outward <-> Inward,
+   Single <-> Both — seção 'Ticks', ver _linha_toggle_dupla em
    renderizadores.py) — SUBSTITUI o interruptor pequeno tipo <input
    type=checkbox> usado nos outros toggles ('Grid', ver .painel-
    edicao-toggle/.painel-edicao-toggle-bolinha acima): aqui os 2 nomes
    das opções ficam ESCRITOS DENTRO da pílula, e quem está ATIVO vira
-   uma cápsula colorida + texto branco em negrito, um pouco maior que
-   a opção inativa (que fica lisa, só texto apagado sobre o fundo
-   neutro da pílula) — pedido explícito.
+   uma cápsula colorida + texto branco em negrito (a inativa fica
+   lisa, só texto apagado sobre o fundo neutro da pílula).
+
+   TAMANHO FIXO, não mais esticando pra preencher a linha (pedido
+   explícito, revisão da v1: "calcule um tamanho médio pra que todos
+   tenham o mesmo tamanho independente do texto") — cada opção
+   ('.painel-edicao-segmentado-opcao' abaixo) tem a MESMA largura em
+   TODOS os 3 toggles do painel, calculada pelo maior rótulo entre os
+   6 usados (Major/Minor/Outward/Inward/Single/Both): 'Outward' = 7
+   caracteres, + 2 espaços antes + 2 depois = 11 caracteres — daí o
+   'width: 11ch' abaixo (unidade 'ch' ~ largura do caractere '0' nesta
+   fonte, é o jeito do CSS de medir "N caracteres de largura"). Rótulos
+   mais curtos ('Both', 'Major'...) ficam CENTRALIZADOS dentro desse
+   mesmo espaço fixo (text-align: center), não mais cada opção do seu
+   próprio tamanho — é isso que garante os 3 toggles do painel
+   parecerem do MESMO tamanho, mesmo com textos de comprimentos
+   diferentes.
+
+   '.painel-edicao-segmentado-wrapper' (ver regra em '.painel-edicao-
+   campo-linha > .painel-edicao-segmentado-wrapper' mais acima) é quem
+   ocupa o resto da linha (flex: 1 1 auto) e CENTRALIZA esta pílula de
+   tamanho fixo dentro desse espaço (pedido explícito: "faça esses
+   toggle centralizados em relação ao menu") — o rótulo ('Type:' etc)
+   continua fixo à esquerda (mesma largura de 78px de todo o painel,
+   ver '.painel-edicao-campo-linha > .painel-edicao-label'), só o
+   toggle em si que fica centralizado no espaço que sobra ao lado dele.
 
    Mesma técnica de sempre: um <button> com a classe 'ativo' ligada/
    desligada pelo callback genérico 'alternar_toggle' (callbacks.py,
    MATCH em {'type': 'toggle', 'index': ...}) — ele só mexe na classe
    via string, não olha pra dentro do botão, então o MESMO callback
    que já existia serve sem nenhuma mudança. */
+.painel-edicao-segmentado-wrapper {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
 .painel-edicao-segmentado {
   position: relative;
   display: flex;
+  flex: 0 0 auto;
   border: 1px solid var(--cor-borda);
   border-radius: 999px;
   background-color: #EBEBE6;
@@ -921,9 +993,10 @@
 }
 
 .painel-edicao-segmentado-opcao {
-  flex: 1 1 0;
+  flex: 0 0 auto;
+  width: 11ch;
   text-align: center;
-  padding: 5px 8px;
+  padding: 5px 0;
   font-size: 12px;
   font-weight: 600;
   font-family: var(--fonte-ui);
@@ -932,18 +1005,16 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: flex-grow 0.18s ease, background-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 /* Opção ESQUERDA ativa (roxo, MESMA cor de --cor-accent-divisao já
    usada nos sliders de 'Division' — ver .painel-edicao-ticks-sliders
    acima) — este é o estado 'ativo=False' (ver docstring de
-   _linha_toggle_dupla: esquerda = padrão/desligado). 'flex-grow'
-   maior faz a cápsula ativa crescer um pouco em relação à inativa. */
+   _linha_toggle_dupla: esquerda = padrão/desligado). */
 .painel-edicao-segmentado:not(.ativo) .painel-edicao-segmentado-opcao:first-child {
   background-color: var(--cor-accent-divisao);
   color: #FFFFFF;
-  flex-grow: 1.6;
 }
 
 /* Opção DIREITA ativa (verde, MESMA cor de --cor-accent-subdivisao já
@@ -951,7 +1022,6 @@
 .painel-edicao-segmentado.ativo .painel-edicao-segmentado-opcao:last-child {
   background-color: var(--cor-accent-subdivisao);
   color: #FFFFFF;
-  flex-grow: 1.6;
 }
 
 /* Os 3 sliders (Number/Width/Length) trocam de cor junto com o toggle

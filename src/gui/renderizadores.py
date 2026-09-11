@@ -719,32 +719,42 @@ def _linha_toggle_dupla(rotulo_externo, rotulo_esquerda, rotulo_direita, indice,
     """
     return html.Div(className='painel-edicao-campo-linha', children=[
         html.Label(rotulo_externo, className='painel-edicao-label'),
-        html.Button(
-            id={'type': 'toggle', 'index': indice},
-            className='painel-edicao-segmentado' + (' ativo' if ativo else ''),
-            n_clicks=0, type='button',
-            children=[
-                html.Span(rotulo_esquerda, className='painel-edicao-segmentado-opcao'),
-                html.Span(rotulo_direita, className='painel-edicao-segmentado-opcao'),
-            ],
-        ),
+        html.Div(className='painel-edicao-segmentado-wrapper', children=[
+            html.Button(
+                id={'type': 'toggle', 'index': indice},
+                className='painel-edicao-segmentado' + (' ativo' if ativo else ''),
+                n_clicks=0, type='button',
+                children=[
+                    html.Span(rotulo_esquerda, className='painel-edicao-segmentado-opcao'),
+                    html.Span(rotulo_direita, className='painel-edicao-segmentado-opcao'),
+                ],
+            ),
+        ]),
     ])
 
 
 def _campo_slider(rotulo, id_slider, valor, minimo, maximo, step=1):
     """
-    Rótulo + dcc.Slider, no mesmo padrão do slider 'Thickness' da
-    seção 'Curva' (ver renderizar_painel_edicao). Reaproveitado pelos
-    3 sliders de 'Division'/'Subdivision' em 'Ticks' — os mesmos 3
-    componentes (mesmos ids) trocam de VALOR quando o toggle
-    'Division/Subdivision' é ligado/desligado (ver alternar_modo_ticks
-    em callbacks.py); não nascem 6 sliders duplicados. Ficam dentro de
+    Rótulo + dcc.Slider NA MESMA LINHA (era empilhado — rótulo em cima,
+    barra embaixo; pedido explícito: "todos esses controladores são
+    ao lado do texto que os descreve"). Reaproveitado pelos 3 sliders
+    de 'Division'/'Subdivision' em 'Ticks' — os mesmos 3 componentes
+    (mesmos ids) trocam de VALOR quando o toggle 'Division/
+    Subdivision' é ligado/desligado (ver alternar_modo_ticks em
+    callbacks.py); não nascem 6 sliders duplicados. Ficam dentro de
     um wrapper com id próprio ('edicao-ticks-sliders-wrapper') cuja
     CLASSE também troca junto (mesmo callback) — é o que permite os
     3 sliders mudarem de cor (teal <-> laranja) ao trocar de modo, ver
     .painel-edicao-ticks-sliders.modo-subdivisao em edit_menu.css.
+
+    O rótulo usa a MESMA largura fixa de toda linha do painel (78px,
+    ver '.painel-edicao-campo-linha > .painel-edicao-label' em
+    edit_menu.css) — é isso que faz a barra de 'Number:' começar
+    exatamente no mesmo x que a de 'Width:'/'Length:'/'Font size:',
+    apesar dos rótulos terem comprimentos diferentes (pedido
+    explícito: "pra que as barras não fiquem descasadas").
     """
-    return html.Div(className='painel-edicao-campo', children=[
+    return html.Div(className='painel-edicao-campo painel-edicao-campo-linha', children=[
         html.Label(rotulo, className='painel-edicao-label'),
         dcc.Slider(
             id=id_slider, min=minimo, max=maximo, step=step, value=valor,
@@ -1010,15 +1020,22 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
             ),
         ]),
 
-        # Toggle 'Division' <-> 'Subdivision': a POSIÇÃO/COR da cápsula
-        # ativa já diz qual dos dois modos está sendo editado agora
-        # (ver _linha_toggle_dupla acima) — não precisa de um título
-        # 'Divisions' separado em cima nem de um segundo toggle
-        # 'Subdivision' lá embaixo (era redundante com este). Logo
-        # abaixo do 'Eixo' por pedido: é o primeiro controle que o
+        # Toggle 'Major' <-> 'Minor' (nomes exibidos — o índice
+        # continua 'ticks-subdivisao' por baixo, mesmo significado de
+        # sempre: Major = Division, Minor = Subdivision, ver
+        # sincronizar_campos_ticks/aplicar_preferencias_ticks em
+        # callbacks.py, que só olham a classe 'ativo', nunca o texto).
+        # 'Major'/'Minor' (era 'Division'/'Subdivision') — pedido
+        # explícito, pra caber dentro da pílula sem cortar/comprimir
+        # (ver tamanho fixo calculado em '.painel-edicao-segmentado-
+        # opcao', edit_menu.css). A POSIÇÃO/COR da cápsula ativa já diz
+        # qual dos dois modos está sendo editado agora — não precisa de
+        # um título 'Divisions' separado em cima nem de um segundo
+        # toggle 'Subdivision' lá embaixo (era redundante com este).
+        # Logo abaixo do 'Eixo' por pedido: é o primeiro controle que o
         # usuário vê ao abrir 'Ticks', antes mesmo dos sliders que ele
         # afeta.
-        _linha_toggle_dupla('Type:', 'Division', 'Subdivision', 'ticks-subdivisao'),
+        _linha_toggle_dupla('Type:', 'Major', 'Minor', 'ticks-subdivisao'),
 
         html.Hr(className='painel-edicao-separador'),
 
