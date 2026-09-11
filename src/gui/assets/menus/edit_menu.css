@@ -303,6 +303,29 @@
   gap: 4px;
 }
 
+/* Variante EM LINHA de '.painel-edicao-campo' — rótulo FIXO à
+   esquerda (largura do próprio texto) + o controle (dropdown ou
+   toggle segmentado) ocupando o resto da largura da linha (pedido
+   explícito: "axis: [ ... ]", rótulo e caixa lado a lado, não mais
+   empilhados). Usada pelo campo 'Eixo:' e por todo toggle segmentado
+   (ver '_linha_toggle_dupla', renderizadores.py). */
+.painel-edicao-campo-linha {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.painel-edicao-campo-linha > .painel-edicao-label {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.painel-edicao-campo-linha > .painel-edicao-dropdown,
+.painel-edicao-campo-linha > .painel-edicao-segmentado {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* 'cor:' + 'Style:' + 'Marker:' viram uma linha só, as 3 caixas com a
    MESMA largura lado a lado (ver painel-edicao-linha na 3ª fileira do
    card) — cada terço é um painel-edicao-subcampo. Gap menor que antes
@@ -867,27 +890,68 @@
   transform: translateX(14px);
 }
 
-/* Variante 'dupla' (Division <-> Subdivision, seção 'Ticks'): dois
-   rótulos, um de cada lado do toggle (ver _linha_toggle_dupla em
-   renderizadores.py) — a própria posição do interruptor já indica o
-   modo, então os rótulos ficam discretos e do MESMO peso visual. O
-   TOGGLE em si fica com a cor padrão (igual 'Both sides'/'Grid') —
-   quem muda de cor ao trocar de modo são os 3 sliders logo abaixo
-   (ver .painel-edicao-ticks-sliders.modo-subdivisao), porque são eles
-   que passam a controlar outro conjunto de valores; o toggle é só o
-   controle que decide qual conjunto é esse. 'justify-content: center'
-   (em vez de 'space-between', usado pela variante de rótulo único)
-   porque aqui os 2 textos + o toggle formam um bloco só, não uma
-   linha 'rótulo à esquerda / controle à direita'. */
-.painel-edicao-toggle-linha-dupla {
-  justify-content: center;
-  gap: 10px;
+/* Variante 'dupla' segmentada (Division <-> Subdivision, Outward <->
+   Inward, Single <-> Both — seção 'Ticks', ver _linha_toggle_dupla em
+   renderizadores.py) — SUBSTITUI o interruptor pequeno tipo <input
+   type=checkbox> usado nos outros toggles ('Grid', ver .painel-
+   edicao-toggle/.painel-edicao-toggle-bolinha acima): aqui os 2 nomes
+   das opções ficam ESCRITOS DENTRO da pílula, e quem está ATIVO vira
+   uma cápsula colorida + texto branco em negrito, um pouco maior que
+   a opção inativa (que fica lisa, só texto apagado sobre o fundo
+   neutro da pílula) — pedido explícito.
+
+   Mesma técnica de sempre: um <button> com a classe 'ativo' ligada/
+   desligada pelo callback genérico 'alternar_toggle' (callbacks.py,
+   MATCH em {'type': 'toggle', 'index': ...}) — ele só mexe na classe
+   via string, não olha pra dentro do botão, então o MESMO callback
+   que já existia serve sem nenhuma mudança. */
+.painel-edicao-segmentado {
+  position: relative;
+  display: flex;
+  border: 1px solid var(--cor-borda);
+  border-radius: 999px;
+  background-color: #EBEBE6;
+  padding: 2px;
+  cursor: pointer;
+  overflow: hidden;
 }
 
-.painel-edicao-toggle-rotulo-lateral {
-  font-size: 11px;
+.painel-edicao-segmentado:hover {
+  border-color: var(--cor-accent);
+}
+
+.painel-edicao-segmentado-opcao {
+  flex: 1 1 0;
+  text-align: center;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 600;
   font-family: var(--fonte-ui);
   color: var(--cor-texto-mudo);
+  border-radius: 999px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: flex-grow 0.18s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+/* Opção ESQUERDA ativa (roxo, MESMA cor de --cor-accent-divisao já
+   usada nos sliders de 'Division' — ver .painel-edicao-ticks-sliders
+   acima) — este é o estado 'ativo=False' (ver docstring de
+   _linha_toggle_dupla: esquerda = padrão/desligado). 'flex-grow'
+   maior faz a cápsula ativa crescer um pouco em relação à inativa. */
+.painel-edicao-segmentado:not(.ativo) .painel-edicao-segmentado-opcao:first-child {
+  background-color: var(--cor-accent-divisao);
+  color: #FFFFFF;
+  flex-grow: 1.6;
+}
+
+/* Opção DIREITA ativa (verde, MESMA cor de --cor-accent-subdivisao já
+   usada nos sliders de 'Subdivision') — estado 'ativo=True'. */
+.painel-edicao-segmentado.ativo .painel-edicao-segmentado-opcao:last-child {
+  background-color: var(--cor-accent-subdivisao);
+  color: #FFFFFF;
+  flex-grow: 1.6;
 }
 
 /* Os 3 sliders (Number/Width/Length) trocam de cor junto com o toggle

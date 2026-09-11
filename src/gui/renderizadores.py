@@ -690,27 +690,44 @@ def _linha_toggle(rotulo, indice, ativo=False, classe_rotulo='painel-edicao-limi
     ])
 
 
-def _linha_toggle_dupla(rotulo_esquerda, rotulo_direita, indice, ativo=False):
+def _linha_toggle_dupla(rotulo_externo, rotulo_esquerda, rotulo_direita, indice, ativo=False):
     """
-    Variante de _linha_toggle com um rótulo de CADA LADO do
-    interruptor, em vez de um rótulo só — usada pelo par 'Division' /
-    'Subdivision' em 'Ticks': a própria POSIÇÃO do toggle (esquerda =
-    Division, direita = Subdivision) já comunica qual dos dois modos
-    está ativo, então os dois nomes ficam sempre visíveis (não só o
-    que está ligado agora), diferente de um toggle com um rótulo único
-    tipo 'Grid' ou 'Both sides'.
+    Toggle SEGMENTADO — rótulo FIXO à esquerda (ex: 'Type:', como
+    qualquer outro campo do painel) + uma pílula que ocupa o resto da
+    linha, com os DOIS nomes das opções escritos DENTRO dela (ex:
+    'Division' | 'Subdivision'). Qual das duas está ativa vira uma
+    cápsula colorida/preenchida com texto branco em negrito, um pouco
+    MAIOR que a outra (ver '.painel-edicao-segmentado-opcao' em
+    edit_menu.css); a inativa fica lisa, sem preenchimento — pedido
+    explícito revisando a v1 (que tinha os 2 nomes como rótulos SOLTOS
+    flanqueando um interruptor pequeno tipo <input type=checkbox>, sem
+    rótulo de linha nenhum e sem cor nenhuma indicando o lado ativo).
 
-    O TOGGLE em si fica com a cor padrão (teal), igual a qualquer
-    outro do painel — quem muda de cor ao trocar de modo são os 3
-    sliders logo abaixo (ver .painel-edicao-ticks-sliders.modo-
-    subdivisao em edit_menu.css): são eles que passam a controlar um
-    conjunto de valores diferente, o toggle é só o controle que decide
-    qual conjunto é esse.
+    Reaproveita o MESMO id pattern ({'type': 'toggle', 'index':
+    indice}) e a MESMA classe 'ativo' do interruptor clássico (ver
+    _toggle acima) — o callback genérico 'alternar_toggle'
+    (callbacks.py) só manipula essa classe via string, não olha pra
+    estrutura interna do botão, então funciona sem nenhuma mudança ali.
+
+    'ativo=False' = opção ESQUERDA selecionada (roxo, --cor-accent-
+    divisao); 'ativo=True' = opção DIREITA (verde, --cor-accent-
+    subdivisao) — MESMAS duas cores em TODOS os toggles duplos do
+    painel (pedido explícito: "isso ocorre em todas as cores dessa
+    divisão"), a mesma dupla de cores já usada nos 3 sliders de
+    'Division/Subdivision' (ver .painel-edicao-ticks-sliders.modo-
+    subdivisao) — não uma cor inventada nova por par.
     """
-    return html.Div(className='painel-edicao-toggle-linha painel-edicao-toggle-linha-dupla', children=[
-        html.Span(rotulo_esquerda, className='painel-edicao-toggle-rotulo-lateral'),
-        _toggle(indice, ativo=ativo),
-        html.Span(rotulo_direita, className='painel-edicao-toggle-rotulo-lateral'),
+    return html.Div(className='painel-edicao-campo-linha', children=[
+        html.Label(rotulo_externo, className='painel-edicao-label'),
+        html.Button(
+            id={'type': 'toggle', 'index': indice},
+            className='painel-edicao-segmentado' + (' ativo' if ativo else ''),
+            n_clicks=0, type='button',
+            children=[
+                html.Span(rotulo_esquerda, className='painel-edicao-segmentado-opcao'),
+                html.Span(rotulo_direita, className='painel-edicao-segmentado-opcao'),
+            ],
+        ),
     ])
 
 
@@ -978,7 +995,7 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
     valores_subdivisoes_iniciais = ticks_x.subdivisoes
 
     conteudo_ticks = [
-        html.Div(className='painel-edicao-campo', children=[
+        html.Div(className='painel-edicao-campo painel-edicao-campo-linha', children=[
             html.Label('Eixo:', htmlFor='edicao-ticks-eixo', className='painel-edicao-label'),
             dcc.Dropdown(
                 id='edicao-ticks-eixo',
@@ -993,14 +1010,15 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
             ),
         ]),
 
-        # Toggle 'Division' <-> 'Subdivision': a POSIÇÃO do interruptor
-        # (esquerda/direita) já diz qual dos dois modos está sendo
-        # editado agora — não precisa mais de um título 'Divisions'
-        # separado em cima nem de um segundo toggle 'Subdivision' lá
-        # embaixo (era redundante com este). Logo abaixo do 'Eixo' por
-        # pedido: é o primeiro controle que o usuário vê ao abrir
-        # 'Ticks', antes mesmo dos sliders que ele afeta.
-        _linha_toggle_dupla('Division', 'Subdivision', 'ticks-subdivisao'),
+        # Toggle 'Division' <-> 'Subdivision': a POSIÇÃO/COR da cápsula
+        # ativa já diz qual dos dois modos está sendo editado agora
+        # (ver _linha_toggle_dupla acima) — não precisa de um título
+        # 'Divisions' separado em cima nem de um segundo toggle
+        # 'Subdivision' lá embaixo (era redundante com este). Logo
+        # abaixo do 'Eixo' por pedido: é o primeiro controle que o
+        # usuário vê ao abrir 'Ticks', antes mesmo dos sliders que ele
+        # afeta.
+        _linha_toggle_dupla('Type:', 'Division', 'Subdivision', 'ticks-subdivisao'),
 
         html.Hr(className='painel-edicao-separador'),
 
@@ -1052,8 +1070,18 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
         html.Hr(className='painel-edicao-separador'),
 
         html.Div('Position:', className='painel-edicao-limite-titulo'),
-        _linha_toggle_dupla('Outward', 'Inward', 'ticks-direcao', ativo=(ticks_x.direcao == 'inside')),
-        _linha_toggle('Both sides', 'ticks-both-sides', ativo=ticks_x.both_sides),
+        _linha_toggle_dupla('Direction:', 'Outward', 'Inward', 'ticks-direcao', ativo=(ticks_x.direcao == 'inside')),
+        # 'Single'/'Both' (era um interruptor de rótulo único 'Both
+        # sides') — convertido pro MESMO componente segmentado dos
+        # outros dois toggles duplos deste painel (pedido explícito:
+        # "os dois botões ali devem ter o mesmo comportamento e o
+        # mesmo tamanho" [de Direction]). Semântica igual: 'ativo'
+        # continua = "mostrar ticks dos dois lados" — só a opção da
+        # DIREITA (verde) mudou de rótulo 'Both sides' pra 'Both', com
+        # 'Single' aparecendo agora como a opção da esquerda (roxa)
+        # quando desativado, em vez de um interruptor sem texto nenhum
+        # do lado esquerdo.
+        _linha_toggle_dupla('Side:', 'Single', 'Both', 'ticks-both-sides', ativo=ticks_x.both_sides),
 
         html.Hr(className='painel-edicao-separador'),
 
