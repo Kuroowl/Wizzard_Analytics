@@ -865,14 +865,18 @@ def registrar_callbacks(app, estado):
             # invalidar o cache sozinho). Vai sempre pra Y, nunca vira
             # X sozinha — faz mais sentido um canal recém-CALCULADO ser
             # uma curva, não o eixo. Só redesenha de verdade se JÁ
-            # existe um gráfico montado nesta aba (mesmo cuidado de
-            # 'gerenciar_atribuicao_eixos' logo abaixo: se o usuário
-            # ainda nem gerou o primeiro gráfico, atribuir não deve
-            # empurrar ele direto pra visualização sozinho — só
-            # garante que a curva já nasce atribuída pra quando ele
-            # gerar).
+            # existia um gráfico montado nesta aba ANTES desta chamada
+            # (mesmo cuidado de 'gerenciar_atribuicao_eixos' logo
+            # abaixo: se o usuário ainda nem gerou o primeiro gráfico,
+            # atribuir não deve empurrar ele direto pra visualização
+            # sozinho — só garante que a curva já nasce atribuída pra
+            # quando ele gerar). IMPORTANTE: precisa ser checado ANTES
+            # de chamar 'mover_para_eixo_y' — esse método já invalida o
+            # cache da figura sozinho, então checar DEPOIS sempre daria
+            # False (mesmo bug já corrigido em gerenciar_atribuicao_eixos).
+            tinha_grafico = arquivo.grafico_gerado
             arquivo.mover_para_eixo_y(nome_interno_final)
-            if arquivo.grafico_gerado:
+            if tinha_grafico:
                 fig = construir_figura_serie_temporal(estado, aba_ativa)
                 arquivo.figura = fig
                 area_grafico = renderizar_grafico_com_fechar(fig)
@@ -984,7 +988,18 @@ def registrar_callbacks(app, estado):
         if not arquivo:
             raise PreventUpdate
 
+        # Capturado ANTES de qualquer mutação — BUG corrigido aqui:
+        # 'Arquivo.excluir_canal'/'mover_para_eixo_x'/'mover_para_eixo_y'/
+        # 'remover_da_selecao_eixos' (src/core/arquivo.py) já chamam
+        # 'invalidar_grafico()' sozinhos (zeram 'arquivo.figura'), então
+        # checar 'arquivo.grafico_gerado' DEPOIS de chamar qualquer um
+        # deles sempre dava False — o gráfico nunca era redesenhado
+        # depois da primeira vez (só a primeira geração, via 'Plotar
+        # Seleção', funcionava, porque lá a figura ainda nem existia
+        # mesmo). Guardando o valor de ANTES, sabemos de verdade se
+        # havia um gráfico pra atualizar.
         tipo = gatilho_id.get('type')
+        tinha_grafico = arquivo.grafico_gerado
 
         if tipo == 'botao-excluir-canal':
             rotulo = arquivo.rotulo(coluna)
@@ -995,7 +1010,7 @@ def registrar_callbacks(app, estado):
             arquivo.excluir_canal(coluna)
             mensagem = f'🧙‍♂️: " Canal \'{rotulo}\' excluído. "'
 
-            if arquivo.grafico_gerado:
+            if tinha_grafico:
                 fig = construir_figura_serie_temporal(estado, aba_ativa)
                 arquivo.figura = fig
                 area_grafico = renderizar_grafico_com_fechar(fig)
@@ -1009,10 +1024,10 @@ def registrar_callbacks(app, estado):
                 arquivo.mover_para_eixo_y(coluna)
                 mensagem = f'🧙‍♂️: " \'{rotulo}\' adicionado ao eixo Y. "'
 
-            # Só redesenha o gráfico se a aba ativa já estiver com um
-            # gráfico aberto (senão ainda estamos na grade de opções, e
+            # Só redesenha o gráfico se JÁ havia um gráfico aberto antes
+            # deste clique (senão ainda estamos na grade de opções, e
             # atribuir um eixo não deve pular direto pra visualização).
-            if arquivo.grafico_gerado:
+            if tinha_grafico:
                 # Pode empurrar o aviso de amostragem (>5000 linhas) pra
                 # lista de avisos da aba — por isso recalculamos o badge
                 #/popup do rodapé logo abaixo, depois desta chamada.
@@ -1025,7 +1040,12 @@ def registrar_callbacks(app, estado):
             arquivo.remover_da_selecao_eixos(coluna)
             mensagem = f'🧙‍♂️: " \'{rotulo}\' voltou pra lista. "'
 
-            if arquivo.grafico_gerado:
+            # Mesmo se o X removido zerar 'eixo_x_manual', ainda
+            # redesenha (se já havia gráfico) — 'construir_figura_
+            # serie_temporal' (plotter.py) já sabe devolver uma figura
+            # VAZIA quando não há X atribuído (pedido explícito: "remover
+            # o X deveria gerar um gráfico vazio, à espera de um X").
+            if tinha_grafico:
                 fig = construir_figura_serie_temporal(estado, aba_ativa)
                 arquivo.figura = fig
                 area_grafico = renderizar_grafico_com_fechar(fig)
@@ -1083,6 +1103,7 @@ def registrar_callbacks(app, estado):
 
     @app.callback(
         Output('lista-canais-aba', 'children', allow_duplicate=True),
+        Output('selecao-eixos-container', 'children', allow_duplicate=True),
         Output('canal-em-edicao-store', 'data', allow_duplicate=True),
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('rodape-status', 'children', allow_duplicate=True),
@@ -1198,6 +1219,7 @@ def registrar_callbacks(app, estado):
             painel_edicao = renderizar_painel_edicao(estado, aba_ativa, coluna_em_edicao_painel)
 
         return (renderizar_colunas_da_aba_ativa(estado, aba_ativa, novo_canal_em_edicao),
+                renderizar_selecao_eixos(estado, aba_ativa, novo_canal_em_edicao),
                 novo_canal_em_edicao, area_grafico, mensagem, painel_edicao, novo_mapa)
 
     @app.callback(

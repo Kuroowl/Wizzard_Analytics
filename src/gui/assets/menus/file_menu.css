@@ -183,65 +183,33 @@
   padding: 2px 2px 0 2px;
 }
 
-/* Caixa que recebe os chips — 'flex-wrap' porque Y pode acumular
-   VÁRIAS colunas (X é sempre uma só, mas a caixa usa a mesma
-   aparência pros dois por consistência visual). Altura mínima
-   garante que a caixa não "pisque" de tamanho ao ficar vazia
-   (clicando um chip pra tirar) vs. com 1 chip só. */
+/* Caixa que recebe as linhas de canal atribuído — vira uma listinha
+   vertical (mesma ideia do '.canais-cartao' logo abaixo), NÃO mais um
+   monte de "chips" lado a lado (pedido explícito: "faça ocupar tudo
+   em Y, a ocupação também é total e os novos dados selecionados
+   entram abaixo um do outro"). Cada linha é um '.coluna-item' de
+   verdade (ver '_linha_canal_lateral', renderizadores.py — a MESMA
+   função usada por 'Dados do arquivo:' logo abaixo), então herda a
+   largura total/hover/aparência de lá automaticamente; esta caixa só
+   precisa empilhar ('flex-direction: column') e mover a moldura
+   (fundo/borda/sombra) pra cá, no mesmo estilo do '.canais-cartao'. */
 .eixo-caixa {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  gap: 1px;
   min-height: 26px;
-  padding: 3px 4px;
-  border: 1px dashed var(--cor-borda);
-  border-radius: 5px;
-  background: rgba(0, 0, 0, 0.02);
+  padding: 3px;
+  border: 1px solid var(--cor-borda);
+  border-radius: 6px;
+  background-color: var(--cor-fundo);
 }
 
 .eixo-caixa-vazia {
   font-size: 11px;
   font-style: italic;
   color: var(--cor-texto-mudo);
-  padding: 2px 4px;
+  padding: 4px 6px;
   user-select: none;
-}
-
-/* Chip de coluna já atribuída — clicar nele devolve a coluna pra
-   lista 'Dados do arquivo:' (ver Arquivo.remover_da_selecao_eixos).
-   Cor sólida diferenciando X (accent, a mesma cor de destaque
-   principal do app) de Y (verde, mesmo tom de --cor-accent-
-   subdivisao já usado em outros cantos pra "dado calculado/plotado")
-   — reforça visualmente qual slot cada chip ocupa, não só a posição
-   na caixa. Um 'x' apareceria redundante já que TODO o chip é
-   clicável pra remover; o título (tooltip) explica a ação. */
-.eixo-chip {
-  font-family: var(--fonte-dado);
-  font-size: 11px;
-  font-weight: 600;
-  color: #FFFFFF;
-  border: none;
-  border-radius: 4px;
-  padding: 3px 8px;
-  cursor: pointer;
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  transition: opacity 0.1s;
-}
-
-.eixo-chip:hover {
-  opacity: 0.8;
-}
-
-.eixo-chip-x {
-  background-color: var(--cor-accent);
-}
-
-.eixo-chip-y {
-  background-color: var(--cor-accent-subdivisao);
 }
 
 /* --- canais/colunas --- */

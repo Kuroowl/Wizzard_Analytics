@@ -473,10 +473,24 @@ def construir_figura_serie_temporal(estado, aba_ativa):
         # os callbacks já checam isso antes).
         return fig
 
+    # Sem eixo X ATRIBUÍDO -> gráfico vazio, à espera de um X (pedido
+    # explícito: remover o X do slot X:/Y: — ver Arquivo.
+    # remover_da_selecao_eixos — deve limpar o gráfico até o usuário
+    # escolher outro, não cair num X adivinhado escondido por baixo).
+    # Diferente de 'resolver_eixo_x' (usada pela calculadora/corte),
+    # que PRECISA de algum X razoável mesmo sem escolha manual — aqui,
+    # pro gráfico em si, não existe fallback: sem X escolhido, não tem
+    # o que desenhar.
+    if arquivo.eixo_x_manual is None:
+        fig.update_layout(template='plotly_white', margin=dict(l=50, r=20, t=20, b=40), uirevision='constant')
+        return fig
+
     df = arquivo.df_editado
     houve_amostragem = False
 
-    # 1. Identifica a coluna do Eixo X (deste arquivo)
+    # 1. Identifica a coluna do Eixo X (deste arquivo) — já sabemos que
+    #    existe (checado acima), 'resolver_eixo_x' aqui só confirma que
+    #    ela ainda está presente no df (pode ter sido excluída por fora).
     eixo_x = resolver_eixo_x(estado, arquivo)
 
     # 2. Só entram as colunas DESTE arquivo que estão visíveis (não
