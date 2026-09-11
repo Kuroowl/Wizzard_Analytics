@@ -1002,6 +1002,29 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
         # 'Ticks', antes mesmo dos sliders que ele afeta.
         _linha_toggle_dupla('Division', 'Subdivision', 'ticks-subdivisao'),
 
+        html.Hr(className='painel-edicao-separador'),
+
+        # --- REORGANIZAÇÃO DE LAYOUT (pedido explícito, mockup
+        # fornecido) — 3 sub-seções com título próprio ('Tick size' /
+        # 'Position' / 'Label'), mesma classe/estilo de 'Limits:' na
+        # seção 'Eixos' logo acima ('.painel-edicao-limite-titulo' —
+        # maiúsculas pequenas, cor apagada; reaproveitada aqui, não é
+        # exclusiva de 'Limits'). NENHUM id/comportamento mudou, só a
+        # ORDEM e o agrupamento visual dos mesmos controles de sempre:
+        #   - 'Tick size': os 3 sliders (Number/Width/Length), que
+        #     antes vinham soltos direto após o toggle Division/
+        #     Subdivision, sem cabeçalho nenhum os identificando como
+        #     grupo.
+        #   - 'Position': 'Outward/Inward' (antes ficava sozinho lá no
+        #     FINAL do painel, depois até da fonte do label — sem
+        #     relação visual nenhuma com 'Both sides', apesar dos dois
+        #     serem sobre POSICIONAMENTO da marca) + 'Both sides'
+        #     (antes ficava logo após os sliders de tamanho, sem
+        #     conexão visual com 'Outward/Inward').
+        #   - 'Label': só o slider de fonte, que antes vinha solto
+        #     depois do separador, sem título nenhum contextualizando
+        #     que aquele controle é sobre o RÓTULO da marca.
+        html.Div('Tick size:', className='painel-edicao-limite-titulo'),
         html.Div(
             id='edicao-ticks-sliders-wrapper',
             className='painel-edicao-ticks-sliders',
@@ -1025,10 +1048,16 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
                 ),
             ],
         ),
+
+        html.Hr(className='painel-edicao-separador'),
+
+        html.Div('Position:', className='painel-edicao-limite-titulo'),
+        _linha_toggle_dupla('Outward', 'Inward', 'ticks-direcao', ativo=(ticks_x.direcao == 'inside')),
         _linha_toggle('Both sides', 'ticks-both-sides', ativo=ticks_x.both_sides),
 
         html.Hr(className='painel-edicao-separador'),
 
+        html.Div('Label:', className='painel-edicao-limite-titulo'),
         # Fonte dos rótulos de tick: NÃO troca de valor com o toggle
         # Division/Subdivision (é uma propriedade do eixo inteiro, só
         # existe UM tamanho de fonte pros números — não tem 'fonte dos
@@ -1039,14 +1068,17 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
         # visivelmente nesse modo, então melhor sumir do que ficar
         # solto sem efeito aparente. Ver 'edicao-ticks-fonte-labels-
         # wrapper' (Output em sincronizar_campos_ticks, callbacks.py).
+        # Rótulo do campo agora só 'Font size:' (era 'Label font:') —
+        # o título da sub-seção 'Label:' logo acima já deixa claro do
+        # que se trata, repetir 'Label' no campo ficaria redundante
+        # (mesma simplificação do mockup fornecido).
         html.Div(
             id='edicao-ticks-fonte-labels-wrapper',
             children=_campo_slider(
-                'Label font:', 'edicao-ticks-fonte-labels',
+                'Font size:', 'edicao-ticks-fonte-labels',
                 ticks_x.fonte_labels, minimo=6, maximo=24, step=1,
             ),
         ),
-        _linha_toggle_dupla('Outward', 'Inward', 'ticks-direcao', ativo=(ticks_x.direcao == 'inside')),
     ]
 
     # 'Outros' — Grid (on/off) e a cor de fundo da área de plotagem.
