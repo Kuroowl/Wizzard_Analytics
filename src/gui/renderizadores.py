@@ -1217,7 +1217,15 @@ def renderizar_grafico_com_fechar(fig):
         # este config não muda nada na prática — comentado só por
         # consistência com o resto da pausa.
         # config={'edits': {'shapePosition': True}},
-        dcc.Graph(id='grafico-plotly-real', figure=fig, className='grafico-plotly'),
+        # 'mathjax=True' — habilita o MathJax v3 do Plotly pra título
+        # do gráfico, título dos eixos e nome das curvas na legenda
+        # (ver renderizar_texto_grafico, src/core/rotulos.py, e o
+        # comentário completo em _aplicar_preferencias_grafico,
+        # plotter.py). Sem esta prop, um texto embrulhado em '$...$'
+        # aparece CRU na tela (os '$' literais), nada é renderizado —
+        # é o Dash quem injeta o script do MathJax no navegador, só
+        # quando algum Graph pede.
+        dcc.Graph(id='grafico-plotly-real', figure=fig, className='grafico-plotly', mathjax=True),
     ])
 
 def _botao_token_calculadora(display, codigo, classe_extra='', titulo=None):
@@ -1460,6 +1468,13 @@ def renderizar_area_calculadora_completa(estado, aba_ativa, tokens_expressao=Non
             figure=arquivo.figura,
             className='calculadora-grafico-miniatura',
             config={'displayModeBar': False, 'staticPlot': False},
+            # 'mathjax=True' — mesma razão do gráfico principal (ver
+            # comentário em 'renderizar_area_grafico' acima): sem isso,
+            # um título/rótulo com LaTeX aparece cru na miniatura
+            # também, mesmo já renderizando certo no gráfico grande —
+            # os dois mostram a MESMA 'arquivo.figura', então os dois
+            # precisam da mesma prop pra ficarem consistentes.
+            mathjax=True,
         )
     else:
         miniatura = html.Div(
