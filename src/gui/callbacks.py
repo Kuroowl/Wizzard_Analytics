@@ -2371,8 +2371,22 @@ def registrar_callbacks(app, estado):
         modo_subdivisao = 'ativo' in (classe_modo or '').split()
         conjunto = prefs_eixo.subdivisoes if modo_subdivisao else prefs_eixo.divisoes
         classe_wrapper = 'painel-edicao-ticks-sliders' + (' modo-subdivisao' if modo_subdivisao else '')
-        classe_both_sides = 'painel-edicao-toggle' + (' ativo' if prefs_eixo.both_sides else '')
-        classe_direcao = 'painel-edicao-toggle' + (' ativo' if prefs_eixo.direcao == 'inside' else '')
+        # 'painel-edicao-segmentado' (era 'painel-edicao-toggle') —
+        # BUG corrigido aqui: esta função reescreve a className de
+        # 'Direction'/'Side' toda vez que o Eixo OU o toggle 'Major/
+        # Minor' mudam (pra sincronizar o 'ativo' com o valor salvo
+        # daquele eixo/modo) — mas ainda usava o nome de classe
+        # ANTIGO do interruptor pequeno (pré-rework), de antes de
+        # 'Direction'/'Side' virarem o toggle segmentado (ver
+        # '_linha_toggle_dupla', renderizadores.py). Resultado: trocar
+        # de Major pra Minor (ou de Eixo) apagava o estilo/cor desses
+        # dois toggles, deixando só o texto cru sem pílula nenhuma —
+        # a classe 'painel-edicao-toggle' não tem NADA a ver com
+        # '.painel-edicao-segmentado'/'.painel-edicao-segmentado-
+        # opcao' (CSS completamente diferente), então nenhuma regra
+        # de cor/formato batia mais.
+        classe_both_sides = 'painel-edicao-segmentado' + (' ativo' if prefs_eixo.both_sides else '')
+        classe_direcao = 'painel-edicao-segmentado' + (' ativo' if prefs_eixo.direcao == 'inside' else '')
         classe_fonte_labels_wrapper = 'painel-edicao-oculto' if modo_subdivisao else ''
 
         return (

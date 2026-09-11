@@ -310,6 +310,19 @@
    empilhados). Usada pelo campo 'Eixo:' e por todo toggle segmentado
    (ver '_linha_toggle_dupla', renderizadores.py). */
 .painel-edicao-campo-linha {
+  /* 'display: flex' AQUI DENTRO (não só herdado de '.painel-edicao-
+     campo', que é quem definia isso antes) — BUG corrigido: o toggle
+     'Type:'/'Direction:'/'Side:' (_linha_toggle_dupla,
+     renderizadores.py) usa SÓ esta classe sozinha, sem combinar com
+     '.painel-edicao-campo'; sem 'display:flex' próprio, o
+     'flex-direction: row' abaixo não tinha efeito nenhum (regra de
+     flexbox só vale em quem É flex container) — o <div> virava um
+     bloco comum, rótulo e toggle empilhados um embaixo do outro em
+     vez de lado a lado. Agora esta classe funciona sozinha OU
+     combinada com '.painel-edicao-campo' (caso de '_campo_slider' —
+     continua funcionando igual, 'display:flex' repetido não quebra
+     nada). */
+  display: flex;
   flex-direction: row;
   align-items: center;
   gap: 8px;
@@ -334,21 +347,30 @@
   white-space: nowrap;
 }
 
-.painel-edicao-campo-linha > .painel-edicao-dropdown,
+.painel-edicao-campo-linha > .painel-edicao-dropdown-largura,
 .painel-edicao-campo-linha > .painel-edicao-segmentado-wrapper {
   flex: 1 1 auto;
   min-width: 0;
 }
 
-/* 'width: 100%' reforça o 'flex: 1 1 auto' acima — sem isso, o
-   componente de dropdown (base própria, não mais dash-core-
-   components clássico) mantinha uma largura PRÓPRIA baseada no texto
-   selecionado (largo pra 'Both', estreito pra 'X') em vez de esticar
-   pra ocupar o resto da linha — flex-grow sozinho não bastou porque
-   o componente já nasce com uma largura intrínseca definida por fora
-   do fluxo flex normal; 'width: 100%' força ele a preencher o
-   container do jeito que o flex-grow já deveria ter feito. */
-.painel-edicao-campo-linha > .painel-edicao-dropdown {
+/* '.painel-edicao-dropdown-largura' é um <div> AUTORAL (não o próprio
+   componente de dropdown) — BUG corrigido: antes o 'flex: 1 1 auto'
+   ficava direto em '.painel-edicao-dropdown' (a classe passada pro
+   'className' do dcc.Dropdown), mas esse nome pode não pousar no
+   elemento que o Dash usa como raiz de verdade (o componente pode
+   embrulhar sua própria estrutura por dentro) — resultado: a regra
+   não batia em nada, e a caixa continuava do tamanho do texto
+   selecionado ('X' estreita, 'Both' larga), flex-grow nenhum surtindo
+   efeito. Com um wrapper que EU controlo 100%, garantidamente filho
+   direto desta linha, o flex:1 sempre tem onde grudar — o dropdown
+   em si só precisa encher esse wrapper (regra descendente logo
+   abaixo, não filho direto, então funciona não importa quantos
+   níveis o componente insira por dentro). */
+.painel-edicao-dropdown-largura {
+  display: flex;
+}
+
+.painel-edicao-dropdown-largura .painel-edicao-dropdown {
   width: 100%;
 }
 

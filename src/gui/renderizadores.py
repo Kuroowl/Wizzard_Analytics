@@ -717,7 +717,7 @@ def _linha_toggle_dupla(rotulo_externo, rotulo_esquerda, rotulo_direita, indice,
     'Division/Subdivision' (ver .painel-edicao-ticks-sliders.modo-
     subdivisao) — não uma cor inventada nova por par.
     """
-    return html.Div(className='painel-edicao-campo-linha', children=[
+    return html.Div(className='painel-edicao-campo painel-edicao-campo-linha', children=[
         html.Label(rotulo_externo, className='painel-edicao-label'),
         html.Div(className='painel-edicao-segmentado-wrapper', children=[
             html.Button(
@@ -1007,17 +1007,35 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
     conteudo_ticks = [
         html.Div(className='painel-edicao-campo painel-edicao-campo-linha', children=[
             html.Label('Eixo:', htmlFor='edicao-ticks-eixo', className='painel-edicao-label'),
-            dcc.Dropdown(
-                id='edicao-ticks-eixo',
-                options=[
-                    {'label': 'X', 'value': 'x'},
-                    {'label': 'Y', 'value': 'y'},
-                    {'label': 'Both', 'value': 'both'},
-                ],
-                value='x',
-                clearable=False, searchable=False,
-                className='painel-edicao-dropdown',
-            ),
+            # Wrapper PRÓPRIO ('painel-edicao-dropdown-largura') em
+            # volta do dcc.Dropdown — BUG corrigido: 'flex: 1 1 auto'
+            # direto em '.painel-edicao-dropdown' não bastava porque
+            # esse nome de classe pode não cair no elemento que o
+            # Dash realmente usa como FILHO DIRETO desta linha (o
+            # componente de dropdown embrulha a própria estrutura
+            # interna, então o seletor '> .painel-edicao-dropdown' às
+            # vezes não batia em nada, e a caixa continuava do tamanho
+            # do texto selecionado — 'X' estreita, 'Both' larga). Com
+            # um <div> AUTORAL em volta, garantido como filho direto
+            # de verdade, o flex:1 tem onde grudar; o dropdown em si
+            # só precisa preencher esse wrapper (width: 100%, ver
+            # '.painel-edicao-dropdown-largura .painel-edicao-
+            # dropdown' em edit_menu.css — descendente, não filho
+            # direto, então funciona não importa quantos níveis o
+            # componente insira por dentro).
+            html.Div(className='painel-edicao-dropdown-largura', children=[
+                dcc.Dropdown(
+                    id='edicao-ticks-eixo',
+                    options=[
+                        {'label': 'X', 'value': 'x'},
+                        {'label': 'Y', 'value': 'y'},
+                        {'label': 'Both', 'value': 'both'},
+                    ],
+                    value='x',
+                    clearable=False, searchable=False,
+                    className='painel-edicao-dropdown',
+                ),
+            ]),
         ]),
 
         # Toggle 'Major' <-> 'Minor' (nomes exibidos — o índice
