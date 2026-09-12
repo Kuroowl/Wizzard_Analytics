@@ -3,8 +3,6 @@ import math
 import numpy as np
 import plotly.graph_objects as go
 
-from src.core.rotulos import renderizar_texto_grafico, is_math
-
 # Paleta fixa (é a paleta padrão do próprio Plotly) — compartilhada com a
 # sidebar da interface, pra garantir que a bolinha ao lado do nome da coluna
 # bate exatamente com a cor da curva no gráfico.
@@ -268,11 +266,7 @@ def _aplicar_preferencias_grafico(fig, preferencias):
         título) e 'standoff' pros rótulos de eixo (distância até os
         números de tick). Um texto vazio ('') não é enviado (fica
         None) — sem isso, um título vazio ainda ocuparia a margem
-        reservada pro título no layout do Plotly. O texto passa por
-        'renderizar_texto_grafico' (src/core/rotulos.py) antes de ir
-        pro Plotly — se tiver sintaxe LaTeX ('\\Delta P', 'P_{12}'...),
-        vira matemática de verdade (precisa de 'dcc.Graph(mathjax=
-        True)', ver renderizadores.py); texto comum não muda nada.
+        reservada pro título no layout do Plotly.
       - 'limite_x'/'limite_y' (PreferenciasLimiteEixo) -> range=[min,
         max] só quando os DOIS estão preenchidos (um só, sem o outro,
         não define um intervalo válido — fica ambíguo se seria só
@@ -333,14 +327,8 @@ def _aplicar_preferencias_grafico(fig, preferencias):
       continuam servindo de mínimo pro caso comum, sem título nenhum).
     """
     if preferencias.titulo.texto:
-        texto_titulo_bruto = preferencias.titulo.texto
         fig.update_layout(title=dict(
-            # 'renderizar_texto_grafico' embrulha em '$...$' SE o
-            # texto tiver sintaxe LaTeX (ver is_math, src/core/
-            # rotulos.py) — só funciona de verdade com
-            # 'dcc.Graph(mathjax=True)' (ver renderizadores.py); texto
-            # comum passa direto, sem nenhuma mudança visual.
-            text=renderizar_texto_grafico(texto_titulo_bruto),
+            text=preferencias.titulo.texto,
             font=dict(size=preferencias.titulo.fonte),
             x=0.5, xanchor='center',
             pad=dict(b=max(0, preferencias.titulo.espacamento)),
@@ -350,24 +338,6 @@ def _aplicar_preferencias_grafico(fig, preferencias):
             # cortado pela borda do container do gráfico.
             automargin=True,
         ))
-        if is_math(texto_titulo_bruto):
-            # BUG relatado: título com LaTeX ('Itc = 1.8 \times 10^{4}')
-            # ficava cortado no topo, mesmo com 'automargin=True' acima.
-            # Causa: o MathJax renderiza de forma ASSÍNCRONA — troca o
-            # '$...$' cru por um SVG matemático DEPOIS que o Plotly já
-            # calculou o 'automargin' com base no texto original (mais
-            # baixo que o resultado final, que pode ter expoente/fração
-            # esticando bem mais pra cima do que uma linha de texto
-            # comum). O 'automargin' então reserva espaço de menos, e o
-            # SVG final da fórmula acaba maior que a margem — cortado
-            # contra a própria borda do papel do gráfico, não só a área
-            # de plotagem. Empurramos 'margin.t' um pouco mais pra cima
-            # SÓ quando o título é matemática, como reforço fixo (o
-            # 'automargin' continua livre pra crescer AINDA MAIS se
-            # precisar — isto aqui só garante um piso maior, nunca reduz
-            # o que o automargin já calcularia sozinho).
-            margem_atual = fig.layout.margin
-            fig.update_layout(margin=dict(t=(margem_atual.t or 20) + 30))
 
     for prefs_texto, atualizar_eixo, prefs_limite in (
         (preferencias.titulo_eixo_x, fig.update_xaxes, preferencias.limite_x),
@@ -376,7 +346,7 @@ def _aplicar_preferencias_grafico(fig, preferencias):
         kwargs = {}
         if prefs_texto.texto:
             kwargs['title'] = dict(
-                text=renderizar_texto_grafico(prefs_texto.texto),
+                text=prefs_texto.texto,
                 font=dict(size=prefs_texto.fonte),
                 standoff=max(0, prefs_texto.espacamento),
             )
@@ -546,15 +516,7 @@ def construir_figura_serie_temporal(estado, aba_ativa):
         #    entrada em 'por_canal', então cai nos padrões de sempre: cor
         #    da paleta fixa (mesmo esquema da sidebar) e traço fino sólido.
         for indice_cor, coluna in enumerate(colunas_y):
-            # 'renderizar_texto_grafico' — MESMO tratamento LaTeX do
-            # título/eixos acima, aplicado ao RÓTULO da coluna. O
-            # rótulo GUARDADO (Canal.rotulo, src/core/arquivo.py)
-            # continua cru ('P_{12}') — só aqui, na hora de montar o
-            # traço pro Plotly, é que vira '$P_{12}$' se tiver sintaxe
-            # LaTeX; a lista lateral/calculadora (HTML puro, sem
-            # MathJax ligado) continuam mostrando o rótulo cru, fora
-            # de escopo por enquanto.
-            rotulo = renderizar_texto_grafico(arquivo.rotulo(coluna))
+            rotulo = arquivo.rotulo(coluna)
             prefs = arquivo.preferencias.por_canal.get(coluna)
 
             y_valores = (
