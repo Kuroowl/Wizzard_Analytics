@@ -3,7 +3,7 @@ import math
 import numpy as np
 import plotly.graph_objects as go
 
-from src.core.rotulos import renderizar_texto_grafico
+from src.core.rotulos import renderizar_texto_grafico, is_math
 
 # Paleta fixa (é a paleta padrão do próprio Plotly) — compartilhada com a
 # sidebar da interface, pra garantir que a bolinha ao lado do nome da coluna
@@ -333,13 +333,14 @@ def _aplicar_preferencias_grafico(fig, preferencias):
       continuam servindo de mínimo pro caso comum, sem título nenhum).
     """
     if preferencias.titulo.texto:
+        texto_titulo_bruto = preferencias.titulo.texto
         fig.update_layout(title=dict(
             # 'renderizar_texto_grafico' embrulha em '$...$' SE o
             # texto tiver sintaxe LaTeX (ver is_math, src/core/
             # rotulos.py) — só funciona de verdade com
             # 'dcc.Graph(mathjax=True)' (ver renderizadores.py); texto
             # comum passa direto, sem nenhuma mudança visual.
-            text=renderizar_texto_grafico(preferencias.titulo.texto),
+            text=renderizar_texto_grafico(texto_titulo_bruto),
             font=dict(size=preferencias.titulo.fonte),
             x=0.5, xanchor='center',
             pad=dict(b=max(0, preferencias.titulo.espacamento)),
@@ -349,6 +350,24 @@ def _aplicar_preferencias_grafico(fig, preferencias):
             # cortado pela borda do container do gráfico.
             automargin=True,
         ))
+        if is_math(texto_titulo_bruto):
+            # BUG relatado: título com LaTeX ('Itc = 1.8 \times 10^{4}')
+            # ficava cortado no topo, mesmo com 'automargin=True' acima.
+            # Causa: o MathJax renderiza de forma ASSÍNCRONA — troca o
+            # '$...$' cru por um SVG matemático DEPOIS que o Plotly já
+            # calculou o 'automargin' com base no texto original (mais
+            # baixo que o resultado final, que pode ter expoente/fração
+            # esticando bem mais pra cima do que uma linha de texto
+            # comum). O 'automargin' então reserva espaço de menos, e o
+            # SVG final da fórmula acaba maior que a margem — cortado
+            # contra a própria borda do papel do gráfico, não só a área
+            # de plotagem. Empurramos 'margin.t' um pouco mais pra cima
+            # SÓ quando o título é matemática, como reforço fixo (o
+            # 'automargin' continua livre pra crescer AINDA MAIS se
+            # precisar — isto aqui só garante um piso maior, nunca reduz
+            # o que o automargin já calcularia sozinho).
+            margem_atual = fig.layout.margin
+            fig.update_layout(margin=dict(t=(margem_atual.t or 20) + 30))
 
     for prefs_texto, atualizar_eixo, prefs_limite in (
         (preferencias.titulo_eixo_x, fig.update_xaxes, preferencias.limite_x),

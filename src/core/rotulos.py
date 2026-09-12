@@ -133,7 +133,78 @@ def renderizar_texto_grafico(texto):
     return '$' + ''.join(pedacos_finais) + '$'
 
 
-_SEPARADOR_CLAUSULA = re.compile(r'([,;]\s*)')
+_PADRAO_NUMERO = re.compile(r'^[0-9]+(?:[.,][0-9]+)?$')
+_SIMBOLOS_MATEMATICOS = set('=+-*/<>≤≥±·×÷^')
+_PONTUACAO_BORDA = '.,;:!?()[]{}'
+
+
+def _classificar_palavra(palavra):
+    """
+    Classifica UMA palavra (token sem espaço) em 3 categorias:
+
+      - 'seed': já bate 'is_math()' sozinha (tem comando LaTeX ou
+        sub/sobrescrito com chave) — prova definitiva de que este
+        pedaço do texto é matemática.
+      - 'candidata': não é prova sozinha, mas é um tipo de palavra que
+        SÓ faz sentido colada numa fórmula ao lado de uma 'seed' — um
+        número puro ('1.8', '10'), um símbolo matemático solto ('=',
+        '+', '×') ou uma única letra solta ('P', 'L', 'x' — variável
+        de uma letra só, sem nome de verdade). Uma 'candidata' NUNCA
+        vira matemática sozinha (ver _fragmentar_texto) — só quando
+        está GRUDADA numa 'seed' na mesma sequência de palavras.
+      - 'plain': qualquer outra palavra (texto normal, com 2+ letras
+        e sem sintaxe LaTeX nenhuma).
+
+    Pontuação nas BORDAS da palavra ('pressure,', '(kPa)') é ignorada
+    pra esta classificação (usa 'nucleo', sem tocar na palavra
+    original) — só importa o miolo alfanumérico.
+    """
+    if is_math(palavra):
+        return 'seed'
+    nucleo = palavra.strip(_PONTUACAO_BORDA)
+    if not nucleo:
+        return 'plain'
+    if _PADRAO_NUMERO.match(nucleo):
+        return 'candidata'
+    if len(nucleo) == 1 and (nucleo.isalpha() or nucleo in _SIMBOLOS_MATEMATICOS):
+        return 'candidata'
+    return 'plain'
+
+
+def _tokenizar_respeitando_chaves(texto):
+    """
+    Quebra 'texto' em tokens no espaço em branco — MAS ignora espaços
+    que estejam DENTRO de chaves '{...}' (contando profundidade, então
+    chaves aninhadas tipo '\\frac{\\Delta P}{L}' também funcionam).
+    Sem isso, um comando como '\\frac{\\Delta P}{L}' (um dos exemplos
+    originais do usuário, com espaço DENTRO da chave) quebraria ao
+    meio num split ingênuo por espaço — '\\frac{\\Delta' de um lado,
+    'P}{L}' do outro, os dois pedaços agora sem sentido LaTeX nenhum
+    sozinhos.
+
+    Espaços fora de qualquer chave continuam virando tokens próprios
+    (preservados pra reconstrução exata do texto original).
+    """
+    tokens = []
+    atual = []
+    profundidade = 0
+    for caractere in texto:
+        if caractere == '{':
+            profundidade += 1
+            atual.append(caractere)
+        elif caractere == '}':
+            profundidade = max(0, profundidade - 1)
+            atual.append(caractere)
+        elif caractere.isspace() and profundidade == 0:
+            if atual:
+                tokens.append(''.join(atual))
+                atual = []
+            tokens.append(caractere)
+        else:
+            atual.append(caractere)
+    if atual:
+        tokens.append(''.join(atual))
+    return tokens
 
 
 def _fragmentar_texto(texto):
@@ -142,45 +213,69 @@ def _fragmentar_texto(texto):
     quebra 'texto' numa lista de (tipo, pedaço) — tipo 'math' ou
     'plain' — SEM decidir isso pro texto inteiro de uma vez.
 
-    Corta nas VÍRGULAS/PONTOS-E-VÍRGULA (não em cada espaço/palavra):
-    uma expressão como '\\Delta P_{12}' — ou até só '\\Delta P', um
-    dos exemplos originais — tem VÁRIAS palavras que precisam ficar
-    JUNTAS no mesmo bloco matemático; cortar em todo espaço quebraria
-    isso ao meio (o '\\Delta' sozinho reconhecido como matemática, o
-    'P' sozinho — sem comando LaTeX nem chave — caindo como texto
-    comum por engano). A vírgula, em compensação, é o separador
-    natural que o próprio usuário já usa pra separar "descrição
-    solta" de "fórmula" (ex: 'differential pressure, \\Delta P_{12}',
-    caso relatado) — cada trecho ENTRE vírgulas é classificado como
-    UM BLOCO com 'is_math()', não palavra por palavra.
+    Analisa PALAVRA POR PALAVRA (ver _classificar_palavra acima), não
+    o texto inteiro de uma vez — pedido explícito: "o espaço [também]
+    é um indicativo pra separar o texto". Ex: 'pressão = 1.8 \\times
+    10^{4}' — só '\\times' e '10^{4}' batem 'is_math()' sozinhos; sem
+    olhar palavra por palavra, o texto inteiro (por ter ALGUMA sintaxe
+    LaTeX em algum canto) virava tudo matemática, engolindo 'pressão'
+    também.
 
-    Pedaços ADJACENTES do MESMO tipo são unidos num só (preservando a
-    vírgula/espaço original entre eles) — evita fragmentar à toa uma
-    frase inteiramente comum, ou uma fórmula com vírgula interna.
+    Mas separar TODA palavra isolada quebraria fórmulas de várias
+    palavras — '\\Delta P' (outro exemplo original) tem duas palavras,
+    e 'P' sozinha (sem comando nem chave) não bate 'is_math()' — por
+    isso a classificação usa 3 categorias, não 2 (ver
+    _classificar_palavra): uma palavra 'candidata' (número solto,
+    símbolo solto, letra única solta) só vira matemática de verdade
+    quando está GRUDADA (mesma sequência de palavras não-comuns, sem
+    nenhuma palavra comum no meio) a pelo menos uma 'seed' — é assim
+    que 'P' ao lado de '\\Delta' vira matemática, mas um número solto
+    no meio de uma frase comum ('capítulo 12 revisão') continua sendo
+    só texto.
+
+    Pedaços ADJACENTES do MESMO tipo final são unidos num só
+    (preservando o espaço original entre eles).
     """
-    brutos = _SEPARADOR_CLAUSULA.split(texto)
-    # 'brutos' alterna: cláusula, separador (',' ou ';' + espaços
-    # seguintes, capturados JUNTOS pelo grupo), cláusula, separador...
-    # — índices pares são cláusulas, ímpares são separadores.
-    partes = []
-    tipo_atual = None
-    buffer = ''
-    for indice, pedaco in enumerate(brutos):
-        if not pedaco:
-            continue
-        if indice % 2 == 1:
-            # Separador — sempre cola no bloco ANTERIOR (não abre um
-            # bloco novo sozinho, e não decide tipo nenhum).
-            buffer += pedaco
-            continue
-        tipo = 'math' if is_math(pedaco) else 'plain'
-        if tipo != tipo_atual:
+    tokens = _tokenizar_respeitando_chaves(texto)
+    grupos = []
+    buffer = []
+    buffer_tipo = None       # 'plain' ou 'nao_plain' (grupo ainda sendo montado)
+    buffer_tem_seed = False
+
+    def _fechar_grupo():
+        nonlocal buffer, buffer_tipo, buffer_tem_seed
+        if not buffer:
+            return
+        texto_grupo = ''.join(buffer)
+        # Um grupo 'nao_plain' SEM nenhuma seed (só candidatas soltas,
+        # sem comando/chave nenhum por perto) rebaixa pra 'plain' —
+        # ver docstring acima ("capítulo 12 revisão").
+        tipo_final = 'math' if (buffer_tipo == 'nao_plain' and buffer_tem_seed) else 'plain'
+        grupos.append((tipo_final, texto_grupo))
+        buffer = []
+        buffer_tem_seed = False
+
+    for token in tokens:
+        if token.isspace():
             if buffer:
-                partes.append((tipo_atual, buffer))
-            buffer = pedaco
-            tipo_atual = tipo
+                buffer.append(token)
+            continue
+        tipo_palavra = _classificar_palavra(token)
+        tipo_grupo = 'plain' if tipo_palavra == 'plain' else 'nao_plain'
+        if tipo_grupo != buffer_tipo:
+            _fechar_grupo()
+            buffer_tipo = tipo_grupo
+        buffer.append(token)
+        if tipo_palavra == 'seed':
+            buffer_tem_seed = True
+    _fechar_grupo()
+
+    # Um grupo 'nao_plain' rebaixado pra 'plain' (sem seed) pode ficar
+    # encostado num grupo 'plain' de verdade vizinho — funde os dois.
+    mesclados = []
+    for tipo, texto_pedaco in grupos:
+        if mesclados and mesclados[-1][0] == tipo:
+            mesclados[-1] = (tipo, mesclados[-1][1] + texto_pedaco)
         else:
-            buffer += pedaco
-    if buffer:
-        partes.append((tipo_atual, buffer))
-    return partes
+            mesclados.append([tipo, texto_pedaco])
+    return [tuple(item) for item in mesclados]
