@@ -96,6 +96,11 @@ class PreferenciasCanal:
     # 'estilo_linha': as duas se somam na mesma curva (ver resolver_modo
     # em plotter.py), não uma substitui a outra.
     marcador: str = "none"
+    # Tamanho do marcador (só tem efeito enquanto 'marcador' != 'none' —
+    # ver TAMANHO_MARCADOR_PADRAO em plotter.py, que é o valor de fábrica
+    # usado tanto aqui quanto no slider 'Marker size' do painel de edição,
+    # que só aparece na tela quando um marcador está selecionado).
+    tamanho_marcador: float = 7.0
 
 
 @dataclass

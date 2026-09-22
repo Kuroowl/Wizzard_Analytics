@@ -24,11 +24,14 @@ def cor_da_coluna(indice):
     return PALETA_CORES[indice % len(PALETA_CORES)]
 
 
-# Tamanho do marcador quando 'Marker' != 'none' — não fica exposto
-# como opção pro usuário (só a FORMA do marcador é escolhida no
-# painel), é um valor fixo que deixa o marcador visível sem dominar o
-# traço.
-TAMANHO_MARCADOR = 7
+# Tamanho de fábrica do marcador quando 'Marker' != 'none' — usado só
+# como PADRÃO (canal ainda sem PreferenciasCanal, ou 'tamanho_marcador'
+# não definido). O usuário agora pode ajustar esse valor pelo slider
+# 'Marker size' do painel de edição (ver conteudo_curva em
+# renderizadores.py), que só aparece na tela enquanto um marcador
+# estiver selecionado — cada canal guarda o próprio valor em
+# PreferenciasCanal.tamanho_marcador (src/core/arquivo.py).
+TAMANHO_MARCADOR_PADRAO = 7
 
 
 def resolver_modo(estilo_linha, marcador):
@@ -47,7 +50,7 @@ def resolver_modo(estilo_linha, marcador):
     juntos, ou nenhum dos dois (nesse último caso a curva fica de fato
     invisível — 'mode' nunca pode ser vazio pro Plotly, então cai em
     'markers' com o marcador escondido via tamanho 0 em vez de dar erro
-    — ver TAMANHO_MARCADOR abaixo, onde o tamanho real só é aplicado
+    — ver TAMANHO_MARCADOR_PADRAO abaixo, onde o tamanho real só é aplicado
     quando marcador != 'none').
     """
     partes = []
@@ -549,7 +552,15 @@ def construir_figura_serie_temporal(estado, aba_ativa):
                     # (ver resolver_modo) por style e marker estarem os
                     # dois em 'none': sem isso, um marcador 'circle'
                     # apareceria sozinho mesmo sem o usuário ter pedido.
-                    size=(TAMANHO_MARCADOR if tem_marcador else 0),
+                    # Com marcador escolhido, usa o tamanho salvo em
+                    # PreferenciasCanal (slider 'Marker size' do painel,
+                    # ver conteudo_curva em renderizadores.py) — cai no
+                    # padrão de fábrica só se o canal ainda não tiver
+                    # 'prefs' (nunca editado).
+                    size=(
+                        (prefs.tamanho_marcador if prefs else TAMANHO_MARCADOR_PADRAO)
+                        if tem_marcador else 0
+                    ),
                 ),
             ))
 

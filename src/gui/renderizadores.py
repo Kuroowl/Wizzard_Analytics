@@ -859,6 +859,7 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
     if sem_canal:
         cor_atual, espessura_atual, estilo_atual = PALETA_EDICAO_CORES[0], 1.0, 'solid'
         marcador_atual = 'none'
+        tamanho_marcador_atual = 7.0
     else:
         # Se a curva ainda não foi editada, os controles nascem refletindo
         # exatamente o que já está desenhado agora (mesma cor da paleta
@@ -871,6 +872,16 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
         espessura_atual = prefs.espessura if prefs else 1.0
         estilo_atual = prefs.estilo_linha if prefs else 'solid'
         marcador_atual = prefs.marcador if prefs else 'none'
+        tamanho_marcador_atual = prefs.tamanho_marcador if prefs else 7.0
+
+    # A barra 'Marker size' só faz sentido com um marcador escolhido (sem
+    # marcador, o tamanho não tem nada pra controlar) — nasce visível ou
+    # escondida de acordo com 'marcador_atual' e alterna sozinha depois
+    # disso via callback (ver alternar_barra_tamanho_marcador em
+    # callbacks.py, disparado pelo próprio dropdown 'Marker').
+    estilo_barra_tamanho_marcador = (
+        {} if marcador_atual and marcador_atual != 'none' else {'display': 'none'}
+    )
 
     conteudo_curva = [
         html.Div(className='painel-edicao-campo', children=[
@@ -930,6 +941,29 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
                 ),
             ]),
         ]),
+
+        # Só existe enquanto 'Marker' != 'none' (ver estilo_barra_tamanho_
+        # marcador acima e alternar_barra_tamanho_marcador em callbacks.py,
+        # que reagem ao dropdown 'Marker' e escondem/mostram este Div
+        # inteiro) — tirar o marcador esconde a barra de novo, sem apagar
+        # o valor ajustado (ele volta a aparecer se o marcador for
+        # reselecionado).
+        html.Div(
+            id='edicao-curva-tamanho-marcador-wrapper',
+            className='painel-edicao-campo',
+            style=estilo_barra_tamanho_marcador,
+            children=[
+                html.Label('Marker size:', className='painel-edicao-label'),
+                dcc.Slider(
+                    id='edicao-curva-tamanho-marcador',
+                    min=2, max=20, step=1,
+                    value=tamanho_marcador_atual,
+                    marks=None,
+                    disabled=sem_canal,
+                    tooltip={'placement': 'bottom', 'always_visible': False},
+                ),
+            ],
+        ),
     ]
 
     # 'Eixos' — igual a 'Ticks'/'Outros' (comentário nessas seções

@@ -1835,6 +1835,8 @@ def registrar_callbacks(app, estado):
         Output({'type': 'cor-store', 'index': 'curva'}, 'data'),
         Output('edicao-curva-estilo', 'value'),
         Output('edicao-curva-marcador', 'value'),
+        Output('edicao-curva-tamanho-marcador', 'value'),
+        Output('edicao-curva-tamanho-marcador-wrapper', 'style'),
         Output({'type': 'cor-rgb-r', 'index': 'curva'}, 'value'),
         Output({'type': 'cor-rgb-g', 'index': 'curva'}, 'value'),
         Output({'type': 'cor-rgb-b', 'index': 'curva'}, 'value'),
@@ -1845,15 +1847,22 @@ def registrar_callbacks(app, estado):
     def sincronizar_campos_curva_selecionada(coluna, aba_ativa):
         """
         Toda vez que o usuário troca a curva escolhida na caixa 'Dado',
-        os 4 controles abaixo (Thickness, cor, Style, Marker) precisam
-        refletir o que JÁ está salvo pra essa curva especificamente —
-        senão eles ficariam mostrando o valor da curva anterior. Também
-        dispara (efeito colateral esperado, não um bug) na primeira vez
-        que o painel abre, já que a caixa 'Dado' acabou de nascer com um
-        valor — é o mesmo 'gatilho fantasma' de componente recém-criado
-        comentado em _clique_real, aqui é ele quem faz os controles
-        nascerem com os valores certos sem precisar duplicar essa lógica
-        em abrir_painel_edicao.
+        os controles abaixo (Thickness, cor, Style, Marker e o Marker
+        size) precisam refletir o que JÁ está salvo pra essa curva
+        especificamente — senão eles ficariam mostrando o valor da curva
+        anterior. Também dispara (efeito colateral esperado, não um bug)
+        na primeira vez que o painel abre, já que a caixa 'Dado' acabou
+        de nascer com um valor — é o mesmo 'gatilho fantasma' de
+        componente recém-criado comentado em _clique_real, aqui é ele
+        quem faz os controles nascerem com os valores certos sem
+        precisar duplicar essa lógica em abrir_painel_edicao.
+
+        A barra 'Marker size' também precisa nascer ESCONDIDA ou VISÍVEL
+        de acordo com o marcador salvo dessa curva (não só o valor —
+        o wrapper inteiro, ver 'edicao-curva-tamanho-marcador-wrapper'
+        em renderizadores.py), senão trocar de curva podia deixar a
+        barra visível sem marcador nenhum, ou escondida com um marcador
+        já escolhido.
 
         'Dado' pode nascer SEM valor agora (nenhum canal plotado, ver
         renderizar_painel_edicao) — nesse caso não tem curva nenhuma
@@ -1872,8 +1881,16 @@ def registrar_callbacks(app, estado):
         espessura_atual = prefs.espessura if prefs else 1.0
         estilo_atual = prefs.estilo_linha if prefs else 'solid'
         marcador_atual = prefs.marcador if prefs else 'none'
+        tamanho_marcador_atual = prefs.tamanho_marcador if prefs else 7.0
+        estilo_barra_tamanho_marcador = (
+            {} if marcador_atual != 'none' else {'display': 'none'}
+        )
         r, g, b = _hex_para_rgb(cor_atual)
-        return espessura_atual, cor_atual, estilo_atual, marcador_atual, r, g, b
+        return (
+            espessura_atual, cor_atual, estilo_atual, marcador_atual,
+            tamanho_marcador_atual, estilo_barra_tamanho_marcador,
+            r, g, b,
+        )
 
     @app.callback(
         Output({'type': 'cor-store', 'index': MATCH}, 'data', allow_duplicate=True),
@@ -1970,17 +1987,19 @@ def registrar_callbacks(app, estado):
 
     @app.callback(
         Output('container-grafico', 'children', allow_duplicate=True),
+        Output('edicao-curva-tamanho-marcador-wrapper', 'style', allow_duplicate=True),
         Input('edicao-curva-espessura', 'value'),
         Input({'type': 'cor-store', 'index': 'curva'}, 'data'),
         Input('edicao-curva-estilo', 'value'),
         Input('edicao-curva-marcador', 'value'),
+        Input('edicao-curva-tamanho-marcador', 'value'),
         State('edicao-curva-dado', 'value'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
-    def aplicar_preferencias_curva(espessura, cor, estilo, marcador, coluna, aba_ativa):
+    def aplicar_preferencias_curva(espessura, cor, estilo, marcador, tamanho_marcador, coluna, aba_ativa):
         """
-        Grava os 4 controles do painel 'Curva' como preferência
+        Grava os 5 controles do painel 'Curva' como preferência
         PERMANENTE do canal (arquivo.preferencias, ver src/core/arquivo.py)
         e redesenha o gráfico na hora — é o que faz o slider/color-
         picker/dropdown(s) terem efeito visual imediato, em vez de só
@@ -1996,9 +2015,22 @@ def registrar_callbacks(app, estado):
         específico (linha ou marcador) — não existe botão "desfazer"
         separado.
 
-        Os 4 Inputs disparam juntos neste único callback (em vez de 4
-        callbacks separados) porque os 4 preenchem o MESMO
-        PreferenciasCanal e precisam terminar sempre com os 4 valores
+        'tamanho_marcador' só tem efeito visual enquanto 'marcador' !=
+        'none' (ver TAMANHO_MARCADOR_PADRAO/tamanho_marcador em
+        plotter.py) — mas o valor do slider é sempre gravado, mesmo com
+        a barra escondida, pra não perder o ajuste do usuário se ele
+        remover e escolher outro marcador em seguida.
+
+        Este é também o callback que ESCONDE/MOSTRA a barra 'Marker
+        size' em tempo real: como 'marcador' já é um dos Inputs (pra
+        gravar a preferência), o mesmo disparo calcula o 'style' do
+        wrapper da barra — visível assim que um marcador é escolhido,
+        escondida de novo assim que volta pra 'none' — sem precisar de
+        um callback à parte escutando o mesmo dropdown.
+
+        Os Inputs disparam juntos neste único callback (em vez de vários
+        callbacks separados) porque todos preenchem o MESMO
+        PreferenciasCanal e precisam terminar sempre com os valores
         atuais gravados juntos — gravar só o campo que mudou arriscaria
         um 'value' desatualizado vencer a corrida se dois campos forem
         mexidos em sequência rápida.
@@ -2010,15 +2042,18 @@ def registrar_callbacks(app, estado):
         if not arquivo.grafico_gerado or coluna not in colunas_plotadas(estado, aba_ativa):
             raise PreventUpdate
 
+        marcador = marcador or 'none'
         prefs = arquivo.preferencias.preferencias_do_canal(coluna)
         prefs.espessura = espessura or 1.0
         prefs.cor = cor
         prefs.estilo_linha = estilo or 'solid'
-        prefs.marcador = marcador or 'none'
+        prefs.marcador = marcador
+        prefs.tamanho_marcador = tamanho_marcador or 7.0
 
         fig = construir_figura_serie_temporal(estado, aba_ativa)
         arquivo.figura = fig
-        return renderizar_grafico_com_fechar(fig)
+        estilo_barra_tamanho_marcador = {} if marcador != 'none' else {'display': 'none'}
+        return renderizar_grafico_com_fechar(fig), estilo_barra_tamanho_marcador
 
     @app.callback(
         Output('painel-direito-conteudo', 'children', allow_duplicate=True),
