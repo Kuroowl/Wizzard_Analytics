@@ -23,6 +23,8 @@ from enum import Enum
 
 import pandas as pd
 
+from src.core.rotulos import sanitizar_rotulo_para_nome_coluna
+
 
 class StatusCanal(Enum):
     VISIVEL = "visivel"    # aparece na lista de canais, pode ser selecionado
@@ -462,6 +464,48 @@ class Arquivo:
             if nome_interno in self.canais:
                 self.canais[nome_interno].restaurar()
             self.invalidar_grafico()
+
+    def nome_interno_livre(self, rotulo: str) -> str:
+        """
+        Nome de coluna interno (sem espaço/acento/símbolo) derivado de
+        'rotulo' e que ainda não existe em df_editado: 'Potência (W)' ->
+        'Potencia_W', e se já existir -> 'Potencia_W_2', '_3'...
+        """
+        base = sanitizar_rotulo_para_nome_coluna(rotulo)
+        nome, sufixo = base, 1
+        while nome in self.df_editado.columns:
+            sufixo += 1
+            nome = f'{base}_{sufixo}'
+        return nome
+
+    def adicionar_canal_calculado(self, rotulo: str, valores, formula: str) -> str:
+        """
+        Grava 'valores' como uma coluna NOVA em df_editado (nome interno
+        único gerado a partir do rótulo) e registra o Canal como
+        "calculado", com a fórmula guardada pra auditoria. O rótulo exibido
+        continua sendo o texto livre digitado. Devolve o nome interno.
+
+        Uma coluna nova nasce fora da seleção de eixos, então não mexe no
+        gráfico já desenhado — quem chama decide se ela vai pra algum eixo.
+        """
+        nome = self.nome_interno_livre(rotulo)
+        self.df_editado[nome] = valores
+        self.registrar_canal(nome, rotulo=rotulo, origem="calculado", formula=formula)
+        return nome
+
+    def sobrescrever_canal_com_calculo(self, nome_interno: str, valores, formula: str) -> None:
+        """
+        Substitui os DADOS de uma coluna que já existe por 'valores' e marca
+        o Canal como "calculado" (com a fórmula). O rótulo não muda. Invalida
+        o cache da figura: a coluna pode estar desenhada no gráfico.
+        """
+        if nome_interno not in self.df_editado.columns:
+            raise KeyError(f"Coluna '{nome_interno}' não existe em df_editado.")
+        self.df_editado[nome_interno] = valores
+        canal = self.canais.get(nome_interno) or self.registrar_canal(nome_interno)
+        canal.origem = "calculado"
+        canal.formula = formula
+        self.invalidar_grafico()
 
     def criar_canal_calculado(self, nome_saida: str, operacao_fn, *args, **kwargs) -> None:
         """

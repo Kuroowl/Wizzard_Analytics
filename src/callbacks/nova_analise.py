@@ -15,7 +15,6 @@ from dash.exceptions import PreventUpdate
 from src.callbacks._comum import processar_cliques_padrao
 from src.core.operations.calculadora import avaliar_expressao_calculadora, calc_criar_desabilitado
 from src.core.plotting.plotter import construir_figura_serie_temporal
-from src.core.rotulos import sanitizar_rotulo_para_nome_coluna
 from src.gui.feedback import Feedback, saida_feedback
 from src.gui.renderizadores import (
     renderizar_area_calculadora_completa, renderizar_calculadora_botoes,
@@ -339,16 +338,12 @@ def registrar_callbacks_nova_analise(app, estado):
             if not coluna_destino or coluna_destino not in arquivo.df_editado.columns:
                 return _sem_mudanca_de_conteudo(Feedback.aviso('Escolha qual coluna sobrescrever antes de criar.'))
 
-            arquivo.df_editado[coluna_destino] = valores
-            canal = arquivo.canais.get(coluna_destino) or arquivo.registrar_canal(coluna_destino)
-            canal.origem = 'calculado'
-            canal.formula = codigo
-            # AGORA SIM invalida o cache — sobrescrever os DADOS de uma
-            # coluna que já existe pode mudar uma curva JÁ desenhada no
-            # gráfico (diferente de criar uma coluna nova, que nasce
-            # sempre fora da seleção e não afeta nada plotado).
-            if arquivo.grafico_gerado:
-                arquivo.invalidar_grafico()
+            # Sobrescrever os DADOS de uma coluna que já existe pode mudar
+            # uma curva já desenhada — por isso redesenha se havia gráfico
+            # ANTES (o método invalida o cache da figura).
+            tinha_grafico = arquivo.grafico_gerado
+            arquivo.sobrescrever_canal_com_calculo(coluna_destino, valores, codigo)
+            if tinha_grafico:
                 fig = construir_figura_serie_temporal(estado, aba_ativa)
                 arquivo.figura = fig
                 area_grafico = renderizar_grafico_com_fechar(fig)
@@ -359,20 +354,9 @@ def registrar_callbacks_nova_analise(app, estado):
             if not nome_novo_canal:
                 return _sem_mudanca_de_conteudo(Feedback.aviso('Dê um nome pra essa análise antes de criar.'))
 
-            # Nome interno sanitizado (sem espaço/acento/símbolo) pra
-            # virar coluna de verdade no df_editado — o RÓTULO exibido
-            # continua sendo o texto livre digitado (mesma separação
-            # nome_interno/rótulo de todo Canal, ver src/core/arquivo.py).
-            nome_interno = sanitizar_rotulo_para_nome_coluna(nome_novo_canal)
-            sufixo = 1
-            nome_interno_final = nome_interno
-            while nome_interno_final in arquivo.df_editado.columns:
-                sufixo += 1
-                nome_interno_final = f'{nome_interno}_{sufixo}'
-
-            arquivo.df_editado[nome_interno_final] = valores
-            arquivo.registrar_canal(nome_interno_final, rotulo=nome_novo_canal,
-                                     origem='calculado', formula=codigo)
+            # Nome interno único, gravação no df e registro do canal são
+            # regra de dados: moram no Arquivo (src/core/arquivo.py).
+            nome_interno_final = arquivo.adicionar_canal_calculado(nome_novo_canal, valores, codigo)
 
             # ATRIBUI a coluna nova ao eixo Y e já REDESENHA (pedido
             # explícito: "ao gerar a nova coluna, atualizar o gráfico
