@@ -50,7 +50,6 @@ def registrar_callbacks_abas(app, estado):
         Output('rodape-alerta-badge', 'children', allow_duplicate=True),
         Output('rodape-alerta-badge', 'className', allow_duplicate=True),
         Output('rodape-alerta-popup', 'children', allow_duplicate=True),
-        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Output('modo-nova-analise-store', 'data', allow_duplicate=True),
         Output('nova-analise', 'className', allow_duplicate=True),
         Output('area-grafico-normal', 'style', allow_duplicate=True),
@@ -59,12 +58,11 @@ def registrar_callbacks_abas(app, estado):
         Input({'type': 'aba-item', 'arquivo': ALL}, 'n_clicks'),
         Input({'type': 'botao-fechar-aba', 'arquivo': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
-        State('nclicks-padrao-store', 'data'),
         State('modo-nova-analise-store', 'data'),
         prevent_initial_call=True,
     )
-    def gerenciar_abas(_c_item, _c_fechar, aba_ativa, nclicks_anteriores, modo_calculadora_ativo):
-        gatilho_id, novo_mapa = processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+    def gerenciar_abas(_c_item, _c_fechar, aba_ativa, modo_calculadora_ativo):
+        gatilho_id = processar_cliques_padrao(ctx.inputs_list)
         if gatilho_id is None:
             raise PreventUpdate
 
@@ -135,7 +133,6 @@ def registrar_callbacks_abas(app, estado):
                 # Trocar/fechar aba muda qual arquivo é "o ativo": info, badge
                 # e popup do rodapé precisam refletir a NOVA aba.
                 *obter_estado_rodape(estado, aba_ativa),
-                novo_mapa,
                 modo_novo, classe_botao_calc, estilo_grafico_normal, estilo_area_calc, estilo_area_edicao)
 
     @app.callback(

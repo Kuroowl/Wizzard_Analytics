@@ -43,18 +43,16 @@ def registrar_callbacks_canais(app, estado):
         Output('rodape-alerta-badge', 'className', allow_duplicate=True),
         Output('rodape-alerta-popup', 'children', allow_duplicate=True),
         Output('painel-direito-conteudo', 'children', allow_duplicate=True),
-        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input({'type': 'linha-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         Input({'type': 'botao-excluir-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         Input({'type': 'remover-eixo-selecionado', 'arquivo': ALL, 'coluna': ALL, 'eixo': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('painel-direito', 'className'),
         State('edicao-curva-dado-atual', 'data'),
-        State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
     def gerenciar_atribuicao_eixos(n_clicks_linha, _n_clicks_excluir, _n_clicks_remover, aba_ativa,
-                                    classe_painel_direito, coluna_em_edicao, nclicks_anteriores):
+                                    classe_painel_direito, coluna_em_edicao):
         """
         Rework do botão 'Plotar Seleção' (era 'Gerar Série Temporal')
         — substitui o antigo checkbox ☐/✓ (que só marcava/desmarcava
@@ -83,7 +81,7 @@ def registrar_callbacks_canais(app, estado):
         if not aba_ativa:
             raise PreventUpdate
 
-        gatilho_id, novo_mapa = processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        gatilho_id = processar_cliques_padrao(ctx.inputs_list)
         if gatilho_id is None:
             raise PreventUpdate
 
@@ -174,7 +172,7 @@ def registrar_callbacks_canais(app, estado):
                 renderizar_selecao_eixos(estado, aba_ativa),
                 feedback, area_grafico,
                 rodape.badge_texto, rodape.badge_classe, rodape.popup,
-                painel_edicao, novo_mapa)
+                painel_edicao)
 
     # ------------------------------------------------------------------
     # Renomear canal (lápis ✏️ na lista de canais) — UM callback só,
@@ -224,7 +222,6 @@ def registrar_callbacks_canais(app, estado):
         Output('container-grafico', 'children', allow_duplicate=True),
         saida_feedback('edicao-canal'),
         Output('painel-direito-conteudo', 'children', allow_duplicate=True),
-        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input({'type': 'botao-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
         Input({'type': 'input-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_submit'),
         State({'type': 'input-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'value'),
@@ -232,16 +229,14 @@ def registrar_callbacks_canais(app, estado):
         State('canal-em-edicao-store', 'data'),
         State('painel-direito', 'className'),
         State('edicao-curva-dado-atual', 'data'),
-        State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
     def gerenciar_edicao_canal(_n_clicks_lapis, _n_submit_input, _valores_input_bruto, aba_ativa,
-                                canal_em_edicao, classe_painel_direito, coluna_em_edicao_painel,
-                                nclicks_anteriores):
+                                canal_em_edicao, classe_painel_direito, coluna_em_edicao_painel):
         if not aba_ativa:
             raise PreventUpdate
 
-        gatilho_id, novo_mapa = processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        gatilho_id = processar_cliques_padrao(ctx.inputs_list)
         if gatilho_id is None:
             raise PreventUpdate
 
@@ -336,4 +331,4 @@ def registrar_callbacks_canais(app, estado):
 
         return (renderizar_colunas_da_aba_ativa(estado, aba_ativa, novo_canal_em_edicao),
                 renderizar_selecao_eixos(estado, aba_ativa, novo_canal_em_edicao),
-                novo_canal_em_edicao, area_grafico, feedback, painel_edicao, novo_mapa)
+                novo_canal_em_edicao, area_grafico, feedback, painel_edicao)

@@ -2,55 +2,19 @@
 Helpers compartilhados entre os módulos de callbacks.
 
 Moram aqui porque são usados por mais de um módulo de src/callbacks/ — assim
-nenhum módulo precisa importar outro. Movidos SEM modificação de
-o antigo src/gui/callbacks.py (Fase 2 do rework: mover sem mudar).
+nenhum módulo precisa importar outro.
 """
 import json
 
 from dash import ctx
 
 
-# ============================================================================
-# Filtro anti-"clique fantasma" (processar_cliques_padrao, logo
-# abaixo) — REATIVADO. Foi desligado temporariamente pra um teste de
-# diagnóstico (a pedido explícito), mas o próprio teste PROVOU que ele
-# não era o culpado: com o filtro desligado, o botão 'Derivada' passou
-# a disparar SOZINHO (mensagem de erro amigável aparecendo sem clique
-# nenhum) assim que o modo 'Nova Análise' é ligado — exatamente o
-# disparo fantasma que este filtro existe pra bloquear, agora
-# acontecendo nos NOVOS botões da calculadora também (não só nos
-# canais/abas de antes). E o problema original ("não consigo clicar em
-# nada") continuou acontecendo mesmo com o filtro desligado — ou seja,
-# desligá-lo não ajudou em nada e ainda piorou (deixou passar disparos
-# fantasmas que antes eram bloqueados). Voltando pra True.
-# ============================================================================
-GUARD_CLIQUE_FANTASMA_ATIVO = True
-
-
 def _chave_id_padrao(id_item):
     """
-    Normaliza um id de componente (dict de padrão coringa
-    {'type':...,...} OU string de id fixo, tipo 'calc-limpar') numa
-    CHAVE única e estável pra usar como entrada em 'nclicks-padrao-
-    store' — devolve None se 'id_item' não for nem dict nem string
-    (formato inesperado, ignora).
-
-    Existe porque o MESMO problema de "disparo fantasma" (ver
-    processar_cliques_padrao logo abaixo) também afeta componentes de
-    ID FIXO, não só padrão coringa — descoberto quando 'calc-apagar'
-    (um botão de id fixo, sem padrão nenhum) começou a disparar
-    sozinho toda vez que a barra de cálculo era reconstruída (a cada
-    token clicado, ver registrar_token_calculadora): o botão INTEIRO é
-    remontado do zero junto com o resto da barra, e o Dash trata esse
-    remonte como um "disparo" de 'n_clicks' mesmo sem clique nenhum —
-    exatamente o mesmo mecanismo que já causava disparo fantasma em
-    botões de padrão coringa (canais, abas), só que agora também
-    acontece com um id fixo comum. Sem rastrear o valor anterior
-    TAMBÉM pra esses ids fixos, um clique em QUALQUER token da
-    calculadora (que reconstrói a barra) fazia 'apagar_ultimo_token_
-    calculadora' disparar sozinho logo em seguida, apagando o token
-    que acabara de ser clicado — o bug fica visível: "clico na
-    coluna, ela aparece na barra e alguma coisa tira ela na hora".
+    Normaliza um id de componente — dict de padrão coringa
+    ({'type': ..., ...}) ou string de id fixo (ex: 'calc-limpar') — numa
+    chave única e estável pra comparar com os ids disparados. Devolve None
+    se o formato for inesperado.
     """
     if isinstance(id_item, dict):
         return json.dumps(id_item, sort_keys=True)
@@ -59,109 +23,42 @@ def _chave_id_padrao(id_item):
     return None
 
 
-def processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
+def processar_cliques_padrao(grupos_inputs_list):
     """
-    Filtro de clique pros callbacks de padrão coringa
-    ({'type': ..., 'chave': ALL}) cuja LISTA de componentes casados pode
-    ser reconstruída do zero por OUTRO callback (não só por si mesmo) —
-    ex: 'gerenciar_abas' (a lista de abas é reconstruída ao fazer
-    upload de um arquivo novo) e 'gerenciar_selecao_canais'/
-    'alternar_edicao_canal' (a lista de canais é reconstruída ao gerar/
-    fechar o gráfico, trocar de aba, ou marcar/desmarcar OUTRO canal).
+    Devolve o id do componente que recebeu um CLIQUE DE VERDADE nesta
+    chamada, ou None se o disparo foi só "fantasma" (quem chama trata None
+    como PreventUpdate).
 
-    Nesses casos, um simples 'bool(ctx.triggered)' NÃO
-    basta: sempre que a lista-mãe é reconstruída, TODOS os botões dela
-    nascem de novo no Python com 'n_clicks=0' (são componentes NOVOS,
-    não os mesmos de antes, mesmo com o MESMO id) — e o Dash trata esse
-    reaparecimento de um id já observado por um Input de padrão coringa
-    como um disparo válido do callback, item que aparece em
-    'ctx.triggered' exatamente como um clique de verdade apareceria.
-    Foi isso que causava o bug relatado: sempre que a lista de canais
-    era reconstruída por OUTRO motivo (upload, gerar/fechar gráfico,
-    marcar canal), 'gerenciar_selecao_canais' disparava sozinho tratando
-    o primeiro botão da lista como se tivesse sido clicado de verdade.
+    O problema: botões que nascem dentro de listas reconstruídas por
+    callbacks (abas, lista de canais, barra e teclado da calculadora)
+    disparam o callback sozinhos quando a lista é redesenhada — o Dash
+    trata o componente recém-criado como um "disparo" do Input, mesmo sem
+    clique nenhum. Sem este filtro: o 1º canal marcava sozinho ao gerar ou
+    fechar o gráfico, 'Derivada' disparava ao ligar a Nova Análise, e o ⌫
+    apagava o token que acabara de ser clicado.
 
-    A única forma confiável de diferenciar os dois casos é comparar o
-    valor ATUAL de CADA componente casado contra o ÚLTIMO valor já
-    processado (guardado num dcc.Store, ver 'nclicks-padrao-store' em
-    layout.py) — só conta como clique de VERDADE quando o valor sobe
-    (0->1, 1->2...). Numa reconstrução "fantasma", o valor volta pra 0
-    (o padrão do Python), que nunca é MAIOR que um valor já visto antes
-    (seja 0 — nunca clicado — ou qualquer coisa maior — já clicado
-    alguma vez), então nunca dispara ação nenhuma; só um clique físico
-    de verdade faz o navegador reportar um valor MAIOR que o anterior.
+    A regra: todo botão nasce com n_clicks=0 no Python, então o disparo
+    fantasma sempre chega com valor 0/None, e um clique real sempre chega
+    com valor >= 1. Entre os componentes que REALMENTE dispararam agora
+    (ctx.triggered_prop_ids — ids já decodificados pelo Dash, sem depender
+    do texto de 'prop_id', então nomes de coluna "atípicos" como 'N#' ou
+    'FW-A' não interferem), valor > 0 é clique de verdade.
 
-    'grupos_inputs_list' são as entradas de 'ctx.inputs_list'
-    correspondentes aos Inputs de padrão coringa deste callback (cada
-    uma é uma LISTA de {'id', 'property', 'value'}, um item por
-    componente casado — é assim que o Dash formata pattern-matching
-    Inputs). 'nclicks_anteriores' é o 'data' atual do Store (dict, ou
-    None/vazio na primeira chamada).
+    Histórico: até a Fase 2.7 a regra era "o valor precisa SUBIR em
+    relação ao último guardado num dcc.Store" — isso perdia cliques reais
+    quando um callback redesenhava a própria lista (o botão voltava a 0,
+    mas o valor guardado continuava alto). O Store foi removido na 3.3.
 
-    Devolve (gatilho_id, novo_mapa):
-      - gatilho_id: o id (dict) do componente com clique de VERDADE
-        nesta chamada, ou None se nada disparou de verdade (só
-        fantasma) — quem chama deve tratar None como PreventUpdate.
-      - novo_mapa: o dict atualizado com o valor ATUAL de cada
-        componente casado — sempre devolver isso como o novo 'data' do
-        Store, mesmo quando gatilho_id vier None, senão a próxima
-        reconstrução "esquece" a linha de base e volta a comparar
-        contra um valor desatualizado.
-
-    ------------------------------------------------------------------
-    CORREÇÃO (Fase 2.7) — cliques "engolidos"
-    ------------------------------------------------------------------
-    A regra original ("só é clique se o valor SUBIR em relação ao
-    último guardado") perdia cliques de verdade: quando um callback
-    redesenha a PRÓPRIA lista (ex: o lápis reconstrói a lista de
-    canais), o Dash NÃO dispara esse callback de novo — então o botão
-    renasce com n_clicks=0 no navegador, mas o valor guardado no Store
-    continua alto. Os próximos cliques (1, 2...) ficavam <= ao valor
-    antigo e eram descartados até o contador "alcançar" o número velho.
-    Medido no navegador: lápis abria/fechava só em 3 de 6 cliques;
-    na calculadora, depois do 1º canal criado, token e 'Criar' eram
-    ignorados.
-
-    Regra atual: um disparo FANTASMA de remontagem sempre chega com
-    valor 0/None (todo botão nasce com n_clicks=0 no Python), e um
-    clique real sempre chega com valor >= 1. Então, entre os
-    componentes que REALMENTE dispararam nesta chamada
-    (ctx.triggered_prop_ids), qualquer valor > 0 é clique de verdade —
-    sem comparar com o Store. Os ids disparados vêm já decodificados
-    pelo Dash (não do texto de 'prop_id'), e o valor vem de
-    'grupos_inputs_list', então nomes de coluna "atípicos" (ex: 'N#',
-    'FW-A') não interferem.
-
-    'nclicks-padrao-store'/'novo_mapa' continuam sendo atualizados
-    (assinatura inalterada pros callbacks), mas não decidem mais nada.
-    ------------------------------------------------------------------
+    'grupos_inputs_list' é o 'ctx.inputs_list' do callback: cada entrada é
+    um dict {'id', 'property', 'value'} (Input simples) ou uma LISTA deles
+    (Input de padrão coringa, um item por componente casado).
     """
-    nclicks_anteriores = nclicks_anteriores or {}
-    novo_mapa = dict(nclicks_anteriores)
-    gatilho_id = None
-
-    if not GUARD_CLIQUE_FANTASMA_ATIVO:
-        # Bypass temporário: qualquer disparo conta como clique de
-        # verdade (não compara contra o valor anterior) — ainda
-        # atualiza 'novo_mapa' normalmente, pra não perder o rastreio
-        # caso o guard seja religado no meio de uma sessão.
-        for grupo in grupos_inputs_list:
-            itens = grupo if isinstance(grupo, list) else [grupo]
-            for item in itens:
-                id_item = item.get('id')
-                chave = _chave_id_padrao(id_item)
-                if chave is None:
-                    continue
-                novo_mapa[chave] = item.get('value') or 0
-        if ctx.triggered_id is not None:
-            gatilho_id = ctx.triggered_id
-        return gatilho_id, novo_mapa
-
     chaves_disparadas = {
         _chave_id_padrao(id_disparado)
         for id_disparado in (ctx.triggered_prop_ids or {}).values()
     }
 
+    gatilho_id = None
     for grupo in grupos_inputs_list:
         itens = grupo if isinstance(grupo, list) else [grupo]
         for item in itens:
@@ -169,14 +66,9 @@ def processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
             chave = _chave_id_padrao(id_item)
             if chave is None:
                 continue
-            valor_novo = item.get('value') or 0
-            # Clique real = disparou AGORA e tem valor >= 1. Fantasma de
-            # remontagem chega com 0 (ver docstring, "CORREÇÃO").
-            if chave in chaves_disparadas and valor_novo > 0:
+            if chave in chaves_disparadas and (item.get('value') or 0) > 0:
                 gatilho_id = id_item
-            novo_mapa[chave] = valor_novo
-
-    return gatilho_id, novo_mapa
+    return gatilho_id
 
 
 def estados_toolbar(estado, aba_ativa):

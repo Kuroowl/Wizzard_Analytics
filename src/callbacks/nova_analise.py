@@ -183,18 +183,16 @@ def registrar_callbacks_nova_analise(app, estado):
     @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
-        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input({'type': 'calc-token', 'display': ALL, 'codigo': ALL, 'classe': ALL}, 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('calc-expressao-store', 'data'),
         State('calc-tipo-destino', 'value'),
         State('calc-coluna-destino', 'value'),
         State('calc-nome-input', 'value'),
-        State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
     def registrar_token_calculadora(_n_clicks_list, aba_ativa, tokens_atuais, tipo_destino,
-                                     coluna_destino, nome_novo_canal, nclicks_anteriores):
+                                     coluna_destino, nome_novo_canal):
         # Mesmo cuidado de gerenciar_selecao_canais/gerenciar_abas: os
         # botões de token são padrão coringa, e a barra É reconstruída
         # por outro callback (alternar_modo_nova_analise, ao ligar, e
@@ -202,7 +200,7 @@ def registrar_callbacks_nova_analise(app, estado):
         # comparar contra o último valor visto, uma reconstrução alheia
         # adicionaria um token sozinho, sem clique nenhum do usuário
         # (ver processar_cliques_padrao, src/callbacks/_comum.py).
-        gatilho_id, novo_mapa = processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        gatilho_id = processar_cliques_padrao(ctx.inputs_list)
         if gatilho_id is None:
             raise PreventUpdate
 
@@ -228,12 +226,11 @@ def registrar_callbacks_nova_analise(app, estado):
         conteudo = renderizar_area_calculadora_completa(
             estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino, nome_novo_canal,
         )
-        return conteudo, novos_tokens, novo_mapa
+        return conteudo, novos_tokens
 
     @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
-        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input('calc-apagar', 'n_clicks'),
         Input('calc-apagar-teclado', 'n_clicks'),
         State('aba-ativa-store', 'data'),
@@ -241,11 +238,10 @@ def registrar_callbacks_nova_analise(app, estado):
         State('calc-tipo-destino', 'value'),
         State('calc-coluna-destino', 'value'),
         State('calc-nome-input', 'value'),
-        State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
     def apagar_ultimo_token_calculadora(_n1, _n2, aba_ativa, tokens_atuais, tipo_destino,
-                                         coluna_destino, nome_novo_canal, nclicks_anteriores):
+                                         coluna_destino, nome_novo_canal):
         """
         '⌫' remove o ÚLTIMO token — 2 botões idênticos disparam este
         callback: o da barra ('calc-apagar') e o duplicado no topo do
@@ -261,41 +257,39 @@ def registrar_callbacks_nova_analise(app, estado):
         qualquer clique de token, apagando o token que acabara de ser
         adicionado (o bug "clico na coluna e ela some sozinha").
         """
-        gatilho_id, novo_mapa = processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        gatilho_id = processar_cliques_padrao(ctx.inputs_list)
         if gatilho_id is None or not tokens_atuais:
             raise PreventUpdate
         novos_tokens = tokens_atuais[:-1]
         conteudo = renderizar_area_calculadora_completa(
             estado, aba_ativa, novos_tokens, tipo_destino, coluna_destino, nome_novo_canal,
         )
-        return conteudo, novos_tokens, novo_mapa
+        return conteudo, novos_tokens
 
     @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
         Output('calc-expressao-store', 'data', allow_duplicate=True),
-        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input('calc-limpar', 'n_clicks'),
         Input('calc-limpar-teclado', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('calc-tipo-destino', 'value'),
         State('calc-coluna-destino', 'value'),
         State('calc-nome-input', 'value'),
-        State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
     def limpar_expressao_calculadora(_n1, _n2, aba_ativa, tipo_destino, coluna_destino,
-                                      nome_novo_canal, nclicks_anteriores):
+                                      nome_novo_canal):
         """'Limpar'/'C' zera tudo — mesmo esquema de 2 botões
         idênticos e mesmo guard anti-fantasma de
         'apagar_ultimo_token_calculadora' acima ('calc-limpar' também
         mora dentro da barra reconstruída a cada token)."""
-        gatilho_id, novo_mapa = processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        gatilho_id = processar_cliques_padrao(ctx.inputs_list)
         if gatilho_id is None:
             raise PreventUpdate
         conteudo = renderizar_area_calculadora_completa(
             estado, aba_ativa, [], tipo_destino, coluna_destino, nome_novo_canal,
         )
-        return conteudo, [], novo_mapa
+        return conteudo, []
 
     @app.callback(
         Output('area-modo-nova-analise', 'children', allow_duplicate=True),
@@ -305,18 +299,16 @@ def registrar_callbacks_nova_analise(app, estado):
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('area-modo-nova-analise-edicao', 'children', allow_duplicate=True),
         saida_feedback('calculadora'),
-        Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input('calc-criar', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('calc-expressao-store', 'data'),
         State('calc-tipo-destino', 'value'),
         State('calc-coluna-destino', 'value'),
         State('calc-nome-input', 'value'),
-        State('nclicks-padrao-store', 'data'),
         prevent_initial_call=True,
     )
     def criar_canal_calculado_calculadora(n_clicks, aba_ativa, tokens_atuais,
-                                           tipo_destino, coluna_destino, nome_novo_canal, nclicks_anteriores):
+                                           tipo_destino, coluna_destino, nome_novo_canal):
         """
         'calc-criar' TAMBÉM mora dentro da barra (reconstruída a cada
         token clicado) — mesmo guard anti-fantasma das outras 3
@@ -324,7 +316,7 @@ def registrar_callbacks_nova_analise(app, estado):
         clicar num token de coluna poderia disparar 'Criar' sozinho
         (gravando uma coluna nova sem o usuário ter pedido isso).
         """
-        gatilho_id, novo_mapa = processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        gatilho_id = processar_cliques_padrao(ctx.inputs_list)
         if gatilho_id is None:
             raise PreventUpdate
 
@@ -333,10 +325,10 @@ def registrar_callbacks_nova_analise(app, estado):
             raise PreventUpdate
 
         def _sem_mudanca_de_conteudo(feedback):
-            """Devolve os 8 valores desta callback quando SÓ a mensagem
+            """Devolve os 7 valores desta callback quando SÓ a mensagem
             do rodapé muda (erro de validação) — a barra/expressão/
             listas continuam exatamente como estavam."""
-            return no_update, no_update, no_update, no_update, no_update, no_update, feedback, novo_mapa
+            return no_update, no_update, no_update, no_update, no_update, no_update, feedback
 
         codigo = ''.join(t['codigo'] for t in (tokens_atuais or []))
         try:
@@ -431,7 +423,7 @@ def registrar_callbacks_nova_analise(app, estado):
         return (conteudo, [],
                 renderizar_colunas_da_aba_ativa(estado, aba_ativa),
                 renderizar_selecao_eixos(estado, aba_ativa),
-                area_grafico, botoes_calculadora, feedback, novo_mapa)
+                area_grafico, botoes_calculadora, feedback)
 
     @app.callback(
         Output('modo-nova-analise-store', 'data', allow_duplicate=True),
