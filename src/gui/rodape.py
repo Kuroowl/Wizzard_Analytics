@@ -22,22 +22,126 @@ ser tratados como a mesma coisa:
         ├── sucesso / aviso / erro / instrução
         └── temporizador + mensagem seguinte
 
-Por enquanto (Etapa 1) só as informações permanentes foram
-centralizadas aqui. O feedback temporário ainda é escrito diretamente
-por cada callback em 'rodape-status' — a Etapa 2 introduz o contrato
-'Feedback' pra que um único responsável cuide disso.
+As informações permanentes são pedidas pelos callbacks via
+'obter_estado_rodape'. O feedback temporário tem UM único responsável:
+o callback 'apresentar_feedback' (registrar_callbacks_rodape, abaixo) —
+os outros callbacks só emitem um 'Feedback' (src/gui/feedback.py) no
+seu próprio canal e nunca tocam em 'rodape-status', no timer ou na
+mensagem seguinte.
 """
 from typing import NamedTuple
 
-from dash import dcc, html
+from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
+from dash.exceptions import PreventUpdate
+
+from src.gui.feedback import (
+    Feedback, ORIGENS_FEEDBACK, TIPO_STORE_FEEDBACK, id_feedback,
+)
 
 
 # Tempo (ms) que uma mensagem "temporária" do mago fica visível antes de
 # desaparecer sozinha — ver 'rodape-timer-mensagem' e o callback
-# 'expirar_mensagem_temporaria' em callbacks.py.
+# 'apresentar_feedback' logo abaixo.
 DURACAO_MENSAGEM_TEMPORARIA_MS = 3500
 
-MENSAGEM_INICIAL = '🧙‍♂️: " Carregue um arquivo para começar... "'
+# Nasce temporária e sem 'depois': some sozinha nos primeiros segundos.
+FEEDBACK_INICIAL = Feedback.instrucao('Carregue um arquivo para começar...', temporaria=True)
+
+CLASSE_STATUS = 'rodape-status'
+
+
+# ============================================================================
+# Feedback temporário (mensagem do mago) — apresentação
+# ============================================================================
+
+def formatar_fala_do_mago(texto):
+    """Único lugar que conhece o formato da fala: 🧙‍♂️: " ... "."""
+    return f'🧙‍♂️: " {texto} "' if texto else ''
+
+
+def classe_status(tipo=None):
+    """
+    Classe do '#rodape-status' por tipo de feedback ('feedback-sucesso',
+    'feedback-erro', ...). Ainda sem regra CSS própria — é o gancho pra
+    diferenciar visualmente os tipos quando quiser (status_menu.css).
+    """
+    return f'{CLASSE_STATUS} feedback-{tipo}' if tipo else CLASSE_STATUS
+
+
+def _saidas_para(feedback):
+    """
+    Traduz um Feedback nos 5 Outputs do apresentador:
+    (status.children, status.className, timer.disabled,
+     timer.n_intervals, mensagem-seguinte.data).
+    """
+    if feedback is None:
+        # Temporária expirou sem 'depois': a mensagem simplesmente some.
+        return '', classe_status(), True, no_update, None
+    if feedback.texto is None:
+        # Feedback.manter(): texto fica, só a troca agendada é cancelada.
+        return no_update, no_update, True, no_update, None
+
+    texto = formatar_fala_do_mago(feedback.texto)
+    classe = classe_status(feedback.tipo)
+    if feedback.temporaria:
+        # (Re)arma o timer: n_intervals=0 + disabled=False; o que vem
+        # depois fica guardado em 'rodape-mensagem-seguinte'.
+        seguinte = feedback.depois.to_plotly_json() if feedback.depois else None
+        return texto, classe, False, 0, seguinte
+    # Persistente: desarma o timer pra nenhuma troca antiga sobrescrever.
+    return texto, classe, True, no_update, None
+
+
+def _feedback_mais_recente(disparos):
+    """
+    Entre os canais de feedback que dispararam nesta rodada, devolve o
+    emitido por último (maior 'seq'). Normalmente é um só.
+    """
+    candidatos = []
+    for disparo in disparos:
+        if TIPO_STORE_FEEDBACK not in disparo.get('prop_id', ''):
+            continue
+        feedback = Feedback.de_dict(disparo.get('value'))
+        if feedback is not None:
+            candidatos.append(feedback)
+    return max(candidatos, key=lambda f: f.seq) if candidatos else None
+
+
+def registrar_callbacks_rodape(app):
+    """Registra o ÚNICO callback que escreve a mensagem do mago."""
+
+    @app.callback(
+        Output('rodape-status', 'children'),
+        Output('rodape-status', 'className'),
+        Output('rodape-timer-mensagem', 'disabled'),
+        Output('rodape-timer-mensagem', 'n_intervals'),
+        Output('rodape-mensagem-seguinte', 'data'),
+        Input({'type': TIPO_STORE_FEEDBACK, 'origem': ALL}, 'data'),
+        Input('rodape-timer-mensagem', 'n_intervals'),
+        State('rodape-mensagem-seguinte', 'data'),
+        prevent_initial_call=True,
+    )
+    def apresentar_feedback(_feedbacks, n_intervals, seguinte):
+        """
+        Dono de 'rodape-status', do timer e da mensagem seguinte.
+
+        - Algum callback emitiu um Feedback -> mostra (e arma/desarma o
+          timer conforme ele seja temporário ou persistente).
+        - O timer expirou -> mostra o 'depois' guardado (que pode ele
+          mesmo ser temporário, encadeando) ou apaga a mensagem.
+
+        Feedback novo tem prioridade sobre expiração na mesma rodada.
+        """
+        feedback = _feedback_mais_recente(ctx.triggered)
+        if feedback is not None:
+            return _saidas_para(feedback)
+
+        if ctx.triggered_id == 'rodape-timer-mensagem':
+            if not n_intervals:
+                raise PreventUpdate
+            return _saidas_para(Feedback.de_dict(seguinte))
+
+        raise PreventUpdate
 
 
 # ============================================================================
@@ -171,16 +275,19 @@ def montar_rodape(estado):
             html.Div(id='rodape-progresso-central', className='rodape-progresso-central'),
 
             html.Div(className='rodape-central-conteudo', children=[
-                html.Span(id='rodape-status', children=MENSAGEM_INICIAL),
+                html.Span(id='rodape-status',
+                          className=classe_status(FEEDBACK_INICIAL.tipo),
+                          children=formatar_fala_do_mago(FEEDBACK_INICIAL.texto)),
             ]),
 
             # --- Máquina da mensagem temporária do mago ---
-            # 'rodape-mensagem-seguinte' guarda o que deve aparecer QUANDO a
-            # mensagem atual expirar (string vazia = simplesmente some).
+            # Só 'apresentar_feedback' escreve nestes três. 'rodape-
+            # mensagem-seguinte' guarda o Feedback (dict) que deve aparecer
+            # QUANDO a mensagem atual expirar (None = simplesmente some).
             # 'rodape-timer-mensagem' já nasce ativo (disabled=False) pra
             # fazer a mensagem inicial acima desaparecer sozinha nos
             # primeiros segundos, sem precisar de nenhuma ação do usuário.
-            dcc.Store(id='rodape-mensagem-seguinte', data=''),
+            dcc.Store(id='rodape-mensagem-seguinte', data=None),
             dcc.Interval(
                 id='rodape-timer-mensagem',
                 interval=DURACAO_MENSAGEM_TEMPORARIA_MS,
@@ -188,6 +295,11 @@ def montar_rodape(estado):
                 max_intervals=1,
                 disabled=False,
             ),
+
+            # --- Canais de feedback: um Store por callback escritor ---
+            # (ver src/gui/feedback.py). Todos escutados por
+            # 'apresentar_feedback' via padrão coringa.
+            *[dcc.Store(id=id_feedback(origem)) for origem in ORIGENS_FEEDBACK],
         ]),
 
         # --- Seção vinculada ao edit menu (painel-direito) ---

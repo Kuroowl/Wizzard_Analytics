@@ -16,7 +16,8 @@ from src.gui.renderizadores import (
     renderizar_painel_direito_padrao, renderizar_painel_edicao,
     renderizar_calculadora_barra, renderizar_area_calculadora_completa, renderizar_calculadora_botoes, _hex_para_rgb,
 )
-from src.gui.rodape import obter_estado_rodape
+from src.gui.feedback import Feedback, saida_feedback
+from src.gui.rodape import obter_estado_rodape, registrar_callbacks_rodape
 from src.utils.helpers import carregar_dados_de_upload
 
 
@@ -268,10 +269,13 @@ def registrar_callbacks(app, estado):
     layout.py) — este módulo não decide qual app instanciar nem qual
     estado usar, só liga os dois.
     """
+    # A mensagem do mago tem um único dono (src/gui/rodape.py). Os
+    # callbacks abaixo só emitem Feedback em seu próprio canal.
+    registrar_callbacks_rodape(app)
 
     @app.callback(
         Output('aba-ativa-store', 'data'),
-        Output('rodape-status', 'children'),
+        saida_feedback('upload'),
         Output('nova-analise', 'disabled'),
         Output('fundir-arquivos', 'disabled'),
         Output('nova-amostra', 'disabled'),
@@ -281,9 +285,6 @@ def registrar_callbacks(app, estado):
         Output('rodape-alerta-badge', 'children'),
         Output('rodape-alerta-badge', 'className'),
         Output('rodape-alerta-popup', 'children'),
-        Output('rodape-mensagem-seguinte', 'data'),
-        Output('rodape-timer-mensagem', 'disabled'),
-        Output('rodape-timer-mensagem', 'n_intervals'),
         Input('upload-arquivo', 'contents'),
         State('upload-arquivo', 'filename'),
         State('aba-ativa-store', 'data'),
@@ -294,18 +295,15 @@ def registrar_callbacks(app, estado):
             raise PreventUpdate
 
         if nome_arquivo in estado.arquivos:
-            # Arquivo já aberto: mensagem PERSISTENTE — cancela qualquer
-            # timer pendente (senão uma expiração antiga poderia
-            # sobrescrever essa mensagem daqui a pouco). Nenhuma contagem
-            # de arquivo mudou, então os critérios de habilitação ficam
-            # como já estavam.
+            # Arquivo já aberto: mensagem PERSISTENTE (cancela qualquer
+            # troca agendada). Nenhuma contagem de arquivo mudou, então os
+            # critérios de habilitação ficam como já estavam.
             sem_arquivo, sem_2_arquivos, _ = _estados_toolbar(estado, nome_arquivo)
-            mensagem = f'🧙‍♂️: " O arquivo \'{nome_arquivo}\' já foi aberto! "'
-            return (nome_arquivo, mensagem,
+            feedback = Feedback.aviso(f"O arquivo '{nome_arquivo}' já foi aberto!")
+            return (nome_arquivo, feedback,
                     sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
                     no_update,
-                    *obter_estado_rodape(estado, nome_arquivo),
-                    no_update, True, no_update)
+                    *obter_estado_rodape(estado, nome_arquivo))
         try:
             df, avisos, info = carregar_dados_de_upload(conteudo, nome_arquivo)
             estado.adicionar_arquivo(nome_arquivo, df, avisos, info)
@@ -314,10 +312,11 @@ def registrar_callbacks(app, estado):
             area_grafico = renderizar_area_grafico(estado)
 
             # Mensagem TEMPORÁRIA: aparece, some sozinha em ~3.5s e dá lugar
-            # à próxima instrução ("Escolha uma opção de gráfico...") — ver
-            # 'rodape-timer-mensagem' / expirar_mensagem_temporaria() abaixo.
-            mensagem = f'🧙‍♂️: " Arquivo \'{nome_arquivo}\' carregado com sucesso! "'
-            mensagem_seguinte = '🧙‍♂️: " Escolha uma opção de gráfico... "'
+            # à próxima instrução — quem cuida do timer é o rodapé.
+            feedback = Feedback.sucesso(
+                f"Arquivo '{nome_arquivo}' carregado com sucesso!",
+                depois=Feedback.instrucao('Escolha uma opção de gráfico...'),
+            )
 
             # O arquivo recém-carregado ainda não tem gráfico gerado, então
             # 'aparar-dados'/'excluir-dados'/'exportar-grafico' continuam
@@ -326,19 +325,17 @@ def registrar_callbacks(app, estado):
             # arquivo" muda aqui: nova-analise, nova-amostra e exportar-dados.
             sem_arquivo, sem_2_arquivos, _ = _estados_toolbar(estado, nome_arquivo)
 
-            return (nome_arquivo, mensagem,
+            return (nome_arquivo, feedback,
                     sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
                     area_grafico,
-                    *obter_estado_rodape(estado, nome_arquivo),
-                    mensagem_seguinte, False, 0)
+                    *obter_estado_rodape(estado, nome_arquivo))
         except Exception as e:
             sem_arquivo, sem_2_arquivos, _ = _estados_toolbar(estado, aba_atual)
-            mensagem = f'🧙‍♂️: " Erro ao abrir arquivo: {str(e)} "'
-            return (aba_atual, mensagem,
+            feedback = Feedback.erro(f'Erro ao abrir arquivo: {e}')
+            return (aba_atual, feedback,
                     sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
                     no_update,
-                    *obter_estado_rodape(estado, aba_atual),
-                    no_update, True, no_update)
+                    *obter_estado_rodape(estado, aba_atual))
 
     # ------------------------------------------------------------------
     # Abas ('aba-item' pra trocar, 'botao-fechar-aba' pra fechar) — os
@@ -354,7 +351,7 @@ def registrar_callbacks(app, estado):
         Output('container-abas-chrome', 'children'),
         Output('lista-canais-aba', 'children'),
         Output('selecao-eixos-container', 'children'),
-        Output('rodape-status', 'children', allow_duplicate=True),
+        saida_feedback('abas'),
         Output('nova-analise', 'disabled', allow_duplicate=True),
         Output('fundir-arquivos', 'disabled', allow_duplicate=True),
         Output('container-grafico', 'children', allow_duplicate=True),
@@ -370,7 +367,6 @@ def registrar_callbacks(app, estado):
         Output('rodape-alerta-badge', 'children', allow_duplicate=True),
         Output('rodape-alerta-badge', 'className', allow_duplicate=True),
         Output('rodape-alerta-popup', 'children', allow_duplicate=True),
-        Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
         Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Output('modo-nova-analise-store', 'data', allow_duplicate=True),
         Output('nova-analise', 'className', allow_duplicate=True),
@@ -404,9 +400,12 @@ def registrar_callbacks(app, estado):
         else:
             raise PreventUpdate
 
-        mensagem = no_update
-        if not estado.arquivos:
-            mensagem = '🧙‍♂️: " Nenhum arquivo aberto. Carregue um arquivo pra começar. "'
+        # Trocar/fechar aba cancela a "próxima instrução" pendente de uma
+        # mensagem temporária da aba anterior (Feedback.manter()).
+        if estado.arquivos:
+            feedback = Feedback.manter()
+        else:
+            feedback = Feedback.instrucao('Nenhum arquivo aberto. Carregue um arquivo pra começar.')
 
         # A área central precisa refletir o estado de VERDADE da nova
         # aba ativa — se ela já tinha um gráfico gerado antes (o
@@ -445,36 +444,17 @@ def registrar_callbacks(app, estado):
 
         return (aba_ativa, renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa),
                 renderizar_selecao_eixos(estado, aba_ativa),
-                mensagem, sem_arquivo, sem_2_arquivos, area_grafico,
+                feedback, sem_arquivo, sem_2_arquivos, area_grafico,
                 sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
                 sem_grafico_da_aba,
                 _classe_painel_direito(ativo=False),
                 renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba),
                 # Trocar/fechar aba muda qual arquivo é "o ativo": info, badge
-                # e popup do rodapé precisam refletir a NOVA aba, e qualquer
-                # mensagem temporária pendente da aba anterior é cancelada.
+                # e popup do rodapé precisam refletir a NOVA aba.
                 *obter_estado_rodape(estado, aba_ativa),
-                True, novo_mapa,
+                novo_mapa,
                 modo_novo, classe_botao_calc, estilo_grafico_normal, estilo_area_calc, estilo_area_edicao)
 
-    @app.callback(
-        Output('rodape-status', 'children', allow_duplicate=True),
-        Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
-        Input('rodape-timer-mensagem', 'n_intervals'),
-        State('rodape-mensagem-seguinte', 'data'),
-        prevent_initial_call=True,
-    )
-    def expirar_mensagem_temporaria(n_intervals, mensagem_seguinte):
-        """
-        Dispara quando uma mensagem temporária do mago (a inicial, ou o
-        'Arquivo carregado com sucesso!') termina seu tempo de exibição.
-        Troca o texto do rodapé pelo que ficou guardado em
-        'rodape-mensagem-seguinte' (pode ser '' — nesse caso a mensagem
-        simplesmente some) e desarma o timer de novo.
-        """
-        if not n_intervals:
-            raise PreventUpdate
-        return (mensagem_seguinte or ''), True
     # ------------------------------------------------------------------
     # Modo "Nova Análise" — 'nova-analise' (toolbar) é um liga/desliga:
     # pressionado, faz DUAS coisas aparecerem ao mesmo tempo:
@@ -757,7 +737,7 @@ def registrar_callbacks(app, estado):
         Output('selecao-eixos-container', 'children', allow_duplicate=True),
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('area-modo-nova-analise-edicao', 'children', allow_duplicate=True),
-        Output('rodape-status', 'children', allow_duplicate=True),
+        saida_feedback('calculadora'),
         Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input('calc-criar', 'n_clicks'),
         State('aba-ativa-store', 'data'),
@@ -785,24 +765,24 @@ def registrar_callbacks(app, estado):
         if not arquivo:
             raise PreventUpdate
 
-        def _sem_mudanca_de_conteudo(mensagem):
+        def _sem_mudanca_de_conteudo(feedback):
             """Devolve os 8 valores desta callback quando SÓ a mensagem
             do rodapé muda (erro de validação) — a barra/expressão/
             listas continuam exatamente como estavam."""
-            return no_update, no_update, no_update, no_update, no_update, no_update, mensagem, novo_mapa
+            return no_update, no_update, no_update, no_update, no_update, no_update, feedback, novo_mapa
 
         codigo = ''.join(t['codigo'] for t in (tokens_atuais or []))
         try:
             valores = avaliar_expressao_calculadora(codigo, arquivo, estado).tolist()
         except ValueError as e:
-            return _sem_mudanca_de_conteudo(f'🧙‍♂️: " Não deu pra criar: {e} "')
+            return _sem_mudanca_de_conteudo(Feedback.erro(f'Não deu pra criar: {e}'))
 
         area_grafico = no_update
 
         if tipo_destino == 'existente':
             # --- Sobrescreve uma coluna JÁ EXISTENTE ---
             if not coluna_destino or coluna_destino not in arquivo.df_editado.columns:
-                return _sem_mudanca_de_conteudo('🧙‍♂️: " Escolha qual coluna sobrescrever antes de criar. "')
+                return _sem_mudanca_de_conteudo(Feedback.aviso('Escolha qual coluna sobrescrever antes de criar.'))
 
             arquivo.df_editado[coluna_destino] = valores
             canal = arquivo.canais.get(coluna_destino) or arquivo.registrar_canal(coluna_destino)
@@ -817,12 +797,12 @@ def registrar_callbacks(app, estado):
                 fig = construir_figura_serie_temporal(estado, aba_ativa)
                 arquivo.figura = fig
                 area_grafico = renderizar_grafico_com_fechar(fig)
-            mensagem = f'🧙‍♂️: " Coluna \'{arquivo.rotulo(coluna_destino)}\' recalculada. "'
+            feedback = Feedback.sucesso(f"Coluna '{arquivo.rotulo(coluna_destino)}' recalculada.")
         else:
             # --- Cria uma coluna NOVA ---
             nome_novo_canal = (nome_novo_canal or '').strip()
             if not nome_novo_canal:
-                return _sem_mudanca_de_conteudo('🧙‍♂️: " Dê um nome pra essa análise antes de criar. "')
+                return _sem_mudanca_de_conteudo(Feedback.aviso('Dê um nome pra essa análise antes de criar.'))
 
             # Nome interno sanitizado (sem espaço/acento/símbolo) pra
             # virar coluna de verdade no df_editado — o RÓTULO exibido
@@ -865,7 +845,7 @@ def registrar_callbacks(app, estado):
                 fig = construir_figura_serie_temporal(estado, aba_ativa)
                 arquivo.figura = fig
                 area_grafico = renderizar_grafico_com_fechar(fig)
-            mensagem = f'🧙‍♂️: " Canal \'{nome_novo_canal}\' criado ({codigo}). "'
+            feedback = Feedback.sucesso(f"Canal '{nome_novo_canal}' criado ({codigo}).")
 
         # Limpa a expressão depois de criar (mesmo espírito de um
         # formulário que reseta após salvar) — 'nome_novo_canal=None'
@@ -887,7 +867,7 @@ def registrar_callbacks(app, estado):
         return (conteudo, [],
                 renderizar_colunas_da_aba_ativa(estado, aba_ativa),
                 renderizar_selecao_eixos(estado, aba_ativa),
-                area_grafico, botoes_calculadora, mensagem, novo_mapa)
+                area_grafico, botoes_calculadora, feedback, novo_mapa)
 
     # ------------------------------------------------------------------
     # Lista de canais (sidebar) — 2 callbacks:
@@ -907,12 +887,11 @@ def registrar_callbacks(app, estado):
     @app.callback(
         Output('lista-canais-aba', 'children', allow_duplicate=True),
         Output('selecao-eixos-container', 'children', allow_duplicate=True),
-        Output('rodape-status', 'children', allow_duplicate=True),
+        saida_feedback('eixos'),
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('rodape-alerta-badge', 'children', allow_duplicate=True),
         Output('rodape-alerta-badge', 'className', allow_duplicate=True),
         Output('rodape-alerta-popup', 'children', allow_duplicate=True),
-        Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
         Output('painel-direito-conteudo', 'children', allow_duplicate=True),
         Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input({'type': 'linha-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
@@ -958,7 +937,9 @@ def registrar_callbacks(app, estado):
         if gatilho_id is None:
             raise PreventUpdate
 
-        mensagem = no_update
+        # Sem mensagem própria, ainda cancela a troca agendada de uma
+        # temporária anterior (mesmo comportamento de antes).
+        feedback = Feedback.manter()
         area_grafico = no_update
         # Se o painel de edição estiver aberto ('ativa'), mudar a
         # atribuição de eixos ou excluir um canal pode fazer a curva
@@ -993,7 +974,7 @@ def registrar_callbacks(app, estado):
             # (ver Arquivo.excluir_canal, src/core/arquivo.py) —
             # soft-delete: some da lista, o dado continua no df_editado.
             arquivo.excluir_canal(coluna)
-            mensagem = f'🧙‍♂️: " Canal \'{rotulo}\' excluído. "'
+            feedback = Feedback.sucesso(f"Canal '{rotulo}' excluído.")
 
             if tinha_grafico:
                 fig = construir_figura_serie_temporal(estado, aba_ativa)
@@ -1004,10 +985,10 @@ def registrar_callbacks(app, estado):
             rotulo = arquivo.rotulo(coluna)
             if arquivo.eixo_x_manual is None:
                 arquivo.mover_para_eixo_x(coluna)
-                mensagem = f'🧙‍♂️: " \'{rotulo}\' definido como eixo X. "'
+                feedback = Feedback.sucesso(f"'{rotulo}' definido como eixo X.")
             else:
                 arquivo.mover_para_eixo_y(coluna)
-                mensagem = f'🧙‍♂️: " \'{rotulo}\' adicionado ao eixo Y. "'
+                feedback = Feedback.sucesso(f"'{rotulo}' adicionado ao eixo Y.")
 
             # Só redesenha o gráfico se JÁ havia um gráfico aberto antes
             # deste clique (senão ainda estamos na grade de opções, e
@@ -1023,7 +1004,7 @@ def registrar_callbacks(app, estado):
         elif tipo == 'remover-eixo-selecionado':
             rotulo = arquivo.rotulo(coluna)
             arquivo.remover_da_selecao_eixos(coluna)
-            mensagem = f'🧙‍♂️: " \'{rotulo}\' voltou pra lista. "'
+            feedback = Feedback.info(f"'{rotulo}' voltou pra lista.")
 
             # Mesmo se o X removido zerar 'eixo_x_manual', ainda
             # redesenha (se já havia gráfico) — 'construir_figura_
@@ -1041,9 +1022,9 @@ def registrar_callbacks(app, estado):
         rodape = obter_estado_rodape(estado, aba_ativa)
         return (renderizar_colunas_da_aba_ativa(estado, aba_ativa),
                 renderizar_selecao_eixos(estado, aba_ativa),
-                mensagem, area_grafico,
+                feedback, area_grafico,
                 rodape.badge_texto, rodape.badge_classe, rodape.popup,
-                True, painel_edicao, novo_mapa)
+                painel_edicao, novo_mapa)
 
     # ------------------------------------------------------------------
     # Renomear canal (lápis ✏️ na lista de canais) — UM callback só,
@@ -1091,7 +1072,7 @@ def registrar_callbacks(app, estado):
         Output('selecao-eixos-container', 'children', allow_duplicate=True),
         Output('canal-em-edicao-store', 'data', allow_duplicate=True),
         Output('container-grafico', 'children', allow_duplicate=True),
-        Output('rodape-status', 'children', allow_duplicate=True),
+        saida_feedback('edicao-canal'),
         Output('painel-direito-conteudo', 'children', allow_duplicate=True),
         Output('nclicks-padrao-store', 'data', allow_duplicate=True),
         Input({'type': 'botao-editar-canal', 'arquivo': ALL, 'coluna': ALL}, 'n_clicks'),
@@ -1123,7 +1104,7 @@ def registrar_callbacks(app, estado):
         grupo_valores_input = ctx.states_list[0] if ctx.states_list else []
 
         tipo = gatilho_id.get('type')
-        mensagem = no_update
+        feedback = no_update
         area_grafico = no_update
         novo_canal_em_edicao = canal_em_edicao
 
@@ -1132,7 +1113,7 @@ def registrar_callbacks(app, estado):
             for DIFERENTE do rótulo atual — silenciosamente ignora
             texto vazio/só espaço ou digitar o mesmo nome de novo (sem
             popup de erro pra um caso tão menor)."""
-            nonlocal mensagem, area_grafico
+            nonlocal feedback, area_grafico
             arquivo = estado.arquivos.get(arquivo_alvo)
             if not arquivo or not novo_nome:
                 return
@@ -1140,7 +1121,7 @@ def registrar_callbacks(app, estado):
             if not novo_nome or novo_nome == arquivo.rotulo(coluna):
                 return
             arquivo.renomear_canal(coluna, novo_nome)
-            mensagem = f'🧙‍♂️: " Canal renomeado para \'{arquivo.rotulo(coluna)}\'. "'
+            feedback = Feedback.sucesso(f"Canal renomeado para '{arquivo.rotulo(coluna)}'.")
             if arquivo.grafico_gerado:
                 # A legenda do gráfico lê 'arquivo.rotulo(coluna)' na
                 # hora de montar cada traço (ver 'name=rotulo' em
@@ -1205,7 +1186,7 @@ def registrar_callbacks(app, estado):
 
         return (renderizar_colunas_da_aba_ativa(estado, aba_ativa, novo_canal_em_edicao),
                 renderizar_selecao_eixos(estado, aba_ativa, novo_canal_em_edicao),
-                novo_canal_em_edicao, area_grafico, mensagem, painel_edicao, novo_mapa)
+                novo_canal_em_edicao, area_grafico, feedback, painel_edicao, novo_mapa)
 
     @app.callback(
         Output('container-abas-chrome', 'children', allow_duplicate=True),
@@ -1233,7 +1214,7 @@ def registrar_callbacks(app, estado):
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('lista-canais-aba', 'children', allow_duplicate=True),
         Output('selecao-eixos-container', 'children', allow_duplicate=True),
-        Output('rodape-status', 'children', allow_duplicate=True),
+        saida_feedback('grafico-gerar'),
         Output('aparar-dados', 'disabled', allow_duplicate=True),
         Output('excluir-dados', 'disabled', allow_duplicate=True),
         Output('nova-amostra', 'disabled', allow_duplicate=True),
@@ -1243,7 +1224,6 @@ def registrar_callbacks(app, estado):
         Output('rodape-alerta-badge', 'children', allow_duplicate=True),
         Output('rodape-alerta-badge', 'className', allow_duplicate=True),
         Output('rodape-alerta-popup', 'children', allow_duplicate=True),
-        Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
         Input('central-btn-1', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
@@ -1291,26 +1271,25 @@ def registrar_callbacks(app, estado):
         arquivo.figura = fig
 
         tem_y = bool(arquivo.eixos_y_manual)
-        mensagem = (
-            f'🧙‍♂️: " Gráfico gerado com X = \'{arquivo.rotulo(arquivo.eixo_x_manual)}\'. '
-            'Clique nos canais na barra lateral pra adicionar ao eixo Y. "'
-            if not tem_y else
-            '🧙‍♂️: " Gráfico gerado. "'
-        )
+        if tem_y:
+            feedback = Feedback.sucesso('Gráfico gerado.')
+        else:
+            feedback = Feedback.instrucao(
+                f"Gráfico gerado com X = '{arquivo.rotulo(arquivo.eixo_x_manual)}'. "
+                'Clique nos canais na barra lateral pra adicionar ao eixo Y.')
         grafico = renderizar_grafico_com_fechar(fig)
 
         rodape = obter_estado_rodape(estado, aba_ativa)
         return (grafico, renderizar_colunas_da_aba_ativa(estado, aba_ativa),
-                renderizar_selecao_eixos(estado, aba_ativa), mensagem,
+                renderizar_selecao_eixos(estado, aba_ativa), feedback,
                 False, False, False, False, False, False,
-                rodape.badge_texto, rodape.badge_classe, rodape.popup,
-                True)
+                rodape.badge_texto, rodape.badge_classe, rodape.popup)
 
     @app.callback(
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('lista-canais-aba', 'children', allow_duplicate=True),
         Output('selecao-eixos-container', 'children', allow_duplicate=True),
-        Output('rodape-status', 'children', allow_duplicate=True),
+        saida_feedback('grafico-fechar'),
         Output('aparar-dados', 'disabled', allow_duplicate=True),
         Output('excluir-dados', 'disabled', allow_duplicate=True),
         Output('nova-amostra', 'disabled', allow_duplicate=True),
@@ -1319,7 +1298,6 @@ def registrar_callbacks(app, estado):
         Output('iniciar-edicao', 'disabled', allow_duplicate=True),
         Output('painel-direito', 'className', allow_duplicate=True),
         Output('painel-direito-conteudo', 'children', allow_duplicate=True),
-        Output('rodape-timer-mensagem', 'disabled', allow_duplicate=True),
         Output('corte-selecao-store', 'data', allow_duplicate=True),
         Output('sidebar-principal', 'className', allow_duplicate=True),
         Output('toolbar-icones', 'className', allow_duplicate=True),
@@ -1369,7 +1347,7 @@ def registrar_callbacks(app, estado):
             selecao_eixos = renderizar_selecao_eixos(estado, aba_ativa)
 
         area_grafico = renderizar_area_grafico(estado)
-        mensagem = '🧙‍♂️: " Gráfico fechado. Escolha outra opção. "'
+        feedback = Feedback.instrucao('Gráfico fechado. Escolha outra opção.')
 
         # Cancela uma seleção de corte em andamento, se houver — ver
         # docstring acima. 'no_update' quando não havia seleção nenhuma,
@@ -1393,10 +1371,10 @@ def registrar_callbacks(app, estado):
         # estado normal, já que não faz sentido continuar "em edição" de
         # um gráfico que não existe mais).
         sem_arquivo, _, sem_grafico_da_aba = _estados_toolbar(estado, aba_ativa)
-        return (area_grafico, lista_canais, selecao_eixos, mensagem,
+        return (area_grafico, lista_canais, selecao_eixos, feedback,
                 sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
                 sem_grafico_da_aba, _classe_painel_direito(ativo=False),
-                renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba), True,
+                renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba),
                 corte_store, classe_sidebar, classe_toolbar_icones, estilo_prompt_corte)
 
     # ------------------------------------------------------------------
@@ -1420,7 +1398,7 @@ def registrar_callbacks(app, estado):
         Output('painel-direito', 'className', allow_duplicate=True),
         Output('toolbar-icones', 'className'),
         Output('container-grafico', 'className'),
-        Output('rodape-status', 'children', allow_duplicate=True),
+        saida_feedback('corte-iniciar'),
         Input('aparar-dados', 'n_clicks'),
         Input('excluir-dados', 'n_clicks'),
         State('aba-ativa-store', 'data'),
@@ -1486,9 +1464,9 @@ def registrar_callbacks(app, estado):
             'painel_ativo': painel_ativo,
         }
         if tipo == 'aparar':
-            mensagem = '🧙‍♂️: " Clique no gráfico para marcar o INÍCIO do recorte. "'
+            feedback = Feedback.instrucao('Clique no gráfico para marcar o INÍCIO do recorte.')
         else:
-            mensagem = '🧙‍♂️: " Clique no gráfico para marcar o INÍCIO do trecho a excluir. "'
+            feedback = Feedback.instrucao('Clique no gráfico para marcar o INÍCIO do trecho a excluir.')
 
         return (
             dados_selecao,
@@ -1496,7 +1474,7 @@ def registrar_callbacks(app, estado):
             _classe_painel_direito(ativo=painel_ativo, selecionando=True),
             'toolbar-icones inativo ferramenta-' + tipo,
             'area-grafico-container corte-ativo',
-            mensagem,
+            feedback,
         )
 
     @app.callback(
@@ -1549,7 +1527,7 @@ def registrar_callbacks(app, estado):
     @app.callback(
         Output('corte-selecao-store', 'data', allow_duplicate=True),
         Output('grafico-plotly-real', 'figure', allow_duplicate=True),
-        Output('rodape-status', 'children', allow_duplicate=True),
+        saida_feedback('corte-clique'),
         Output('toolbar-confirmacao-corte', 'style'),
         Output('container-grafico', 'className', allow_duplicate=True),
         Input('corte-clique-x', 'value'),
@@ -1597,15 +1575,15 @@ def registrar_callbacks(app, estado):
         if primeiro is None:
             primeiro = valor_x
             if tipo == 'aparar':
-                mensagem = '🧙‍♂️: " Agora clique um pouco mais à direita para marcar o FIM do recorte. "'
+                feedback = Feedback.instrucao('Agora clique um pouco mais à direita para marcar o FIM do recorte.')
             else:
-                mensagem = '🧙‍♂️: " Agora clique um pouco mais à direita para marcar o FIM do trecho a excluir. "'
+                feedback = Feedback.instrucao('Agora clique um pouco mais à direita para marcar o FIM do trecho a excluir.')
             estilo_prompt = no_update
         elif segundo is None:
             if valor_x <= primeiro:
                 raise PreventUpdate
             segundo = valor_x
-            mensagem = '🧙‍♂️: " Confirma? "'
+            feedback = Feedback.instrucao('Confirma?')
             estilo_prompt = {'display': 'flex'}
             classe_container = 'area-grafico-container corte-ativo corte-completo'
         else:
@@ -1617,7 +1595,7 @@ def registrar_callbacks(app, estado):
         # interação de arraste estar PAUSADA (o passo a passo pra
         # retomar está lá).
         fig = aplicar_guias_corte(arquivo.figura, primeiro=primeiro, segundo=segundo, arrastavel=False, modo=tipo)
-        return dados_selecao, fig, mensagem, estilo_prompt, classe_container
+        return dados_selecao, fig, feedback, estilo_prompt, classe_container
 
     # PAUSADO por enquanto: arraste das guias já confirmadas (ver
     # comentário detalhado em aplicar_guias_corte, plotter.py, com o
@@ -1694,7 +1672,7 @@ def registrar_callbacks(app, estado):
         Output('container-grafico', 'className', allow_duplicate=True),
         Output('toolbar-confirmacao-corte', 'style', allow_duplicate=True),
         Output('container-grafico', 'children', allow_duplicate=True),
-        Output('rodape-status', 'children', allow_duplicate=True),
+        saida_feedback('corte-confirmar'),
         Input('corte-confirmar', 'n_clicks'),
         State('corte-selecao-store', 'data'),
         prevent_initial_call=True,
@@ -1726,10 +1704,10 @@ def registrar_callbacks(app, estado):
         eixo_x = resolver_eixo_x(estado, arquivo)
         if tipo == 'excluir':
             arquivo.df_editado = excluir_dados(arquivo.df_editado, eixo_x, primeiro, segundo)
-            mensagem = '🧙‍♂️: " Trecho excluído! O que estava entre os dois cortes sumiu, o resto ficou. "'
+            feedback = Feedback.sucesso('Trecho excluído! O que estava entre os dois cortes sumiu, o resto ficou.')
         else:
             arquivo.df_editado = aparar_dados(arquivo.df_editado, eixo_x, primeiro, segundo)
-            mensagem = '🧙‍♂️: " Dados aparados! Só ficou o que estava entre os dois cortes. "'
+            feedback = Feedback.sucesso('Dados aparados! Só ficou o que estava entre os dois cortes.')
         arquivo.invalidar_grafico()
 
         fig = construir_figura_serie_temporal(estado, aba_ativa)
@@ -1738,7 +1716,7 @@ def registrar_callbacks(app, estado):
 
         _, sidebar, painel, icones, grafico_classe, prompt_estilo = _restaurar_apos_selecao(
             painel_ativo=dados_selecao.get('painel_ativo', False))
-        return None, sidebar, painel, icones, grafico_classe, prompt_estilo, container_grafico, mensagem
+        return None, sidebar, painel, icones, grafico_classe, prompt_estilo, container_grafico, feedback
 
     @app.callback(
         Output('corte-selecao-store', 'data', allow_duplicate=True),
@@ -1748,7 +1726,7 @@ def registrar_callbacks(app, estado):
         Output('container-grafico', 'className', allow_duplicate=True),
         Output('toolbar-confirmacao-corte', 'style', allow_duplicate=True),
         Output('grafico-plotly-real', 'figure', allow_duplicate=True),
-        Output('rodape-status', 'children', allow_duplicate=True),
+        saida_feedback('corte-cancelar'),
         Input('corte-cancelar', 'n_clicks'),
         State('corte-selecao-store', 'data'),
         prevent_initial_call=True,
@@ -1768,11 +1746,11 @@ def registrar_callbacks(app, estado):
         aba_ativa = dados_selecao.get('aba')
         arquivo = estado.arquivos.get(aba_ativa) if aba_ativa else None
         fig = arquivo.figura if arquivo and arquivo.grafico_gerado else no_update
-        mensagem = '🧙‍♂️: " Seleção cancelada. Nada foi alterado. "'
+        feedback = Feedback.info('Seleção cancelada. Nada foi alterado.')
 
         _, sidebar, painel, icones, grafico_classe, prompt_estilo = _restaurar_apos_selecao(
             painel_ativo=dados_selecao.get('painel_ativo', False))
-        return None, sidebar, painel, icones, grafico_classe, prompt_estilo, fig, mensagem
+        return None, sidebar, painel, icones, grafico_classe, prompt_estilo, fig, feedback
 
     @app.callback(
         Output('edicao-curva-dado-atual', 'data'),
