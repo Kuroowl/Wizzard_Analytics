@@ -30,10 +30,12 @@ def registrar_callbacks_abas(app, estado):
     # ------------------------------------------------------------------
 
     @app.callback(
+        # Abas, lista de canais e seleção de eixos NÃO são desenhadas aqui:
+        # gravar 'aba-ativa-store' dispara sincronizar_interface_por_aba
+        # (logo abaixo), que desenha as três — inclusive ao fechar uma aba
+        # que não é a ativa (o Dash dispara mesmo com o valor repetido).
+        # Antes as três eram desenhadas duas vezes a cada clique de aba.
         Output('aba-ativa-store', 'data', allow_duplicate=True),
-        Output('container-abas-chrome', 'children'),
-        Output('lista-canais-aba', 'children'),
-        Output('selecao-eixos-container', 'children'),
         saida_feedback('abas'),
         Output('nova-analise', 'disabled', allow_duplicate=True),
         Output('fundir-arquivos', 'disabled', allow_duplicate=True),
@@ -118,8 +120,7 @@ def registrar_callbacks_abas(app, estado):
             estilo_area_calc = no_update
             estilo_area_edicao = no_update
 
-        return (aba_ativa, renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa),
-                renderizar_selecao_eixos(estado, aba_ativa),
+        return (aba_ativa,
                 feedback, sem_arquivo, sem_2_arquivos, area_grafico,
                 sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
                 sem_grafico_da_aba,
