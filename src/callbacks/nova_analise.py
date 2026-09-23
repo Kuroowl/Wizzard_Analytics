@@ -56,7 +56,6 @@ def registrar_callbacks_nova_analise(app, estado):
     @app.callback(
         Output('modo-nova-analise-store', 'data'),
         Output('nova-analise', 'className'),
-        Output('area-grafico-normal', 'style'),
         Output('area-modo-nova-analise', 'style'),
         Output('area-modo-nova-analise-edicao', 'style'),
         Output('area-modo-nova-analise', 'children'),
@@ -73,12 +72,9 @@ def registrar_callbacks_nova_analise(app, estado):
 
         novo_ativo = not modo_ativo_atual
         classe_botao = 'toolbar-upload' + (' ativo' if novo_ativo else '')
-        # O gráfico real ('#area-grafico-normal') fica SEMPRE visível: a
-        # barra ('#area-modo-nova-analise') aparece em cima dele e o
-        # empurra pra baixo (ver layout.py/central_menu.css). O Output
-        # continua existindo só pra não mexer no contrato agora — fica
-        # pra limpeza da Fase 3.
-        estilo_area_grafico = {'display': 'block'}
+        # O gráfico real ('#area-grafico-normal') não é tocado aqui: fica
+        # SEMPRE visível, com a barra ('#area-modo-nova-analise')
+        # aparecendo em cima dele (ver layout.py/central_menu.css).
         estilo_area_calc = {'display': 'flex'} if novo_ativo else {'display': 'none'}
         estilo_area_edicao = {'display': 'flex'} if novo_ativo else {'display': 'none'}
 
@@ -94,7 +90,7 @@ def registrar_callbacks_nova_analise(app, estado):
             conteudo_barra = renderizar_area_calculadora_completa(estado, aba_ativa, tokens_atuais)
             conteudo_botoes = renderizar_calculadora_botoes(estado, aba_ativa)
 
-        return (novo_ativo, classe_botao, estilo_area_grafico, estilo_area_calc, estilo_area_edicao,
+        return (novo_ativo, classe_botao, estilo_area_calc, estilo_area_edicao,
                 conteudo_barra, conteudo_botoes)
 
     # ------------------------------------------------------------------
@@ -428,7 +424,6 @@ def registrar_callbacks_nova_analise(app, estado):
     @app.callback(
         Output('modo-nova-analise-store', 'data', allow_duplicate=True),
         Output('nova-analise', 'className', allow_duplicate=True),
-        Output('area-grafico-normal', 'style', allow_duplicate=True),
         Output('area-modo-nova-analise', 'style', allow_duplicate=True),
         Output('area-modo-nova-analise-edicao', 'style', allow_duplicate=True),
         Input('aparar-dados', 'n_clicks'),
@@ -439,16 +434,9 @@ def registrar_callbacks_nova_analise(app, estado):
     def desligar_calculadora_ao_iniciar_corte(n_clicks_aparar, n_clicks_excluir, modo_calculadora_ativo):
         """
         Desliga o modo 'Nova Análise' ao clicar em 'Aparar dados'/
-        'Excluir dados' — SEPARADO de propósito de 'iniciar_selecao_
-        corte' acima (mesmos 2 botões como Input, MAS nenhum Output em
-        comum): a seleção de corte depende de clicar de verdade no
-        gráfico PRINCIPAL ('#grafico-plotly-real', dentro de
-        '#area-grafico-normal'), que fica 'display:none' enquanto o
-        modo calculadora está ligado (ver alternar_modo_nova_analise)
-        — sem desligar a calculadora primeiro, clicar em 'Aparar
-        dados'/'Excluir dados' armava a seleção mas nunca recebia
-        clique nenhum, porque o gráfico que precisa ser clicado estava
-        escondido.
+        'Excluir dados' (decisão de produto: durante um corte só o
+        corte está ativo; a expressão em andamento fica guardada em
+        'calc-expressao-store' pra quando o usuário religar).
 
         Ficar num callback À PARTE (em vez de virar mais Outputs de
         'iniciar_selecao_corte') é proposital: uma tentativa anterior
@@ -467,7 +455,6 @@ def registrar_callbacks_nova_analise(app, estado):
         return (
             False,
             'toolbar-upload',
-            {'display': 'block'},
             {'display': 'none'},
             {'display': 'none'},
         )

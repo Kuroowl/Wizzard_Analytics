@@ -281,7 +281,7 @@ def montar_layout(estado):
                     id='area-modo-nova-analise', className='area-modo-nova-analise-completa',
                     style={'display': 'none'},
                 ),
-                html.Div(id='area-grafico-normal', style={'display': 'block'}, children=[
+                html.Div(id='area-grafico-normal', children=[
                     dcc.Loading(
                         id="loading-grafico",
                         type="circle",

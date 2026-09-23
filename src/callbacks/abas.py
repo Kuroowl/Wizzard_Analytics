@@ -52,7 +52,6 @@ def registrar_callbacks_abas(app, estado):
         Output('rodape-alerta-popup', 'children', allow_duplicate=True),
         Output('modo-nova-analise-store', 'data', allow_duplicate=True),
         Output('nova-analise', 'className', allow_duplicate=True),
-        Output('area-grafico-normal', 'style', allow_duplicate=True),
         Output('area-modo-nova-analise', 'style', allow_duplicate=True),
         Output('area-modo-nova-analise-edicao', 'style', allow_duplicate=True),
         Input({'type': 'aba-item', 'arquivo': ALL}, 'n_clicks'),
@@ -103,23 +102,19 @@ def registrar_callbacks_abas(app, estado):
         # Trocar/fechar aba SEMPRE desliga o modo 'Nova Análise' se
         # estava ligado — mesmo princípio já aplicado ao painel de
         # edição logo abaixo ('classe_painel_direito(ativo=False)'):
-        # o estado da calculadora (expressão em andamento, miniatura do
-        # gráfico) é sobre UM arquivo específico, não faz sentido
-        # continuar mostrando por cima de uma aba DIFERENTE. Sem isto,
-        # fechar o arquivo com a calculadora aberta deixava a área da
-        # calculadora visível (cobrindo o gráfico normal, que nem existe
-        # mais se o arquivo foi fechado) e o botão 'nova-analise' preso
-        # no visual "ativo" — nada se fechava sozinho.
+        # o estado da calculadora (expressão em andamento, colunas do
+        # teclado) é sobre UM arquivo específico, não faz sentido
+        # continuar mostrando numa aba DIFERENTE. Sem isto, fechar o
+        # arquivo com a calculadora aberta deixava a barra e o teclado
+        # visíveis e o botão 'nova-analise' preso no visual "ativo".
         if modo_calculadora_ativo:
             modo_novo = False
             classe_botao_calc = 'toolbar-upload'
-            estilo_grafico_normal = {'display': 'block'}
             estilo_area_calc = {'display': 'none'}
             estilo_area_edicao = {'display': 'none'}
         else:
             modo_novo = no_update
             classe_botao_calc = no_update
-            estilo_grafico_normal = no_update
             estilo_area_calc = no_update
             estilo_area_edicao = no_update
 
@@ -133,7 +128,7 @@ def registrar_callbacks_abas(app, estado):
                 # Trocar/fechar aba muda qual arquivo é "o ativo": info, badge
                 # e popup do rodapé precisam refletir a NOVA aba.
                 *obter_estado_rodape(estado, aba_ativa),
-                modo_novo, classe_botao_calc, estilo_grafico_normal, estilo_area_calc, estilo_area_edicao)
+                modo_novo, classe_botao_calc, estilo_area_calc, estilo_area_edicao)
 
     @app.callback(
         Output('container-abas-chrome', 'children', allow_duplicate=True),
