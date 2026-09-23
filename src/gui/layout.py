@@ -124,6 +124,10 @@ def montar_layout(estado):
         # Input comum. Fica escondido — não é um campo que o usuário
         # preenche à mão.
         dcc.Input(id='corte-clique-x', type='number', value=None, style={'display': 'none'}),
+        # Mesma ponte, pra tecla Esc: o JS incrementa este contador
+        # quando Esc é pressionado COM um corte em andamento, e
+        # cancelar_corte (src/callbacks/corte.py) reage a isso.
+        dcc.Input(id='corte-tecla-esc', type='number', value=None, style={'display': 'none'}),
         # Mesma ponte JS -> Dash de 'corte-clique-x', só que pro
         # ARRASTE das linhas de corte já confirmadas (só liberado
         # depois do 2º clique — ver 'arrastavel' em aplicar_guias_corte,

@@ -660,6 +660,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 var campo = document.getElementById('corte-clique-x');
                 if (!campo) return;
                 var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                // O Dash só reage quando o valor MUDA: clicar exatamente
+                // no mesmo X do último clique (ex: cancelar logo depois
+                // de marcar o início e recomeçar no mesmo ponto) era
+                // ignorado. Nesse caso limpa antes — registrar_clique_
+                // corte ignora valor vazio (None) — e aí escreve.
+                if (String(campo.value) === String(xDado)) {
+                    setter.call(campo, '');
+                    campo.dispatchEvent(new Event('input', { bubbles: true }));
+                }
                 setter.call(campo, xDado);
                 campo.dispatchEvent(new Event('input', { bubbles: true }));
             });
@@ -770,6 +779,28 @@ document.addEventListener('DOMContentLoaded', function () {
         }, true);
     }
     iniciarSelecaoCorte();
+
+    function iniciarEscCancelaCorte() {
+        // Esc cancela um corte em andamento ('Aparar'/'Excluir dados'),
+        // em qualquer fase — mesma ponte JS -> Dash do clique no
+        // gráfico: incrementa o campo escondido 'corte-tecla-esc' e
+        // cancelar_corte (src/callbacks/corte.py) faz o resto. Só age
+        // com 'corte-ativo' em '#container-grafico' (mesma classe que
+        // liga iniciarSelecaoCorte), então Esc fora do corte não faz
+        // nada.
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape') return;
+            var grafico = document.getElementById('container-grafico');
+            if (!grafico || !grafico.classList.contains('corte-ativo')) return;
+            var campo = document.getElementById('corte-tecla-esc');
+            if (!campo) return;
+            var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+            setter.call(campo, (parseInt(campo.value, 10) || 0) + 1);
+            campo.dispatchEvent(new Event('input', { bubbles: true }));
+            e.preventDefault();
+        });
+    }
+    iniciarEscCancelaCorte();
 
     function iniciarBarraCarregamentoRodape() {
         // Liga o preenchimento verde do '#rodape-status' ao estado REAL de

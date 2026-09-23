@@ -50,9 +50,11 @@ def registrar_callbacks_corte(app, estado):
         Input('excluir-dados', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('painel-direito', 'className'),
+        State('corte-selecao-store', 'data'),
         prevent_initial_call=True,
     )
-    def iniciar_selecao_corte(n_clicks_aparar, n_clicks_excluir, aba_ativa, classe_painel_atual):
+    def iniciar_selecao_corte(n_clicks_aparar, n_clicks_excluir, aba_ativa, classe_painel_atual,
+                              selecao_em_andamento):
         """
         Liga o modo de seleção — de 'Aparar dados' OU 'Excluir dados'
         (mesmo mecanismo de 2 cliques pros dois; 'ctx.triggered_id' diz
@@ -93,6 +95,11 @@ def registrar_callbacks_corte(app, estado):
         """
         gatilho = ctx.triggered_id
         if gatilho not in ('aparar-dados', 'excluir-dados'):
+            raise PreventUpdate
+        if selecao_em_andamento:
+            # Botão aceso clicado de novo = PARAR o corte — quem cuida
+            # disso é cancelar_corte (mesmo State, então os dois nunca
+            # agem juntos).
             raise PreventUpdate
         if not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
@@ -328,10 +335,13 @@ def registrar_callbacks_corte(app, estado):
         Output('grafico-plotly-real', 'figure', allow_duplicate=True),
         saida_feedback('corte-cancelar'),
         Input('corte-cancelar', 'n_clicks'),
+        Input('aparar-dados', 'n_clicks'),
+        Input('excluir-dados', 'n_clicks'),
+        Input('corte-tecla-esc', 'value'),
         State('corte-selecao-store', 'data'),
         prevent_initial_call=True,
     )
-    def cancelar_corte(n_clicks, dados_selecao):
+    def cancelar_corte(n_clicks, _n_aparar, _n_excluir, n_esc, dados_selecao):
         """
         Desiste da seleção sem tocar em nada — os dados nunca foram
         alterados (aparar_dados só é chamado em confirmar_corte, aqui
@@ -339,8 +349,22 @@ def registrar_callbacks_corte(app, estado):
         'arquivo.figura' original (sem as guias/hachura, que eram só
         um overlay client-side/temporário) e desligar o modo de
         seleção.
+
+        Três jeitos de cancelar, todos idênticos (em qualquer fase: antes
+        do 1º clique, entre os cliques ou com o prompt aberto):
+          - botão 'Cancelar' do prompt;
+          - clicar de novo no botão da ferramenta, que fica ACESO
+            durante a seleção (toggle) — iniciar_selecao_corte ignora
+            esse clique quando já há seleção, então só este age;
+          - tecla Esc ('corte-tecla-esc', escrito pelo JS só enquanto há
+            corte ativo — ver iniciarEscCancelaCorte em scripts_js.py).
         """
-        if not n_clicks or not dados_selecao:
+        if not dados_selecao:
+            raise PreventUpdate
+        gatilho = ctx.triggered_id
+        if gatilho == 'corte-cancelar' and not n_clicks:
+            raise PreventUpdate
+        if gatilho == 'corte-tecla-esc' and not n_esc:
             raise PreventUpdate
 
         aba_ativa = dados_selecao.get('aba')

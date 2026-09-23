@@ -210,7 +210,10 @@
    de refletir 'disabled' no CSS). Mesmo espírito de
    '.area-inativa-selecao' (estilo.css), só sem o blur — os ícones
    continuam legíveis, só claramente "não clicáveis" agora. */
-.toolbar-icones.inativo {
+/* Aplicado a CADA ícone (filhos diretos), não ao container: opacity
+   no container se multiplica com a dos filhos, e aí nem o botão da
+   ferramenta ativa conseguia ficar aceso (ficava em 0.45 junto). */
+.toolbar-icones.inativo > * {
   opacity: 0.45;
   pointer-events: none;
   transition: opacity 0.15s ease;
@@ -226,9 +229,19 @@
    representa e a operação final), então só o botão CORRESPONDENTE
    ganha o destaque — o outro fica apagado junto com o resto (só um
    corte roda por vez). */
+/* ACESO como um toggle ligado, e CLICÁVEL: clicar de novo cancela o
+   corte (ver cancelar_corte, src/callbacks/corte.py). O resto da
+   toolbar continua apagado e sem clique. */
 .toolbar-icones.ferramenta-aparar #aparar-dados,
 .toolbar-icones.ferramenta-excluir #excluir-dados {
   opacity: 1;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.toolbar-icones.ferramenta-aparar #aparar-dados div,
+.toolbar-icones.ferramenta-excluir #excluir-dados div {
+  background: rgba(214, 39, 40, 0.22);
   border-color: #D62728;
 }
 
