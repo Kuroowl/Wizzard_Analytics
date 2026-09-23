@@ -414,6 +414,14 @@ class Arquivo:
             if canal.status == StatusCanal.VISIVEL or nome in atribuidas_a_eixo
         ]
 
+    @property
+    def indice_implicito(self) -> str | None:
+        """Nome interno do índice implícito, se este arquivo tiver um."""
+        for nome, canal in self.canais.items():
+            if canal.origem == ORIGEM_INDICE:
+                return nome
+        return None
+
     def canal_protegido(self, nome_interno: str) -> bool:
         """
         Canais que podem ser renomeados mas NÃO excluídos: hoje só o

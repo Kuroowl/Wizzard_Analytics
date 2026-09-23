@@ -60,6 +60,18 @@ def registrar_callbacks_arquivos(app, estado):
                 depois=Feedback.instrucao('Escolha uma opção de gráfico...'),
             )
 
+            # Só 1 coluna numérica: o core criou o índice implícito como X
+            # (Arquivo.criar_de_leitura). O mago avisa na hora (além do ⚠
+            # do rodapé) e já diz o próximo passo — aviso PERSISTENTE, porque
+            # é mais longo que uma mensagem temporária dá tempo de ler.
+            arquivo = estado.arquivos[nome_arquivo]
+            if arquivo.indice_implicito:
+                unica = next((arquivo.rotulo(c) for c in arquivo.colunas_visiveis()), '')
+                feedback = Feedback.aviso(
+                    f"'{nome_arquivo}' tem só uma coluna numérica: o eixo X será o "
+                    f"índice das amostras (0, 1, 2…). Clique em '{unica}' para o eixo Y."
+                )
+
             # O arquivo recém-carregado ainda não tem gráfico gerado, então
             # 'aparar-dados'/'excluir-dados'/'exportar-grafico' continuam
             # desabilitados (não fazem parte deste callback — ver
