@@ -37,7 +37,7 @@ class EstadoApp:
         no momento em que o arquivo é lido ele ainda não está sendo usado
         como eixo de nada. Ele só passa a ser "o eixo X" quando algum
         gráfico que o usa é efetivamente gerado; essa transição de status
-        (ocultar/exibir) é feita em src/gui/callbacks.py, junto com o
+        (ocultar/exibir) é feita em src/callbacks/ (canais.py/grafico.py), junto com o
         ciclo de vida de abrir/fechar o gráfico de Série Temporal.
         """
         info = info or {}

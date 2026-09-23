@@ -3,7 +3,7 @@ Helpers compartilhados entre os módulos de callbacks.
 
 Moram aqui porque são usados por mais de um módulo de src/callbacks/ — assim
 nenhum módulo precisa importar outro. Movidos SEM modificação de
-src/gui/callbacks.py (Fase 2 do rework: mover sem mudar).
+o antigo src/gui/callbacks.py (Fase 2 do rework: mover sem mudar).
 """
 import json
 

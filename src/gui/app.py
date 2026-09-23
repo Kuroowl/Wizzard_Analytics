@@ -1,7 +1,7 @@
 from dash import Dash
 
 from src.gui.layout import montar_layout
-from src.gui.callbacks import registrar_callbacks
+from src.callbacks import registrar_callbacks
 from src.gui.scripts_js import construir_index_string
 
 

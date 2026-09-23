@@ -52,8 +52,7 @@ Wizzard_Analytics/
 │
 └── src/
     ├── gui/                       # 1. INTERFACE: como as coisas aparecem
-    │   ├── app.py                 # Monta o app Dash (layout + callbacks + scripts)
-    │   ├── callbacks.py           # Índice: registra todos os módulos de src/callbacks/
+    │   ├── app.py                 # Monta o app Dash (layout + src/callbacks + scripts)
     │   ├── layout.py              # Árvore de componentes da página
     │   ├── renderizadores.py      # Funções puras que constroem o HTML (abas, canais, painel, calculadora...)
     │   ├── rodape.py              # Dono do rodapé: info do arquivo, avisos e a mensagem do mago
@@ -74,6 +73,7 @@ Wizzard_Analytics/
     │           └── top_menu.css       # Menu superior (Arquivo, Editar, Ajuda)
     │
     ├── callbacks/                 # 2. ORQUESTRAÇÃO: o que acontece quando o usuário interage
+    │   ├── __init__.py            # registrar_callbacks(): registra todos os módulos abaixo
     │   ├── _comum.py              # Helpers compartilhados (filtro anti-clique-fantasma, estados da toolbar)
     │   ├── arquivos.py            # Upload de arquivos
     │   ├── abas.py                # Trocar/fechar aba
@@ -118,7 +118,7 @@ def registrar_callbacks_nova_amostragem(app, estado):
         ...
 ```
 
-e é chamado uma vez no índice (`src/gui/callbacks.py`).
+e é chamado uma vez em `registrar_callbacks()` (`src/callbacks/__init__.py`).
 
 ### Falar com o usuário (mensagem do mago)
 
@@ -148,7 +148,7 @@ Botões que nascem dentro de listas reconstruídas por callbacks (canais, abas, 
 ## 🗺️ Rework em andamento (branch `rework`)
 
 1. ✅ Rodapé e `Feedback`: um único responsável pela mensagem do mago.
-2. 🔄 Separar o antigo `callbacks.py` em `src/callbacks/`. Falta mover o índice para `src/callbacks/__init__.py`.
+2. ✅ Separar o antigo `callbacks.py` (2492 linhas) em `src/callbacks/`, um módulo por área.
 3. ⏳ Limpar cada módulo: callback só orquestra, lógica vai para o `core`.
 4. ⏳ Nova Amostragem (downsample, média móvel, ajuste polinomial).
 5. ⏳ Revisar arquitetura: `allow_duplicate`, `EstadoApp`, renderização excessiva, cache do gráfico.
