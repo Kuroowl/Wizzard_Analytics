@@ -122,7 +122,11 @@ def calc_criar_desabilitado(tokens_expressao, tipo_destino, nome_novo_canal, col
     nesta mesma regra, senão o botão pisca entre habilitado/desabilitado
     dependendo de qual callback rodou por último.
 
-    Três motivos pra desabilitar (qualquer um já basta):
+    Quatro motivos pra desabilitar (qualquer um já basta):
+      0) expressão vazia — antes ficava escondido porque o nome digitado
+         sumia a cada token (e o nome vazio já travava o botão); com o
+         nome preservado, o botão ficava clicável só pra dar o erro
+         "a expressão está vazia" depois do clique;
       1) parêntese aberto sem fechar (ver balanco_parenteses_
          calculadora acima) — expressão ainda incompleta;
       2) modo 'Nova coluna' com o campo de nome vazio — não dá pra
@@ -132,6 +136,8 @@ def calc_criar_desabilitado(tokens_expressao, tipo_destino, nome_novo_canal, col
       3) modo 'Coluna existente' sem nenhuma coluna escolhida no
          dropdown pra sobrescrever — mesmo raciocínio do (2).
     """
+    if not tokens_expressao:
+        return True
     if balanco_parenteses_calculadora(tokens_expressao) != 0:
         return True
     modo_nova = (tipo_destino or 'nova') != 'existente'

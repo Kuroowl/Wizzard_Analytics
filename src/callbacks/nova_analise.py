@@ -414,14 +414,11 @@ def registrar_callbacks_nova_analise(app, estado):
                 area_grafico = renderizar_grafico_com_fechar(fig)
             feedback = Feedback.sucesso(f"Canal '{nome_novo_canal}' criado ({codigo}).")
 
-        # Limpa a expressão depois de criar (mesmo espírito de um
-        # formulário que reseta após salvar) — 'nome_novo_canal=None'
-        # aqui é só pro CÁLCULO de 'disabled' de 'Criar' na barra
-        # reconstruída (ver calc_criar_desabilitado); o campo de nome
-        # em si é 'uncontrolled' (sem 'value=' fixo, ver
-        # renderizar_calculadora_barra) e o navegador some com o texto
-        # digitado sozinho quando o nó reconstruído tiver a mesma
-        # estrutura — não precisa de um reset explícito aqui.
+        # Limpa a expressão E o nome depois de criar (mesmo espírito de
+        # um formulário que reseta após salvar): 'nome_novo_canal=None'
+        # zera o campo de nome, que recebe 'value' explícito em
+        # renderizar_calculadora_barra. Nos outros redesenhos da barra
+        # (token, ⌫, C) o nome digitado é repassado e preservado.
         conteudo = renderizar_area_calculadora_completa(estado, aba_ativa, [], tipo_destino, None, None)
         # 'area-modo-nova-analise-edicao' (grupo 'Colunas' do teclado,
         # ver renderizar_calculadora_botoes) — SEM isto, a coluna

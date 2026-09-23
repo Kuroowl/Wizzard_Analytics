@@ -1341,8 +1341,12 @@ def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
                 className='calculadora-tipo-destino',
             ),
             html.Div(conteudo_expressao, id='calc-expressao-display', className='calculadora-expressao'),
+            # 'value' explícito: a barra é redesenhada a cada token/⌫/C, e
+            # sem isso o nome digitado sumia no primeiro clique (os
+            # callbacks repassam o valor atual do campo como State).
             dcc.Input(
                 id='calc-nome-input', type='text', placeholder='nova coluna',
+                value=nome_novo_canal or '',
                 className='calculadora-nome-input' + ('' if modo_nova else ' calculadora-oculto'),
                 maxLength=80,
             ),
@@ -1472,6 +1476,15 @@ def renderizar_calculadora_botoes(estado, aba_ativa):
             # tudo num teclado só deixa mais óbvio que fazem parte da
             # MESMA ferramenta.
             html.Div(className='calculadora-teclado-corpo', children=[
+                # Operações rápidas: coluna própria à esquerda das funções
+                # (antes eram um grupo separado, o 3º cartão do painel).
+                # São TOKENS comuns, como sin(/cos( — abrem parêntese, o
+                # usuário clica a coluna e fecha (ver OPERACOES_RAPIDAS e
+                # avaliar_expressao_calculadora em calculadora.py).
+                html.Div(className='calculadora-rapidas-coluna', children=[
+                    _botao_token_calculadora(display, codigo, 'calculadora-token-rapido')
+                    for display, codigo in OPERACOES_RAPIDAS
+                ]),
                 html.Div(className='calculadora-funcoes-coluna', children=[
                     _botao_token_calculadora(display, codigo, 'calculadora-token-funcao')
                     for display, codigo in FUNCOES
@@ -1518,20 +1531,5 @@ def renderizar_calculadora_botoes(estado, aba_ativa):
                 if colunas_pares else
                 [html.Div('Abra um arquivo pra ver as colunas aqui.', className='calculadora-colunas-vazio')]
             )),
-        ]),
-        html.Div(className='calculadora-grupo', children=[
-            html.Div('Operações rápidas', className='calculadora-grupo-titulo'),
-            # MUDANÇA DE PROPOSTA: eram botões de AÇÃO IMEDIATA (id
-            # 'calc-op-rapida', calculavam na hora) — agora são TOKENS
-            # comuns (mesma forma de sin(/cos( — abrem parêntese, o
-            # usuário clica a coluna e fecha), ver OPERACOES_RAPIDAS em
-            # calculadora.py e Derivada/Integral/Media/Maximo/Minimo,
-            # as funções de verdade injetadas em
-            # avaliar_expressao_calculadora. Por isso usam o MESMO
-            # _botao_token_calculadora dos outros grupos agora.
-            html.Div(className='calculadora-grupo-botoes', children=[
-                _botao_token_calculadora(display, codigo, 'calculadora-token-rapido')
-                for display, codigo in OPERACOES_RAPIDAS
-            ]),
         ]),
     ])

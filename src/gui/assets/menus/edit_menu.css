@@ -1361,6 +1361,42 @@
   flex: 0 0 auto;
 }
 
+/* Operações rápidas (Derivada, Integral, Média, Máximo, Mínimo): coluna
+   à esquerda das funções, mesmo padrão dela (botões empilhados, mesma
+   largura entre si). */
+.calculadora-rapidas-coluna {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.calculadora-rapidas-coluna .calculadora-token-rapido {
+  font-size: 12px;
+  text-align: left;
+}
+
+/* Painel estreito (o divisor deixa chegar a 300px): as 4 colunas do
+   teclado (rápidas + funções + números + operadores) somam ~313px e não
+   cabem. Nesse caso as operações rápidas viram uma LINHA acima do
+   teclado, dentro do mesmo cartão, em vez de transbordar. */
+.calculadora-grupo {
+  container-type: inline-size;
+}
+
+@container (max-width: 330px) {
+  .calculadora-teclado-corpo {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .calculadora-rapidas-coluna {
+    flex: 1 1 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
 /* Roxo (--cor-accent-divisao) — Funções não tinham cor PRÓPRIA antes
    (herdavam o branco/cinza genérico de '.calculadora-token' base);
    agora que todo botão do painel vira sólido + fonte branca (pedido
