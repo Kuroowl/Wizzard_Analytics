@@ -435,7 +435,7 @@ def renderizar_painel_direito_padrao(disabled=True):
     'disabled' é aceito por compatibilidade com quem chama (mesma
     assinatura de antes) mas não é mais usado aqui — quem controla o
     'disabled' do botão fixo agora é o próprio callback que o gera (ver
-    _estados_toolbar em callbacks.py), direto no Output dele.
+    estados_toolbar em callbacks.py), direto no Output dele.
     """
     return [
         html.Div('Opções do gráfico', className='painel-direito-titulo'),

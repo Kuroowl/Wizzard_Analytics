@@ -11,7 +11,7 @@ from dash import ctx
 
 
 # ============================================================================
-# Filtro anti-"clique fantasma" (_processar_cliques_padrao, logo
+# Filtro anti-"clique fantasma" (processar_cliques_padrao, logo
 # abaixo) — REATIVADO. Foi desligado temporariamente pra um teste de
 # diagnóstico (a pedido explícito), mas o próprio teste PROVOU que ele
 # não era o culpado: com o filtro desligado, o botão 'Derivada' passou
@@ -36,7 +36,7 @@ def _chave_id_padrao(id_item):
     (formato inesperado, ignora).
 
     Existe porque o MESMO problema de "disparo fantasma" (ver
-    _processar_cliques_padrao logo abaixo) também afeta componentes de
+    processar_cliques_padrao logo abaixo) também afeta componentes de
     ID FIXO, não só padrão coringa — descoberto quando 'calc-apagar'
     (um botão de id fixo, sem padrão nenhum) começou a disparar
     sozinho toda vez que a barra de cálculo era reconstruída (a cada
@@ -59,7 +59,7 @@ def _chave_id_padrao(id_item):
     return None
 
 
-def _processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
+def processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
     """
     Filtro de clique pros callbacks de padrão coringa
     ({'type': ..., 'chave': ALL}) cuja LISTA de componentes casados pode
@@ -179,7 +179,7 @@ def _processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
     return gatilho_id, novo_mapa
 
 
-def _estados_toolbar(estado, aba_ativa):
+def estados_toolbar(estado, aba_ativa):
     """
     Calcula os 3 critérios independentes que decidem o 'disabled' dos
     botões da toolbar. Existe pra esses 3 booleans nunca ficarem
@@ -207,7 +207,7 @@ def _estados_toolbar(estado, aba_ativa):
     return sem_arquivo, sem_2_arquivos, sem_grafico_da_aba
 
 
-def _classe_painel_direito(ativo=False, selecionando=False):
+def classe_painel_direito(ativo=False, selecionando=False):
     """
     Classe do painel de edição: combina os DOIS estados independentes
     que ele pode ter ao mesmo tempo:

@@ -7,7 +7,7 @@ limite, toggle, seletor de cor RGB/HSV).
 from dash import Input, Output, State, ctx, MATCH
 from dash.exceptions import PreventUpdate
 
-from src.callbacks._comum import _classe_painel_direito, _estados_toolbar
+from src.callbacks._comum import classe_painel_direito, estados_toolbar
 from src.core.plotting.plotter import colunas_plotadas, construir_figura_serie_temporal, cor_da_coluna
 from src.gui.renderizadores import (
     _hex_para_rgb, renderizar_grafico_com_fechar, renderizar_painel_direito_padrao,
@@ -56,7 +56,7 @@ def registrar_callbacks_edicao(app, estado):
         """
         if not n_clicks or not aba_ativa or aba_ativa not in estado.arquivos:
             raise PreventUpdate
-        return renderizar_painel_edicao(estado, aba_ativa), _classe_painel_direito(ativo=True)
+        return renderizar_painel_edicao(estado, aba_ativa), classe_painel_direito(ativo=True)
 
     @app.callback(
         Output('edicao-curva-espessura', 'value'),
@@ -81,7 +81,7 @@ def registrar_callbacks_edicao(app, estado):
         anterior. Também dispara (efeito colateral esperado, não um bug)
         na primeira vez que o painel abre, já que a caixa 'Dado' acabou
         de nascer com um valor — é o mesmo 'gatilho fantasma' de
-        componente recém-criado explicado em _processar_cliques_padrao (src/callbacks/_comum.py), aqui é ele
+        componente recém-criado explicado em processar_cliques_padrao (src/callbacks/_comum.py), aqui é ele
         quem faz os controles nascerem com os valores certos sem
         precisar duplicar essa lógica em abrir_painel_edicao.
 
@@ -302,8 +302,8 @@ def registrar_callbacks_edicao(app, estado):
         """
         if not n_clicks:
             raise PreventUpdate
-        _, _, sem_grafico_da_aba = _estados_toolbar(estado, aba_ativa)
-        return renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba), _classe_painel_direito(ativo=False)
+        _, _, sem_grafico_da_aba = estados_toolbar(estado, aba_ativa)
+        return renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba), classe_painel_direito(ativo=False)
 
     @app.callback(
         Output({'type': 'secao-wrapper', 'index': MATCH}, 'className'),
@@ -698,7 +698,7 @@ def registrar_callbacks_edicao(app, estado):
 
         Também dispara (gravação idempotente, mesmo valor) logo depois
         de sincronizar_campos_ticks trocar os sliders de eixo/modo —
-        mesma classe de gatilho 'fantasma' explicado em _processar_cliques_padrao (src/callbacks/_comum.py);
+        mesma classe de gatilho 'fantasma' explicado em processar_cliques_padrao (src/callbacks/_comum.py);
         sem efeito real no gráfico além de redesenhar com os mesmos
         números.
         """

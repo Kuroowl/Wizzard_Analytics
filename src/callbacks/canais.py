@@ -7,7 +7,7 @@ import json
 from dash import ALL, Input, Output, State, ctx, no_update
 from dash.exceptions import PreventUpdate
 
-from src.callbacks._comum import _processar_cliques_padrao
+from src.callbacks._comum import processar_cliques_padrao
 from src.core.plotting.plotter import construir_figura_serie_temporal
 from src.gui.feedback import Feedback, saida_feedback
 from src.gui.renderizadores import (
@@ -29,7 +29,7 @@ def registrar_callbacks_canais(app, estado):
     #      coluna pra lista; clique na lixeira ('botao-excluir-canal')
     #      exclui (soft-delete, some da lista, o dado continua em
     #      df_editado). Os três padrão coringa — mesmo cuidado de
-    #      sempre com _processar_cliques_padrao.
+    #      sempre com processar_cliques_padrao.
     #   2) gerenciar_edicao_canal: lápis (✏️) pra renomear — ver
     #      docstring completa dela abaixo pro fluxo de toggle/Enter.
     # ------------------------------------------------------------------
@@ -83,7 +83,7 @@ def registrar_callbacks_canais(app, estado):
         if not aba_ativa:
             raise PreventUpdate
 
-        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        gatilho_id, novo_mapa = processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
         if gatilho_id is None:
             raise PreventUpdate
 
@@ -241,7 +241,7 @@ def registrar_callbacks_canais(app, estado):
         if not aba_ativa:
             raise PreventUpdate
 
-        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        gatilho_id, novo_mapa = processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
         if gatilho_id is None:
             raise PreventUpdate
 

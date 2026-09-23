@@ -142,7 +142,7 @@ def aplicar_media_movel(...):
 
 ### Botões dentro de listas redesenhadas
 
-Botões que nascem dentro de listas reconstruídas por callbacks (canais, abas, teclado da calculadora) disparam "cliques fantasma" quando a lista é redesenhada. Callbacks que escutam esses botões usam `_processar_cliques_padrao` (`src/callbacks/_comum.py`), que só aceita cliques reais.
+Botões que nascem dentro de listas reconstruídas por callbacks (canais, abas, teclado da calculadora) disparam "cliques fantasma" quando a lista é redesenhada. Callbacks que escutam esses botões usam `processar_cliques_padrao` (`src/callbacks/_comum.py`), que só aceita cliques reais.
 
 ## 🗺️ Rework em andamento (branch `rework`)
 

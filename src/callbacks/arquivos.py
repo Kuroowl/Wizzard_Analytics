@@ -6,7 +6,7 @@ Callbacks de arquivos: carregar um arquivo pela área de upload.
 from dash import Input, Output, State, no_update
 from dash.exceptions import PreventUpdate
 
-from src.callbacks._comum import _estados_toolbar
+from src.callbacks._comum import estados_toolbar
 from src.gui.feedback import Feedback, saida_feedback
 from src.gui.renderizadores import renderizar_area_grafico
 from src.gui.rodape import obter_estado_rodape
@@ -40,7 +40,7 @@ def registrar_callbacks_arquivos(app, estado):
             # Arquivo já aberto: mensagem PERSISTENTE (cancela qualquer
             # troca agendada). Nenhuma contagem de arquivo mudou, então os
             # critérios de habilitação ficam como já estavam.
-            sem_arquivo, sem_2_arquivos, _ = _estados_toolbar(estado, nome_arquivo)
+            sem_arquivo, sem_2_arquivos, _ = estados_toolbar(estado, nome_arquivo)
             feedback = Feedback.aviso(f"O arquivo '{nome_arquivo}' já foi aberto!")
             return (nome_arquivo, feedback,
                     sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
@@ -65,14 +65,14 @@ def registrar_callbacks_arquivos(app, estado):
             # desabilitados (não fazem parte deste callback — ver
             # gerar_grafico_serie_temporal). Só o que depende de "existe
             # arquivo" muda aqui: nova-analise, nova-amostra e exportar-dados.
-            sem_arquivo, sem_2_arquivos, _ = _estados_toolbar(estado, nome_arquivo)
+            sem_arquivo, sem_2_arquivos, _ = estados_toolbar(estado, nome_arquivo)
 
             return (nome_arquivo, feedback,
                     sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
                     area_grafico,
                     *obter_estado_rodape(estado, nome_arquivo))
         except Exception as e:
-            sem_arquivo, sem_2_arquivos, _ = _estados_toolbar(estado, aba_atual)
+            sem_arquivo, sem_2_arquivos, _ = estados_toolbar(estado, aba_atual)
             feedback = Feedback.erro(f'Erro ao abrir arquivo: {e}')
             return (aba_atual, feedback,
                     sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,

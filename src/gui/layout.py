@@ -19,7 +19,7 @@ def montar_layout(estado):
     # 'sem_grafico' aqui é só pro estado INICIAL da toolbar (não há aba
     # ativa ainda nesse ponto do carregamento da página) — os callbacks
     # depois disso sempre olham o gráfico da ABA ATIVA especificamente
-    # (ver _estados_toolbar em callbacks.py), nunca "algum arquivo".
+    # (ver estados_toolbar em callbacks.py), nunca "algum arquivo".
     sem_grafico = not estado.algum_arquivo_com_grafico()
 
     return html.Div(className='app-shell', children=[
@@ -69,7 +69,7 @@ def montar_layout(estado):
         # callbacks acima só tratam como clique de VERDADE quando o
         # valor reportado for MAIOR que o último valor guardado aqui
         # (nunca só "diferente de None/vazio") — ver
-        # _processar_cliques_padrao em callbacks.py.
+        # processar_cliques_padrao em callbacks.py.
         dcc.Store(id='nclicks-padrao-store', data={}),
 
         # 'modo-nova-analise-store': True/False — 'Nova análise' na
@@ -331,7 +331,7 @@ def montar_layout(estado):
             # O botão em si nasce desabilitado (não há aba ativa ainda
             # neste ponto do carregamento da página; os callbacks reavaliam
             # isso a partir daqui olhando o gráfico da aba ativa — ver
-            # _estados_toolbar).
+            # estados_toolbar).
             #
             # 'iniciar-edicao' é FIXO aqui (fora de 'painel-direito-
             # -conteudo', que é o pedaço que troca de children entre o

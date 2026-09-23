@@ -10,7 +10,7 @@ Dependência cruzada mantida como estava na Fase 2 (só mover).
 from dash import Input, Output, State, no_update
 from dash.exceptions import PreventUpdate
 
-from src.callbacks._comum import _classe_painel_direito, _estados_toolbar
+from src.callbacks._comum import classe_painel_direito, estados_toolbar
 from src.core.plotting.plotter import construir_figura_serie_temporal, resolver_eixo_x
 from src.gui.feedback import Feedback, saida_feedback
 from src.gui.renderizadores import (
@@ -182,9 +182,9 @@ def registrar_callbacks_grafico(app, estado):
         # aba ativa, agora invalidado) e o painel de edição (que volta ao
         # estado normal, já que não faz sentido continuar "em edição" de
         # um gráfico que não existe mais).
-        sem_arquivo, _, sem_grafico_da_aba = _estados_toolbar(estado, aba_ativa)
+        sem_arquivo, _, sem_grafico_da_aba = estados_toolbar(estado, aba_ativa)
         return (area_grafico, lista_canais, selecao_eixos, feedback,
                 sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
-                sem_grafico_da_aba, _classe_painel_direito(ativo=False),
+                sem_grafico_da_aba, classe_painel_direito(ativo=False),
                 renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba),
                 corte_store, classe_sidebar, classe_toolbar_icones, estilo_prompt_corte)

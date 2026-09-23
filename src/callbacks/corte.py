@@ -13,7 +13,7 @@ andamento.
 from dash import Input, Output, State, ctx, no_update
 from dash.exceptions import PreventUpdate
 
-from src.callbacks._comum import _classe_painel_direito
+from src.callbacks._comum import classe_painel_direito
 from src.core.operations.sampling import aparar_dados, excluir_dados
 from src.core.plotting.plotter import (
     aplicar_guias_corte, construir_figura_serie_temporal, resolver_eixo_x,
@@ -109,7 +109,7 @@ def registrar_callbacks_corte(app, estado):
         # 'corte-selecao-store' até confirmar_corte/cancelar_corte
         # (mais abaixo), pra devolver o painel exatamente a este mesmo
         # estado ao terminar, em vez de forçar fechado (ver docstring
-        # de _classe_painel_direito).
+        # de classe_painel_direito).
         painel_ativo = bool(classe_painel_atual) and 'ativa' in classe_painel_atual.split()
 
         tipo = 'aparar' if gatilho == 'aparar-dados' else 'excluir'
@@ -125,7 +125,7 @@ def registrar_callbacks_corte(app, estado):
         return (
             dados_selecao,
             'sidebar area-inativa-selecao',
-            _classe_painel_direito(ativo=painel_ativo, selecionando=True),
+            classe_painel_direito(ativo=painel_ativo, selecionando=True),
             'toolbar-icones inativo ferramenta-' + tipo,
             'area-grafico-container corte-ativo',
             feedback,
@@ -260,12 +260,12 @@ def registrar_callbacks_corte(app, estado):
         (gravado lá atrás em iniciar_selecao_corte) — NUNCA fixo em
         False aqui, senão o painel de edição sempre fecha ao
         confirmar/cancelar um corte, mesmo quando estava aberto antes
-        de a seleção começar (ver docstring de _classe_painel_direito).
+        de a seleção começar (ver docstring de classe_painel_direito).
         """
         return (
             None,
             'sidebar',
-            _classe_painel_direito(ativo=painel_ativo),
+            classe_painel_direito(ativo=painel_ativo),
             'toolbar-icones',
             'area-grafico-container',
             {'display': 'none'},

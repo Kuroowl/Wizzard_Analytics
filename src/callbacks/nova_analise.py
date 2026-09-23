@@ -12,7 +12,7 @@ A avaliação da expressão fica no core
 from dash import ALL, Input, Output, State, ctx, no_update
 from dash.exceptions import PreventUpdate
 
-from src.callbacks._comum import _processar_cliques_padrao
+from src.callbacks._comum import processar_cliques_padrao
 from src.core.operations.calculadora import avaliar_expressao_calculadora, calc_criar_desabilitado
 from src.core.plotting.plotter import construir_figura_serie_temporal
 from src.core.rotulos import sanitizar_rotulo_para_nome_coluna
@@ -49,7 +49,7 @@ def registrar_callbacks_nova_analise(app, estado):
     # 'nova-analise' é um id ESTÁTICO (não um padrão coringa
     # {'type':...}), nunca recriado por nenhum outro callback — não
     # sofre o "disparo fantasma" de remontagem (ver
-    # _processar_cliques_padrao, src/callbacks/_comum.py), então o guard
+    # processar_cliques_padrao, src/callbacks/_comum.py), então o guard
     # simples de 'not n_clicks' já basta aqui.
     # ------------------------------------------------------------------
 
@@ -201,8 +201,8 @@ def registrar_callbacks_nova_analise(app, estado):
         # sincronizar_interface_por_aba, ao trocar de aba) — sem
         # comparar contra o último valor visto, uma reconstrução alheia
         # adicionaria um token sozinho, sem clique nenhum do usuário
-        # (ver _processar_cliques_padrao, src/callbacks/_comum.py).
-        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        # (ver processar_cliques_padrao, src/callbacks/_comum.py).
+        gatilho_id, novo_mapa = processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
         if gatilho_id is None:
             raise PreventUpdate
 
@@ -255,13 +255,13 @@ def registrar_callbacks_nova_analise(app, estado):
 
         'calc-apagar' mora DENTRO da barra, que é reconstruída inteira
         a cada token clicado (ver registrar_token_calculadora) — sem
-        _processar_cliques_padrao (que agora também rastreia ids
+        processar_cliques_padrao (que agora também rastreia ids
         FIXOS, não só padrão coringa, ver _chave_id_padrao), esse
         remonte disparava este callback SOZINHO logo depois de
         qualquer clique de token, apagando o token que acabara de ser
         adicionado (o bug "clico na coluna e ela some sozinha").
         """
-        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        gatilho_id, novo_mapa = processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
         if gatilho_id is None or not tokens_atuais:
             raise PreventUpdate
         novos_tokens = tokens_atuais[:-1]
@@ -289,7 +289,7 @@ def registrar_callbacks_nova_analise(app, estado):
         idênticos e mesmo guard anti-fantasma de
         'apagar_ultimo_token_calculadora' acima ('calc-limpar' também
         mora dentro da barra reconstruída a cada token)."""
-        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        gatilho_id, novo_mapa = processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
         if gatilho_id is None:
             raise PreventUpdate
         conteudo = renderizar_area_calculadora_completa(
@@ -324,7 +324,7 @@ def registrar_callbacks_nova_analise(app, estado):
         clicar num token de coluna poderia disparar 'Criar' sozinho
         (gravando uma coluna nova sem o usuário ter pedido isso).
         """
-        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        gatilho_id, novo_mapa = processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
         if gatilho_id is None:
             raise PreventUpdate
 

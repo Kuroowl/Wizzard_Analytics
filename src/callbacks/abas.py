@@ -7,7 +7,7 @@ from dash import ALL, Input, Output, State, ctx, no_update
 from dash.exceptions import PreventUpdate
 
 from src.callbacks._comum import (
-    _classe_painel_direito, _estados_toolbar, _processar_cliques_padrao,
+    classe_painel_direito, estados_toolbar, processar_cliques_padrao,
 )
 from src.gui.feedback import Feedback, saida_feedback
 from src.gui.renderizadores import (
@@ -23,7 +23,7 @@ def registrar_callbacks_abas(app, estado):
     # ------------------------------------------------------------------
     # Abas ('aba-item' pra trocar, 'botao-fechar-aba' pra fechar) — os
     # dois padrão coringa, então sujeitos ao mesmo "disparo fantasma"
-    # de remontagem que _processar_cliques_padrao (src/callbacks/_comum.py)
+    # de remontagem que processar_cliques_padrao (src/callbacks/_comum.py)
     # existe pra filtrar: fechar/trocar de aba reconstrói a lista de
     # abas inteira, então clicar em QUALQUER botão de aba dispararia
     # este callback de novo sozinho sem o guard.
@@ -64,7 +64,7 @@ def registrar_callbacks_abas(app, estado):
         prevent_initial_call=True,
     )
     def gerenciar_abas(_c_item, _c_fechar, aba_ativa, nclicks_anteriores, modo_calculadora_ativo):
-        gatilho_id, novo_mapa = _processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
+        gatilho_id, novo_mapa = processar_cliques_padrao(ctx.inputs_list, nclicks_anteriores)
         if gatilho_id is None:
             raise PreventUpdate
 
@@ -100,11 +100,11 @@ def registrar_callbacks_abas(app, estado):
         else:
             area_grafico = renderizar_area_grafico(estado)
 
-        sem_arquivo, sem_2_arquivos, sem_grafico_da_aba = _estados_toolbar(estado, aba_ativa)
+        sem_arquivo, sem_2_arquivos, sem_grafico_da_aba = estados_toolbar(estado, aba_ativa)
 
         # Trocar/fechar aba SEMPRE desliga o modo 'Nova Análise' se
         # estava ligado — mesmo princípio já aplicado ao painel de
-        # edição logo abaixo ('_classe_painel_direito(ativo=False)'):
+        # edição logo abaixo ('classe_painel_direito(ativo=False)'):
         # o estado da calculadora (expressão em andamento, miniatura do
         # gráfico) é sobre UM arquivo específico, não faz sentido
         # continuar mostrando por cima de uma aba DIFERENTE. Sem isto,
@@ -130,7 +130,7 @@ def registrar_callbacks_abas(app, estado):
                 feedback, sem_arquivo, sem_2_arquivos, area_grafico,
                 sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
                 sem_grafico_da_aba,
-                _classe_painel_direito(ativo=False),
+                classe_painel_direito(ativo=False),
                 renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba),
                 # Trocar/fechar aba muda qual arquivo é "o ativo": info, badge
                 # e popup do rodapé precisam refletir a NOVA aba.
