@@ -138,18 +138,31 @@ def _processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
         contra um valor desatualizado.
 
     ------------------------------------------------------------------
-    ⚠️ DESATIVADO TEMPORARIAMENTE (GUARD_CLIQUE_FANTASMA_ATIVO = False,
-    logo no topo deste arquivo) — a pedido explícito, pra isolar se
-    ESTE filtro é a causa de "não consigo clicar em nenhuma coluna"
-    reportado depois da reestruturação da calculadora. Enquanto
-    desativado, esta função volta a se comportar como a antiga
-    '_clique_real' (aceita QUALQUER disparo como clique de verdade,
-    inclusive fantasmas de remontagem) — ou seja, o bug ANTIGO que
-    _processar_cliques_padrao existe pra resolver PODE voltar a
-    aparecer (ex: o primeiro canal da lista marcando sozinho ao gerar/
-    fechar gráfico). Isso é esperado enquanto o teste estiver rodando.
-    Depois de confirmar (ou descartar) que este filtro é o culpado,
-    voltar 'GUARD_CLIQUE_FANTASMA_ATIVO' pra True.
+    CORREÇÃO (Fase 2.7) — cliques "engolidos"
+    ------------------------------------------------------------------
+    A regra original ("só é clique se o valor SUBIR em relação ao
+    último guardado") perdia cliques de verdade: quando um callback
+    redesenha a PRÓPRIA lista (ex: o lápis reconstrói a lista de
+    canais), o Dash NÃO dispara esse callback de novo — então o botão
+    renasce com n_clicks=0 no navegador, mas o valor guardado no Store
+    continua alto. Os próximos cliques (1, 2...) ficavam <= ao valor
+    antigo e eram descartados até o contador "alcançar" o número velho.
+    Medido no navegador: lápis abria/fechava só em 3 de 6 cliques;
+    na calculadora, depois do 1º canal criado, token e 'Criar' eram
+    ignorados.
+
+    Regra atual: um disparo FANTASMA de remontagem sempre chega com
+    valor 0/None (todo botão nasce com n_clicks=0 no Python), e um
+    clique real sempre chega com valor >= 1. Então, entre os
+    componentes que REALMENTE dispararam nesta chamada
+    (ctx.triggered_prop_ids), qualquer valor > 0 é clique de verdade —
+    sem comparar com o Store. Os ids disparados vêm já decodificados
+    pelo Dash (não do texto de 'prop_id'), e o valor vem de
+    'grupos_inputs_list', então nomes de coluna "atípicos" (ex: 'N#',
+    'FW-A') não interferem.
+
+    'nclicks-padrao-store'/'novo_mapa' continuam sendo atualizados
+    (assinatura inalterada pros callbacks), mas não decidem mais nada.
     ------------------------------------------------------------------
     """
     nclicks_anteriores = nclicks_anteriores or {}
@@ -173,6 +186,11 @@ def _processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
             gatilho_id = ctx.triggered_id
         return gatilho_id, novo_mapa
 
+    chaves_disparadas = {
+        _chave_id_padrao(id_disparado)
+        for id_disparado in (ctx.triggered_prop_ids or {}).values()
+    }
+
     for grupo in grupos_inputs_list:
         itens = grupo if isinstance(grupo, list) else [grupo]
         for item in itens:
@@ -181,8 +199,9 @@ def _processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
             if chave is None:
                 continue
             valor_novo = item.get('value') or 0
-            valor_antigo = novo_mapa.get(chave, 0)
-            if valor_novo > valor_antigo:
+            # Clique real = disparou AGORA e tem valor >= 1. Fantasma de
+            # remontagem chega com 0 (ver docstring, "CORREÇÃO").
+            if chave in chaves_disparadas and valor_novo > 0:
                 gatilho_id = id_item
             novo_mapa[chave] = valor_novo
 
