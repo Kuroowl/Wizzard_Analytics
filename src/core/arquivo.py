@@ -26,6 +26,12 @@ import pandas as pd
 from src.core.rotulos import sanitizar_rotulo_para_nome_coluna
 
 
+# Origem do canal criado na leitura quando o arquivo tem só 1 coluna
+# numérica: o número da amostra (0, 1, 2...) vira o eixo X implícito.
+ORIGEM_INDICE = "indice"
+ROTULO_INDICE = "índice"
+
+
 class StatusCanal(Enum):
     VISIVEL = "visivel"    # aparece na lista de canais, pode ser selecionado
     OCULTO = "oculto"      # existe no df, mas não aparece na lista (ex: coluna auxiliar de cálculo)
@@ -43,7 +49,7 @@ class Canal:
     """
     nome_interno: str
     rotulo: str
-    origem: str = "original"          # "original" | "calculado"
+    origem: str = "original"          # "original" | "calculado" | "indice"
     status: StatusCanal = StatusCanal.VISIVEL
     formula: str | None = None        # ex: "media(['A', 'B'])" — auditoria de canal calculado
     _historico_rotulos: list = field(default_factory=list, repr=False)
@@ -278,6 +284,61 @@ class Arquivo:
 
     # --- Gráfico ---------------------------------------------------
 
+    @classmethod
+    def criar_de_leitura(cls, nome, df, avisos=None, info=None):
+        """
+        Monta o Arquivo a partir do que o extractor leu, aplicando as
+        regras de "o que dá pra analisar":
+
+          - 0 linhas ou 0 colunas numéricas -> ValueError (o arquivo é
+            recusado: não há nada pra plotar nem calcular);
+          - 1 coluna numérica -> cria a coluna do ÍNDICE (0, 1, 2...),
+            origem 'indice', já atribuída ao eixo X. Clicar na única
+            coluna manda ela direto pro Y, e o índice fica disponível na
+            calculadora (ex: índice × 0.01 = tempo em segundos);
+          - 2 ou mais -> como sempre.
+
+        O índice é criado em df_original TAMBÉM: ele faz parte do arquivo
+        "como lido" — depois de aparar/excluir trechos, ele guarda o número
+        ORIGINAL de cada amostra.
+        """
+        info = dict(info or {})
+        avisos = list(avisos or [])
+        nao_numericas = list(info.get('colunas_nao_numericas', []))
+        numericas = [c for c in df.columns if c not in nao_numericas]
+
+        if df.empty or not numericas:
+            motivo = 'nenhuma linha de dados' if df.empty else 'nenhuma coluna numérica'
+            raise ValueError(f"'{nome}' não tem {motivo} para analisar.")
+
+        nome_indice = None
+        if len(numericas) == 1:
+            df = df.copy()
+            nome_indice, sufixo = 'indice', 1
+            while nome_indice in df.columns:
+                sufixo += 1
+                nome_indice = f'indice_{sufixo}'
+            df.insert(0, nome_indice, range(len(df)))
+            avisos.append(
+                f"Aviso: o arquivo tem só 1 coluna numérica ('{numericas[0]}'). "
+                f"O índice das amostras (0, 1, 2…) foi criado e usado como eixo X."
+            )
+
+        arquivo = cls(
+            nome=nome,
+            df_original=df.copy(),
+            df_editado=df.copy(),
+            avisos=avisos,
+            info=info,
+            colunas_ocultas_iniciais=nao_numericas,
+        )
+        if nome_indice:
+            canal = arquivo.canais[nome_indice]
+            canal.origem = ORIGEM_INDICE
+            canal.rotulo = ROTULO_INDICE
+            arquivo.mover_para_eixo_x(nome_indice)
+        return arquivo
+
     @property
     def grafico_gerado(self) -> bool:
         """True assim que existe uma figura montada para este arquivo."""
@@ -353,6 +414,15 @@ class Arquivo:
             if canal.status == StatusCanal.VISIVEL or nome in atribuidas_a_eixo
         ]
 
+    def canal_protegido(self, nome_interno: str) -> bool:
+        """
+        Canais que podem ser renomeados mas NÃO excluídos: hoje só o
+        índice implícito (ver criar_de_leitura), que é a referência do
+        eixo X quando o arquivo tem uma única coluna numérica.
+        """
+        canal = self.canais.get(nome_interno)
+        return bool(canal) and canal.origem == ORIGEM_INDICE
+
     def excluir_canal(self, nome_interno: str) -> None:
         """
         Soft-delete: o canal some da lista/seleção, mas o dado permanece no df_editado.
@@ -363,6 +433,8 @@ class Arquivo:
         apontando pra um canal excluído, e o gráfico tentaria usar um
         eixo "fantasma".
         """
+        if self.canal_protegido(nome_interno):
+            return
         if nome_interno in self.canais:
             self.canais[nome_interno].excluir()
             if self.eixo_x_manual == nome_interno:

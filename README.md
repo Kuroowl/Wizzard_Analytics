@@ -6,6 +6,7 @@ O **Wizard Analytics** é uma ferramenta em Python (Dash + Plotly) para extraç�
 
 * **Leitura inteligente:** arquivos `TXT`/`CSV` com detecção automática de encoding, delimitador, separador decimal e cabeçalho. O que foi ajustado na leitura aparece como aviso no rodapé (⚠).
 * **Vários arquivos ao mesmo tempo:** cada arquivo abre numa aba própria.
+* **Arquivos com poucos dados:** sem nenhuma coluna numérica (ou sem linhas), o arquivo é recusado com um aviso do mago. Com **uma única** coluna numérica, é criado o **índice** das amostras (`# índice`: 0, 1, 2…) como eixo X — clicar na coluna já manda ela pro Y, e o índice pode ser usado na Nova Análise (ex.: `índice × 0.01` para ter o tempo em segundos). O índice pode ser renomeado, mas não excluído.
 * **Gráfico de série temporal:** clique nas colunas da barra lateral para escolher o eixo X e as curvas do eixo Y; renomeie (✏️) ou exclua (🗑) canais.
 * **Aparar / Excluir dados:** marque dois pontos no gráfico e mantenha só o trecho entre eles (aparar) ou remova esse trecho (excluir). Durante a seleção o botão fica aceso: clique nele de novo, aperte **Esc** ou use **Cancelar** para desistir.
 * **Nova Análise:** calculadora de canais. Monte uma expressão com colunas, números, operadores e funções (`sin`, `√`, derivada, integral, média...) e crie uma coluna nova ou sobrescreva uma existente. A barra de cálculo aparece em cima do gráfico, que continua funcionando normalmente.
@@ -85,7 +86,7 @@ Wizzard_Analytics/
     │   └── edicao.py              # Painel de edição (curva, eixos, ticks, outros)
     │
     ├── core/                      # 3. LÓGICA: dados e cálculos, sem nada de Dash
-    │   ├── arquivo.py             # Arquivo, Canal e preferências de gráfico
+    │   ├── arquivo.py             # Arquivo, Canal e preferências; regras de leitura (recusa, índice implícito)
     │   ├── extractor.py           # Leitura e limpeza de TXT/CSV
     │   ├── rotulos.py             # Rótulo exibido -> nome interno de coluna
     │   ├── operations/

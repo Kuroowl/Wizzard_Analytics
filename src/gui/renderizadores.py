@@ -92,9 +92,14 @@ def _linha_canal_lateral(arquivo, aba_ativa, coluna, id_type_rotulo, titulo_rotu
     # src/core/arquivo.py, que já existia pronto pra isso — nunca
     # tinha UI nenhuma lendo ele até agora).
     calculado = arquivo.canais.get(coluna) and arquivo.canais[coluna].origem == 'calculado'
+    # Índice implícito (arquivo com 1 coluna numérica, ver Arquivo.
+    # criar_de_leitura): marcador '#' e SEM lixeira — pode renomear, não
+    # pode excluir (é a referência do eixo X).
+    indice = arquivo.canal_protegido(coluna)
     classe_canal = ('coluna-item'
                      + (' editando' if em_edicao else '')
-                     + (' calculado' if calculado else ''))
+                     + (' calculado' if calculado else '')
+                     + (' indice' if indice else ''))
 
     if em_edicao:
         # Input no lugar do botão de rótulo — 'autoFocus' já abre
@@ -120,10 +125,16 @@ def _linha_canal_lateral(arquivo, aba_ativa, coluna, id_type_rotulo, titulo_rotu
         # '.coluna-item.calculado' em file_menu.css), é a segunda
         # metade do sinal visual "isto foi gerado, não é um dado
         # bruto do arquivo original".
-        conteudo_botao = (
-            [html.Span('ƒ', className='canal-calculado-marcador'), rotulo] if calculado else rotulo
-        )
-        titulo = f"Calculado: {arquivo.canais[coluna].formula or ''}" if calculado else titulo_rotulo
+        if calculado:
+            conteudo_botao = [html.Span('ƒ', className='canal-calculado-marcador'), rotulo]
+            titulo = f"Calculado: {arquivo.canais[coluna].formula or ''}"
+        elif indice:
+            conteudo_botao = [html.Span('#', className='canal-indice-marcador'), rotulo]
+            titulo = ('Índice das amostras (0, 1, 2…), criado porque o arquivo tem só '
+                      '1 coluna numérica. Pode ser usado na Nova Análise (ex: índice × 0.01).')
+        else:
+            conteudo_botao = rotulo
+            titulo = titulo_rotulo
         id_rotulo = {'type': id_type_rotulo, 'arquivo': aba_ativa, 'coluna': coluna}
         if eixo is not None:
             id_rotulo['eixo'] = eixo
@@ -146,13 +157,13 @@ def _linha_canal_lateral(arquivo, aba_ativa, coluna, id_type_rotulo, titulo_rotu
                 title=f"Renomear canal '{rotulo}'",
                 n_clicks=0,
             ),
-            html.Button(
+            *([] if indice else [html.Button(
                 '🗑',
                 id={'type': 'botao-excluir-canal', 'arquivo': aba_ativa, 'coluna': coluna},
                 className="canal-lixeira-btn",
                 title=f"Excluir canal '{rotulo}'",
                 n_clicks=0,
-            ),
+            )]),
         ]
     )
 

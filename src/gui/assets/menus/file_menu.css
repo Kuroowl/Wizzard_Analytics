@@ -322,6 +322,20 @@
   margin-right: 4px;
 }
 
+/* Índice implícito (arquivo com 1 coluna numérica): mesmo padrão
+   borda + marcador dos canais calculados, na cor de accent (teal) —
+   é uma referência do eixo, não um cálculo. */
+.coluna-item.indice {
+  border-left: 3px dashed var(--cor-accent);
+  padding-left: 5px;
+}
+
+.canal-indice-marcador {
+  color: var(--cor-accent);
+  font-weight: 700;
+  margin-right: 4px;
+}
+
 /* Rótulo clicável (era um <span> estático + uma caixinha ☐/✓ à
    parte) — ÚNICO alvo de clique que atribui a coluna a X/Y (ver
    'id={"type": "linha-canal", ...}' em renderizar_colunas_da_aba_

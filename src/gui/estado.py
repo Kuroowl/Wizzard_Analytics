@@ -40,18 +40,11 @@ class EstadoApp:
         (ocultar/exibir) é feita em src/callbacks/ (canais.py/grafico.py), junto com o
         ciclo de vida de abrir/fechar o gráfico de Série Temporal.
         """
-        info = info or {}
-        self.arquivos[nome_arquivo] = Arquivo(
-            nome=nome_arquivo,
-            df_original=df.copy(),
-            df_editado=df.copy(),
-            avisos=list(avisos) if avisos else [],
-            info=info,
-            # Canais não numéricos (texto/booleano/não conversível) já
-            # detectados pelo extractor nascem ocultos por padrão — ver
-            # Arquivo.__post_init__ em src/core/arquivo.py.
-            colunas_ocultas_iniciais=info.get('colunas_nao_numericas', []),
-        )
+        # Regras de "o que dá pra analisar" (recusa sem colunas numéricas,
+        # índice implícito com 1 coluna, canais não numéricos ocultos) moram
+        # no core: Arquivo.criar_de_leitura. Um ValueError aqui sobe pro
+        # callback de upload, que mostra o erro do mago e não abre aba.
+        self.arquivos[nome_arquivo] = Arquivo.criar_de_leitura(nome_arquivo, df, avisos, info)
 
     def remover_arquivo(self, nome_arquivo):
         """Remove o arquivo e limpa os canais dele da seleção global."""
