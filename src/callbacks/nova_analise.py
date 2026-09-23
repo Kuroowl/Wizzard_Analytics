@@ -73,15 +73,12 @@ def registrar_callbacks_nova_analise(app, estado):
 
         novo_ativo = not modo_ativo_atual
         classe_botao = 'toolbar-upload' + (' ativo' if novo_ativo else '')
-        # As DUAS áreas ('#area-grafico-normal' e '#area-modo-nova-
-        # analise') são MUTUAMENTE EXCLUSIVAS — nunca as duas visíveis
-        # ao mesmo tempo (ver docstring completa em layout.py sobre por
-        # que viraram áreas separadas, em vez de tentar encaixar a
-        # barra dentro da área do gráfico normal). '#container-grafico'
-        # dentro de '#area-grafico-normal' NUNCA é tocado aqui — o
-        # gráfico continua exatamente como estava, só fica escondido/
-        # mostrado por inteiro via este 'display'.
-        estilo_area_grafico = {'display': 'none'} if novo_ativo else {'display': 'block'}
+        # O gráfico real ('#area-grafico-normal') fica SEMPRE visível: a
+        # barra ('#area-modo-nova-analise') aparece em cima dele e o
+        # empurra pra baixo (ver layout.py/central_menu.css). O Output
+        # continua existindo só pra não mexer no contrato agora — fica
+        # pra limpeza da Fase 3.
+        estilo_area_grafico = {'display': 'block'}
         estilo_area_calc = {'display': 'flex'} if novo_ativo else {'display': 'none'}
         estilo_area_edicao = {'display': 'flex'} if novo_ativo else {'display': 'none'}
 

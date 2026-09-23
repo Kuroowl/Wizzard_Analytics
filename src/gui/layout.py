@@ -288,31 +288,28 @@ def montar_layout(estado):
 
             html.Div(id='divisor-resize', className='divisor-resize'),
 
-            # id='centro-grafico' — precisa de um id agora pra alternar
-            # a classe 'calc-ativa' (usada só pra estilizar, hoje —
-            # ver central_menu.css). Mudança de abordagem: em vez de
-            # tentar injetar a barra de cálculo DENTRO da área do
-            # gráfico normal (o que não estava se mostrando na tela por
-            # algum motivo que não conseguimos isolar de fora do
-            # navegador), agora são DUAS ÁREAS SEPARADAS, mutuamente
-            # exclusivas, alternadas via 'style' (display:none/flex) —
-            # nunca as duas visíveis ao mesmo tempo:
-            #   1) '#area-grafico-normal' — o gráfico de sempre, sem
-            #      NENHUMA mudança nele (mesmo id/estrutura/CSS de
-            #      antes). Visível quando o modo 'Nova Análise' está
-            #      DESLIGADO.
-            #   2) '#area-modo-nova-analise' — área NOVA, própria,
-            #      subdividida em duas partes empilhadas: a barra de
-            #      cálculo (topo) e uma MINIATURA do gráfico atual
-            #      (embaixo — mostra 'arquivo.figura', o último estado
-            #      já desenhado, só que menor). Visível quando o modo
-            #      está LIGADO.
-            # Como são duas árvores de DOM totalmente separadas (não
-            # uma tentando se encaixar dentro da outra), qualquer
-            # conflito de CSS/z-index/posicionamento que a área do
-            # gráfico tivesse fica isolado, sem chance de interferir na
-            # área nova.
+            # id='centro-grafico' — coluna com DUAS áreas:
+            #   1) '#area-modo-nova-analise' (topo) — a barra de cálculo
+            #      da Nova Análise; só aparece com o modo LIGADO e ocupa
+            #      só a própria altura.
+            #   2) '#area-grafico-normal' — o gráfico de sempre, SEMPRE
+            #      visível e funcionando (clicar nos canais da esquerda
+            #      atualiza ele, com ou sem Nova Análise). Ocupa o resto.
+            # Histórico: numa versão anterior o gráfico era escondido e a
+            # Nova Análise mostrava só uma miniatura estática dele, porque
+            # a primeira tentativa de encaixar a barra junto do gráfico
+            # não aparecia na tela. A causa era o '.area-grafico-container'
+            # (position:absolute; inset:0) se ancorar no '.centro' inteiro
+            # e cobrir a barra; agora ele se ancora no '#area-grafico-
+            # normal' (position:relative), que fica abaixo dela.
             html.Div(id='centro-grafico', className='centro', children=[
+                # Barra de cálculo da Nova Análise: fica EM CIMA do gráfico
+                # e só ocupa a própria altura; o gráfico continua visível e
+                # funcionando embaixo (ver '.centro' em central_menu.css).
+                html.Div(
+                    id='area-modo-nova-analise', className='area-modo-nova-analise-completa',
+                    style={'display': 'none'},
+                ),
                 html.Div(id='area-grafico-normal', style={'display': 'block'}, children=[
                     dcc.Loading(
                         id="loading-grafico",
@@ -324,10 +321,6 @@ def montar_layout(estado):
                         ),
                     ),
                 ]),
-                html.Div(
-                    id='area-modo-nova-analise', className='area-modo-nova-analise-completa',
-                    style={'display': 'none'},
-                ),
             ]),
 
             html.Div(id='divisor-resize-edit', className='divisor-resize'),

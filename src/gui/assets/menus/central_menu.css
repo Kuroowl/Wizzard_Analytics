@@ -8,23 +8,28 @@
   min-width: 0;
   height: 100%;
   width: 100%;
-  position: relative; /* âncora pro .area-grafico-container "flutuar" preenchendo tudo */
+  position: relative;
   overflow: hidden;
   background-color: var(---cor-fundo-grafico, #FDF6E3);
+  /* Coluna: barra da Nova Análise (quando ligada) em cima, gráfico
+     ocupando o resto embaixo. */
+  display: flex;
+  flex-direction: column;
 }
 
-/* '.centro' agora tem SEMPRE 2 filhos diretos, mutuamente exclusivos
-   (nunca os dois visíveis ao mesmo tempo — alternados via 'style'
-   inline, ver alternar_modo_nova_analise em callbacks.py):
-     - '#area-grafico-normal': o gráfico de sempre (visível com o modo
-       'Nova Análise' DESLIGADO).
-     - '#area-modo-nova-analise': barra de cálculo + miniatura do
-       gráfico (visível com o modo LIGADO).
-   Os dois precisam de 'height:100%; width:100%;' pra preencher
-   '.centro' inteiro — daí este seletor pegar os dois genericamente. */
-.centro > div {
-  height: 100%;
+/* '.centro' tem 2 filhos diretos, empilhados:
+     - '#area-modo-nova-analise' (topo): barra de cálculo, só com o modo
+       'Nova Análise' ligado; altura = a do próprio conteúdo.
+     - '#area-grafico-normal': o gráfico, SEMPRE visível; ocupa o resto.
+   'position: relative' aqui é o que ancora o '.area-grafico-container'
+   (position:absolute; inset:0) nesta área, e não no '.centro' inteiro
+   — senão o gráfico cobriria a barra (foi o que fazia a barra "não
+   aparecer" na primeira tentativa de deixar os dois juntos). */
+#area-grafico-normal {
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
+  position: relative;
 }
 
 /* O dcc.Loading injeta um wrapper próprio (position:relative, sem
@@ -182,24 +187,16 @@
    Nova coluna/Coluna existente, a expressão sendo montada, o campo de
    nome (ou dropdown de coluna a sobrescrever), e Criar/Apagar/Limpar.
 
-   MUDANÇA DE ABORDAGEM: antes a barra tentava se encaixar DENTRO da
-   área do gráfico normal (empurrando '#container-grafico' pra baixo
-   via 'position:absolute'/'top' dinâmico) — por algum motivo que não
-   foi possível isolar sem acesso ao navegador, isso não estava
-   aparecendo na tela. Agora '#area-modo-nova-analise' é uma área
-   TOTALMENTE separada (irmã de '#area-grafico-normal', nunca as duas
-   visíveis ao mesmo tempo — ver layout.py), então não tem chance
-   nenhuma de um conflito da área antiga vazar pra esta. Bem mais
-   simples também: layout flex comum (coluna: barra em cima, miniatura
-   do gráfico embaixo), SEM 'position:absolute'/'z-index'/'top'
-   dinâmico nenhum. */
+   Fica EM CIMA de '#area-grafico-normal' dentro da coluna flex do
+   '.centro' (ver lá em cima), ocupando só a própria altura — o gráfico
+   real continua visível e interativo embaixo. */
 #area-modo-nova-analise.area-modo-nova-analise-completa {
   display: none; /* alternado via 'style' inline pelo callback */
+  flex: 0 0 auto; /* só a altura da barra; o gráfico fica com o resto */
   flex-direction: column;
-  align-items: center; /* centraliza a barra e a miniatura horizontalmente (largura 80%, ver abaixo) */
-  height: 100%;
+  align-items: center; /* centraliza a barra horizontalmente (largura 80%, ver abaixo) */
   width: 100%;
-  padding-top: 20px; /* distância do topo, pedido explícito */
+  padding: 20px 0 8px 0; /* distância do topo (pedido explícito) e respiro antes do gráfico */
   box-sizing: border-box;
 }
 
@@ -306,43 +303,6 @@
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-}
-
-/* Miniatura do gráfico — mostra 'arquivo.figura' (o último estado já
-   desenhado, se algum gráfico já foi gerado) numa versão MENOR, só
-   pra referência enquanto o usuário monta a expressão — não é
-   editável/interativa da mesma forma que o gráfico grande (ver
-   'config' em renderizar_area_calculadora_completa, renderizadores.py).
-   Ocupa o espaço restante depois da barra ('flex: 1 1 auto').
-   MESMA largura da barra acima (80%, também centralizada pelo
-   'align-items:center' do pai) — pedido explícito de manter as duas
-   alinhadas. 'margin' dá a distância da parede de baixo (o pai não
-   tem padding-bottom, só padding-top) e um respiro embaixo da
-   barra. */
-.calculadora-miniatura-container {
-  flex: 1 1 auto;
-  width: 80%;
-  min-height: 0;
-  margin: 16px 0 24px 0;
-  padding: 12px;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--cor-fundo-grafico);
-  border-radius: 8px;
-}
-
-.calculadora-grafico-miniatura {
-  width: 100%;
-  height: 100%;
-}
-
-.calculadora-miniatura-vazia {
-  font-family: var(--fonte-ui);
-  font-size: 13px;
-  color: var(--cor-texto-mudo);
-  text-align: center;
 }
 
 .calculadora-tipo-destino {
