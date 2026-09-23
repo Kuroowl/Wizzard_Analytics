@@ -2,15 +2,9 @@ from dash import dcc, html
 
 from src.gui.components import icone_colorido
 from src.gui.renderizadores import (
-    renderizar_area_grafico, renderizar_info_rodape,
-    renderizar_badge_alerta, renderizar_popup_alerta,
-    renderizar_painel_direito_padrao,
+    renderizar_area_grafico, renderizar_painel_direito_padrao,
 )
-
-# Tempo (ms) que uma mensagem "temporária" do mago fica visível antes de
-# desaparecer sozinha — ver 'rodape-timer-mensagem' e o callback
-# '_expirar_mensagem_temporaria' em callbacks.py.
-DURACAO_MENSAGEM_TEMPORARIA_MS = 3500
+from src.gui.rodape import montar_rodape
 
 
 def montar_layout(estado):
@@ -386,61 +380,6 @@ def montar_layout(estado):
             ]),
         ]),
 
-        # --- Rodapé: 3 seções cujas larguras acompanham a do painel acima
-        # delas (sidebar / centro / painel-direito) — ver 'habilitarDivisor'
-        # em scripts_js.py. A vinculação é só de tamanho (puramente visual),
-        # não de conteúdo.
-        html.Div(className='rodape', children=[
-
-            # --- Seção vinculada ao file menu (sidebar) ---
-            html.Div(id='rodape-secao-arquivo', className='rodape-secao rodape-secao-arquivo', children=[
-                html.Span(id='rodape-info-arquivo', className='rodape-info',
-                          children=renderizar_info_rodape(estado, None)),
-
-                # Sem separador de texto ' | ' aqui: o alerta agora é
-                # empurrado pra ponta direita da seção via
-                # 'justify-content: space-between' (ver .rodape-secao-
-                # -arquivo em status_menu.css) e a própria borda direita
-                # da seção já faz o papel visual do '|' no fim da linha.
-                html.Div(id='rodape-alerta-wrapper', className='rodape-alerta-wrapper', children=[
-                    html.Div(id='rodape-alerta-popup', className='rodape-alerta-popup',
-                             children=renderizar_popup_alerta(estado, None)),
-                    html.Button(id='rodape-alerta-badge', className='rodape-alerta-badge',
-                                children=renderizar_badge_alerta(estado, None), n_clicks=0),
-                ]),
-            ]),
-
-            # --- Seção vinculada ao menu central (mensagem do mago) ---
-            html.Div(id='rodape-secao-central', className='rodape-secao rodape-secao-central', children=[
-                # Camada de fundo do preenchimento de carregamento: ocupa a
-                # seção inteira (não só o texto da mensagem), assim mesmo uma
-                # mensagem curta como "oi" preenche visualmente a barra toda.
-                # A largura é controlada via JS em iniciarBarraCarregamentoRodape().
-                html.Div(id='rodape-progresso-central', className='rodape-progresso-central'),
-
-                html.Div(className='rodape-central-conteudo', children=[
-                    html.Span(id='rodape-status', children='🧙‍♂️: " Carregue um arquivo para começar... "'),
-                ]),
-
-                # --- Máquina da mensagem temporária do mago ---
-                # 'rodape-mensagem-seguinte' guarda o que deve aparecer QUANDO a
-                # mensagem atual expirar (string vazia = simplesmente some).
-                # 'rodape-timer-mensagem' já nasce ativo (disabled=False) pra
-                # fazer a mensagem inicial acima desaparecer sozinha nos
-                # primeiros segundos, sem precisar de nenhuma ação do usuário.
-                dcc.Store(id='rodape-mensagem-seguinte', data=''),
-                dcc.Interval(
-                    id='rodape-timer-mensagem',
-                    interval=DURACAO_MENSAGEM_TEMPORARIA_MS,
-                    n_intervals=0,
-                    max_intervals=1,
-                    disabled=False,
-                ),
-            ]),
-
-            # --- Seção vinculada ao edit menu (painel-direito) ---
-            # Vazio por enquanto — reservada pra quando as edições forem
-            # implementadas; hoje só acompanha a largura do painel acima.
-            html.Div(id='rodape-secao-edit', className='rodape-secao rodape-secao-edit'),
-        ]),
+        # --- Rodapé: montado por src/gui/rodape.py (dono da apresentação) ---
+        montar_rodape(estado),
     ])

@@ -13,10 +13,10 @@ from src.core.rotulos import sanitizar_rotulo_para_nome_coluna
 from src.gui.renderizadores import (
     truncar_nome_arquivo, renderizar_abas_estilo_chrome, renderizar_colunas_da_aba_ativa,
     renderizar_selecao_eixos, renderizar_area_grafico, renderizar_grafico_com_fechar,
-    renderizar_info_rodape, renderizar_badge_alerta, classe_badge_alerta, renderizar_popup_alerta,
     renderizar_painel_direito_padrao, renderizar_painel_edicao,
     renderizar_calculadora_barra, renderizar_area_calculadora_completa, renderizar_calculadora_botoes, _hex_para_rgb,
 )
+from src.gui.rodape import obter_estado_rodape
 from src.utils.helpers import carregar_dados_de_upload
 
 
@@ -261,21 +261,6 @@ def _classe_painel_direito(ativo=False, selecionando=False):
     return ' '.join(classes)
 
 
-def _valores_rodape(estado, aba_ativa):
-    """
-    Agrupa os 4 valores que qualquer callback que mexe no rodapé precisa
-    devolver, sempre na mesma ordem: (info, badge_texto, badge_classe,
-    popup_children). Existe só pra não repetir as mesmas 4 chamadas em
-    cada callback abaixo.
-    """
-    return (
-        renderizar_info_rodape(estado, aba_ativa),
-        renderizar_badge_alerta(estado, aba_ativa),
-        classe_badge_alerta(estado, aba_ativa),
-        renderizar_popup_alerta(estado, aba_ativa),
-    )
-
-
 def registrar_callbacks(app, estado):
     """
     Registra todos os callbacks do app. Recebe 'app' (pra decorar com
@@ -319,7 +304,7 @@ def registrar_callbacks(app, estado):
             return (nome_arquivo, mensagem,
                     sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
                     no_update,
-                    *_valores_rodape(estado, nome_arquivo),
+                    *obter_estado_rodape(estado, nome_arquivo),
                     no_update, True, no_update)
         try:
             df, avisos, info = carregar_dados_de_upload(conteudo, nome_arquivo)
@@ -344,7 +329,7 @@ def registrar_callbacks(app, estado):
             return (nome_arquivo, mensagem,
                     sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
                     area_grafico,
-                    *_valores_rodape(estado, nome_arquivo),
+                    *obter_estado_rodape(estado, nome_arquivo),
                     mensagem_seguinte, False, 0)
         except Exception as e:
             sem_arquivo, sem_2_arquivos, _ = _estados_toolbar(estado, aba_atual)
@@ -352,7 +337,7 @@ def registrar_callbacks(app, estado):
             return (aba_atual, mensagem,
                     sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
                     no_update,
-                    *_valores_rodape(estado, aba_atual),
+                    *obter_estado_rodape(estado, aba_atual),
                     no_update, True, no_update)
 
     # ------------------------------------------------------------------
@@ -468,7 +453,7 @@ def registrar_callbacks(app, estado):
                 # Trocar/fechar aba muda qual arquivo é "o ativo": info, badge
                 # e popup do rodapé precisam refletir a NOVA aba, e qualquer
                 # mensagem temporária pendente da aba anterior é cancelada.
-                *_valores_rodape(estado, aba_ativa),
+                *obter_estado_rodape(estado, aba_ativa),
                 True, novo_mapa,
                 modo_novo, classe_botao_calc, estilo_grafico_normal, estilo_area_calc, estilo_area_edicao)
 
@@ -1053,11 +1038,11 @@ def registrar_callbacks(app, estado):
         if em_edicao and aba_ativa in estado.arquivos:
             painel_edicao = renderizar_painel_edicao(estado, aba_ativa, coluna_em_edicao)
 
-        _, badge_texto, badge_classe, popup_children = _valores_rodape(estado, aba_ativa)
+        rodape = obter_estado_rodape(estado, aba_ativa)
         return (renderizar_colunas_da_aba_ativa(estado, aba_ativa),
                 renderizar_selecao_eixos(estado, aba_ativa),
                 mensagem, area_grafico,
-                badge_texto, badge_classe, popup_children,
+                rodape.badge_texto, rodape.badge_classe, rodape.popup,
                 True, painel_edicao, novo_mapa)
 
     # ------------------------------------------------------------------
@@ -1314,11 +1299,11 @@ def registrar_callbacks(app, estado):
         )
         grafico = renderizar_grafico_com_fechar(fig)
 
-        _, badge_texto, badge_classe, popup_children = _valores_rodape(estado, aba_ativa)
+        rodape = obter_estado_rodape(estado, aba_ativa)
         return (grafico, renderizar_colunas_da_aba_ativa(estado, aba_ativa),
                 renderizar_selecao_eixos(estado, aba_ativa), mensagem,
                 False, False, False, False, False, False,
-                badge_texto, badge_classe, popup_children,
+                rodape.badge_texto, rodape.badge_classe, rodape.popup,
                 True)
 
     @app.callback(
