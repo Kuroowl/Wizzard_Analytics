@@ -59,7 +59,7 @@ Wizzard_Analytics/
     │   ├── feedback.py            # Contrato Feedback: o que o mago deve dizer (sucesso/aviso/erro/instrução)
     │   ├── estado.py              # EstadoApp: arquivos abertos na sessão
     │   ├── components.py          # Ícones
-    │   ├── eventos_graficos.py    # Leitura de edições feitas direto no gráfico (título, eixo, legenda)
+    │   ├── eventos_graficos.py    # Leitura de edições feitas direto no gráfico (título, eixo, legenda) — ainda não ligado
     │   ├── scripts_js.py          # JavaScript da página (divisores, clique no gráfico, Esc, barras de progresso)
     │   └── assets/
     │       ├── estilo.css
@@ -93,7 +93,6 @@ Wizzard_Analytics/
     │   │   ├── sampling.py        # Aparar, excluir e amostrar dados
     │   │   ├── math.py            # Operações entre colunas, derivada, integral, ajustes
     │   │   ├── stats.py           # Estatísticas, histograma, correlação, outliers
-    │   │   ├── other.py           # Ajustes de curva
     │   │   └── filters.py         # Filtros (ainda vazio)
     │   └── plotting/
     │       └── plotter.py         # Construção da figura Plotly e aplicação das preferências

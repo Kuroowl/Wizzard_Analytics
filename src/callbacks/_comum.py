@@ -27,35 +27,6 @@ from dash import ctx
 GUARD_CLIQUE_FANTASMA_ATIVO = True
 
 
-def _clique_real(ctx_triggered):
-    """
-    Protege contra o disparo 'fantasma' que callbacks de padrão (ALL) do
-    Dash costumam dar assim que componentes novos são criados dinamicamente
-    (ex: uma aba nova, uma linha de canal nova), mesmo sem clique nenhum do
-    usuário.
-
-    Antes essa checagem também exigia `value not in (None, 0)`, mas para
-    arquivos com nomes de coluna "atípicos" (ex.: 'N#', 'FW-A') o valor
-    relatado por `ctx.triggered` no primeiro clique real de uma linha
-    recém-renderizada nem sempre batia com o esperado, fazendo cliques de
-    verdade serem descartados como fantasma. Bastar existir um gatilho já
-    é suficiente aqui, porque cada callback que usa isso confere também o
-    `type` do gatilho (`ctx.triggered_id.get('type')`) antes de agir.
-
-    LIMITAÇÃO CONHECIDA: isto NÃO filtra o caso em que a LISTA INTEIRA de
-    componentes casados é reconstruída do zero por OUTRO callback (ex:
-    upload de arquivo reconstrói 'lista-canais-aba', trocar de aba
-    reconstrói 'container-abas-chrome') — nesse caso 'ctx.triggered' vem
-    não-vazio mesmo sem clique nenhum, porque os componentes recém-criados
-    entram no padrão coringa com o valor inicial do Python (n_clicks=0).
-    Pros callbacks expostos a essa reconstrução por TERCEIROS (não só por
-    si mesmos) — gerenciar_abas, gerenciar_selecao_canais,
-    alternar_edicao_canal — use '_processar_cliques_padrao' abaixo, que
-    resolve isso rastreando o ÚLTIMO valor visto por componente.
-    """
-    return bool(ctx_triggered)
-
-
 def _chave_id_padrao(id_item):
     """
     Normaliza um id de componente (dict de padrão coringa
@@ -90,7 +61,7 @@ def _chave_id_padrao(id_item):
 
 def _processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
     """
-    Alternativa a '_clique_real' pros callbacks de padrão coringa
+    Filtro de clique pros callbacks de padrão coringa
     ({'type': ..., 'chave': ALL}) cuja LISTA de componentes casados pode
     ser reconstruída do zero por OUTRO callback (não só por si mesmo) —
     ex: 'gerenciar_abas' (a lista de abas é reconstruída ao fazer
@@ -98,7 +69,7 @@ def _processar_cliques_padrao(grupos_inputs_list, nclicks_anteriores):
     'alternar_edicao_canal' (a lista de canais é reconstruída ao gerar/
     fechar o gráfico, trocar de aba, ou marcar/desmarcar OUTRO canal).
 
-    Nesses casos, um simples 'bool(ctx.triggered)' (_clique_real) NÃO
+    Nesses casos, um simples 'bool(ctx.triggered)' NÃO
     basta: sempre que a lista-mãe é reconstruída, TODOS os botões dela
     nascem de novo no Python com 'n_clicks=0' (são componentes NOVOS,
     não os mesmos de antes, mesmo com o MESMO id) — e o Dash trata esse

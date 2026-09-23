@@ -3,7 +3,7 @@ from dash import dcc, html
 from src.gui.components import icone_colorido
 from src.core.plotting.plotter import cor_da_coluna, colunas_plotadas, PALETA_CORES
 from src.core.operations.calculadora import (
-    NUMEROS, OPERADORES, FUNCOES, OPERACOES_RAPIDAS, balanco_parenteses_calculadora,
+    NUMEROS, OPERADORES, FUNCOES, OPERACOES_RAPIDAS,
     calc_criar_desabilitado,
 )
 
@@ -981,7 +981,6 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
     # o valor de X que aparece até a primeira edição igualar os dois.
     ticks_x = arquivo.preferencias.ticks_x
     valores_divisoes_iniciais = ticks_x.divisoes
-    valores_subdivisoes_iniciais = ticks_x.subdivisoes
 
     conteudo_ticks = [
         html.Div(className='painel-edicao-campo painel-edicao-campo-linha', children=[

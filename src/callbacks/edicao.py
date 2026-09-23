@@ -81,7 +81,7 @@ def registrar_callbacks_edicao(app, estado):
         anterior. Também dispara (efeito colateral esperado, não um bug)
         na primeira vez que o painel abre, já que a caixa 'Dado' acabou
         de nascer com um valor — é o mesmo 'gatilho fantasma' de
-        componente recém-criado comentado em _clique_real, aqui é ele
+        componente recém-criado explicado em _processar_cliques_padrao (src/callbacks/_comum.py), aqui é ele
         quem faz os controles nascerem com os valores certos sem
         precisar duplicar essa lógica em abrir_painel_edicao.
 
@@ -698,7 +698,7 @@ def registrar_callbacks_edicao(app, estado):
 
         Também dispara (gravação idempotente, mesmo valor) logo depois
         de sincronizar_campos_ticks trocar os sliders de eixo/modo —
-        mesma classe de gatilho 'fantasma' comentado em _clique_real;
+        mesma classe de gatilho 'fantasma' explicado em _processar_cliques_padrao (src/callbacks/_comum.py);
         sem efeito real no gráfico além de redesenhar com os mesmos
         números.
         """
