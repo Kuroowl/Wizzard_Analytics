@@ -10,8 +10,8 @@ from dash.exceptions import PreventUpdate
 from src.callbacks._comum import classe_painel_direito, estados_toolbar
 from src.core.plotting.plotter import colunas_plotadas, construir_figura_serie_temporal, cor_da_coluna
 from src.gui.renderizadores import (
-    _hex_para_rgb, renderizar_grafico_com_fechar, renderizar_painel_direito_padrao,
-    renderizar_painel_edicao,
+    DICA_STEPPER_SEM_TITULO, _hex_para_rgb, renderizar_grafico_com_fechar,
+    renderizar_painel_direito_padrao, renderizar_painel_edicao,
 )
 
 
@@ -515,6 +515,31 @@ def registrar_callbacks_edicao(app, estado):
 
     _registrar_autoscale('x')
     _registrar_autoscale('y')
+
+    def _registrar_ativacao_steppers_titulo(prefixo):
+        """
+        Liga/desliga os steppers de fonte e espaçamento de UMA linha da
+        seção 'Eixos' ('titulo', 'x' ou 'y') conforme o título tenha texto:
+        sem texto, o plotter não aplica fonte/espaçamento (não há título
+        pra formatar), então os controles ficam desabilitados com uma dica.
+        O estado inicial vem de _linha_eixo (renderizadores.py).
+        """
+        indices = (f'edicao-eixo-{prefixo}-fonte', f'edicao-eixo-{prefixo}-espacamento')
+
+        @app.callback(
+            *[Output({'type': tipo, 'index': idx}, 'disabled')
+              for idx in indices for tipo in ('stepper-menos', 'stepper-valor', 'stepper-mais')],
+            *[Output({'type': 'stepper-caixa', 'index': idx}, 'title') for idx in indices],
+            Input(f'edicao-eixo-{prefixo}-texto', 'value'),
+            prevent_initial_call=True,
+        )
+        def atualizar_steppers_titulo(texto):
+            desabilitado = not (texto or '').strip()
+            dica = DICA_STEPPER_SEM_TITULO if desabilitado else ''
+            return (*([desabilitado] * 6), dica, dica)
+
+    for _prefixo in ('titulo', 'x', 'y'):
+        _registrar_ativacao_steppers_titulo(_prefixo)
 
     def _prefs_ticks_eixo(arquivo, eixo):
         """

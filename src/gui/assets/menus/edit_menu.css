@@ -827,6 +827,19 @@
   background-color: #FFFFFF;
 }
 
+/* Stepper desabilitado (fonte/espaçamento de um título ainda vazio —
+   ver _linha_eixo em renderizadores.py). */
+.painel-edicao-stepper-btn:disabled,
+.painel-edicao-stepper-input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.painel-edicao-stepper-btn:disabled:hover {
+  background: inherit;
+  border-color: inherit;
+}
+
 .painel-edicao-stepper-input:focus {
   outline: none;
   border-color: var(--cor-accent);

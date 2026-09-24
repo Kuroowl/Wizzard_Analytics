@@ -149,6 +149,6 @@ Botões que nascem dentro de listas reconstruídas por callbacks (canais, abas, 
 
 1. ✅ Rodapé e `Feedback`: um único responsável pela mensagem do mago.
 2. ✅ Separar o antigo `callbacks.py` (2492 linhas) em `src/callbacks/`, um módulo por área.
-3. ⏳ Limpar cada módulo: callback só orquestra, lógica vai para o `core`.
+3. ✅ Limpeza: código morto, filtro de cliques sem Store, renderização duplicada, regra de dados movida pro `core` (canal calculado, leitura de arquivo com índice implícito).
 4. ⏳ Nova Amostragem (downsample, média móvel, ajuste polinomial).
 5. ⏳ Revisar arquitetura: `allow_duplicate`, `EstadoApp`, renderização excessiva, cache do gráfico.

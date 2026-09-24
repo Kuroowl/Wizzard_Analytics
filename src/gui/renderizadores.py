@@ -574,7 +574,7 @@ def _secao_colapsavel(id_secao, titulo, conteudo, aberta=False):
     )
 
 
-def _stepper(index, valor, minimo, maximo, step=1):
+def _stepper(index, valor, minimo, maximo, step=1, disabled=False, dica_desabilitado=None):
     """
     Par de botões '-'/'+' ao lado de um campo numérico — reaproveitável
     por qualquer seção do painel (hoje: tamanho de fonte e espaçamento
@@ -585,19 +585,23 @@ def _stepper(index, valor, minimo, maximo, step=1):
     dois botões foi clicado, e lê min/max/step direto dos atributos do
     próprio dcc.Input (sem precisar duplicar esses limites no Python).
     """
-    return html.Div(className='painel-edicao-stepper', children=[
+    # 'disabled' + dica: usado pelos steppers de fonte/espaçamento dos
+    # títulos, que só têm efeito quando o título tem texto (ver
+    # _linha_eixo e atualizar_steppers_titulo em src/callbacks/edicao.py).
+    dica = dica_desabilitado if disabled else ''
+    return html.Div(id={'type': 'stepper-caixa', 'index': index}, className='painel-edicao-stepper', title=dica, children=[
         html.Button(
             '−', id={'type': 'stepper-menos', 'index': index},
-            className='painel-edicao-stepper-btn', n_clicks=0,
+            className='painel-edicao-stepper-btn', n_clicks=0, disabled=disabled,
         ),
         dcc.Input(
             id={'type': 'stepper-valor', 'index': index},
             type='number', value=valor, min=minimo, max=maximo, step=step,
-            className='painel-edicao-stepper-input',
+            className='painel-edicao-stepper-input', disabled=disabled,
         ),
         html.Button(
             '+', id={'type': 'stepper-mais', 'index': index},
-            className='painel-edicao-stepper-btn', n_clicks=0,
+            className='painel-edicao-stepper-btn', n_clicks=0, disabled=disabled,
         ),
     ])
 
@@ -719,6 +723,9 @@ def _campo_slider(rotulo, id_slider, valor, minimo, maximo, step=1):
     ])
 
 
+DICA_STEPPER_SEM_TITULO = 'Escreva um título para ajustar a fonte e o espaçamento.'
+
+
 def _linha_eixo(rotulo, id_texto, valor_texto, id_fonte, valor_fonte, id_espacamento, valor_espacamento):
     """
     Uma linha da seção 'Eixos': rótulo + caixa de texto (LaTeX simples,
@@ -735,8 +742,14 @@ def _linha_eixo(rotulo, id_texto, valor_texto, id_fonte, valor_fonte, id_espacam
             className='painel-edicao-latex-input',
             autoComplete='off',
         ),
-        _stepper(id_fonte, valor_fonte, minimo=6, maximo=48, step=1),
-        _stepper(id_espacamento, valor_espacamento, minimo=-5, maximo=20, step=1),
+        # Fonte e espaçamento só têm efeito quando o título tem texto (o
+        # plotter só aplica title.font/standoff se houver texto) — então
+        # nascem desabilitados com o título vazio. O callback
+        # atualizar_steppers_titulo (edicao.py) liga/desliga ao digitar.
+        _stepper(id_fonte, valor_fonte, minimo=6, maximo=48, step=1,
+                 disabled=not (valor_texto or '').strip(), dica_desabilitado=DICA_STEPPER_SEM_TITULO),
+        _stepper(id_espacamento, valor_espacamento, minimo=-5, maximo=20, step=1,
+                 disabled=not (valor_texto or '').strip(), dica_desabilitado=DICA_STEPPER_SEM_TITULO),
     ])
 
 
