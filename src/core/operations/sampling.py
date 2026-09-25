@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 
 
@@ -81,52 +80,6 @@ def excluir_dados(df, coluna_eixo_x, limite_min, limite_max):
     return df[mascara].reset_index(drop=True)
 
 
-def amostrar_dados_espacados(df, coluna_eixo_x, n_pontos, modo='valor'):
-    """
-    Retira uma amostra de n_pontos igualmente espaçados.
-
-    modo='linhas': espaça por POSIÇÃO (uma linha a cada N). Simples e rápido,
-        mas se a taxa de aquisição não for constante, o espaçamento no eixo X
-        pode ficar irregular.
-    modo='valor': espaça por VALOR do eixo X (ex: um ponto a cada 5 segundos,
-        pegando a linha mais próxima de cada valor-alvo). Mais correto
-        visualmente quando a amostragem original não é uniforme, mas exige
-        que coluna_eixo_x seja numérica.
-
-    Parâmetros:
-        df (pd.DataFrame): Tabela de dados original.
-        coluna_eixo_x (str): Nome da coluna do eixo X (só usada no modo='valor').
-        n_pontos (int): Quantidade de pontos desejada na amostra.
-        modo (str): 'linhas' ou 'valor'.
-    """
-    if df.empty or n_pontos <= 0:
-        return df.iloc[0:0].copy()
-
-    n_pontos = min(n_pontos, len(df))
-
-    if modo == 'linhas':
-        indices = np.unique(np.linspace(0, len(df) - 1, num=n_pontos, dtype=int))
-        return df.iloc[indices].reset_index(drop=True)
-
-    elif modo == 'valor':
-        serie = _validar_serie_numerica(df, coluna_eixo_x)
-        df_valido = df.loc[serie.notna()]
-        serie_valida = serie.loc[serie.notna()]
-
-        valores_alvo = np.linspace(serie_valida.min(), serie_valida.max(), n_pontos)
-
-        indices_selecionados = []
-        for alvo in valores_alvo:
-            idx_mais_proximo = (serie_valida - alvo).abs().idxmin()
-            if idx_mais_proximo not in indices_selecionados:
-                indices_selecionados.append(idx_mais_proximo)
-
-        return df_valido.loc[indices_selecionados].reset_index(drop=True)
-
-    else:
-        raise ValueError("modo deve ser 'linhas' ou 'valor'")
-
-
 if __name__ == '__main__':
     # Testes rápidos com uma coluna numérica e uma coluna de texto (Hora),
     # pra confirmar que o erro é claro em vez de retornar vazio em silêncio.
@@ -141,12 +94,6 @@ if __name__ == '__main__':
 
     print("\n--- excluir_dados (coluna numérica correta) ---")
     print(excluir_dados(df_teste, 'Tempo_decorrido_s', 1, 3))
-
-    print("\n--- amostrar_dados_espacados (modo='linhas', 3 pontos) ---")
-    print(amostrar_dados_espacados(df_teste, 'Tempo_decorrido_s', 3, modo='linhas'))
-
-    print("\n--- amostrar_dados_espacados (modo='valor', 3 pontos) ---")
-    print(amostrar_dados_espacados(df_teste, 'Tempo_decorrido_s', 3, modo='valor'))
 
     print("\n--- tentando usar 'Hora' (texto) como eixo X: deve dar erro claro ---")
     try:

@@ -23,6 +23,9 @@ from enum import Enum
 
 import pandas as pd
 
+from src.core.derivados import ArvoreDerivados, NoDerivado, Serie
+from src.core.operations.amostragem import ResultadoAmostragem, nome_padrao
+from src.core.operations.sampling import aparar_dados, excluir_dados
 from src.core.rotulos import sanitizar_rotulo_para_nome_coluna
 
 
@@ -272,6 +275,14 @@ class Arquivo:
     # eixos logo abaixo.
     eixo_x_manual: str | None = None
     eixos_y_manual: list = field(default_factory=list)
+
+    # --- Nova Amostragem ----------------------------------------------
+    # 'arvore': os resultados registrados (OK) e de onde vieram — ver
+    # src/core/derivados.py. 'versoes_colunas': quantas vezes os DADOS de
+    # cada coluna mudaram (corte, sobrescrita pela calculadora); é assim
+    # que um nó sabe que ficou desatualizado. Coluna ausente = versão 0.
+    arvore: ArvoreDerivados = field(default_factory=ArvoreDerivados)
+    versoes_colunas: dict = field(default_factory=dict)
 
     def __post_init__(self):
         # Registra um Canal pra cada coluna que já veio no df, se ainda
@@ -585,7 +596,86 @@ class Arquivo:
         canal = self.canais.get(nome_interno) or self.registrar_canal(nome_interno)
         canal.origem = "calculado"
         canal.formula = formula
+        self._dados_alterados([nome_interno])
         self.invalidar_grafico()
+
+    # --- Corte de dados (Aparar / Excluir) ---------------------------
+
+    def cortar_dados(self, eixo_x: str, limite_a, limite_b, modo: str = 'aparar') -> None:
+        """
+        'aparar': mantém só o trecho entre os limites; 'excluir': remove o
+        trecho. Os limites podem vir em qualquer ordem (são os dois cliques
+        no gráfico). Todas as colunas mudam — derivados ficam desatualizados.
+        """
+        if modo not in ('aparar', 'excluir'):
+            raise ValueError(f"modo deve ser 'aparar' ou 'excluir', não {modo!r}.")
+        minimo, maximo = sorted((limite_a, limite_b))
+        cortar = excluir_dados if modo == 'excluir' else aparar_dados
+        self.df_editado = cortar(self.df_editado, eixo_x, minimo, maximo)
+        self._dados_alterados(self.df_editado.columns)
+        self.invalidar_grafico()
+
+    def _dados_alterados(self, colunas) -> None:
+        for coluna in colunas:
+            self.versoes_colunas[coluna] = self.versoes_colunas.get(coluna, 0) + 1
+
+    # --- Nova Amostragem: séries e árvore de derivados ---------------
+
+    def serie_do_canal(self, canal_y: str, eixo_x: str) -> Serie:
+        """Os dados ATUAIS (df_editado) de um canal contra um eixo X, como Serie."""
+        return Serie.de_colunas(self.df_editado, eixo_x, canal_y)
+
+    def serie_de_origem(self, canal_y: str, eixo_x: str, id_no: str | None = None) -> Serie:
+        """
+        Entrada de uma operação: o resultado do nó 'id_no', ou (id_no=None)
+        o canal 'canal_y' contra 'eixo_x'.
+        """
+        if id_no is not None:
+            return self.arvore.no(id_no).serie
+        return self.serie_do_canal(canal_y, eixo_x)
+
+    def rotulo_origem(self, canal_y: str, id_no: str | None = None) -> str:
+        return self.arvore.no(id_no).nome if id_no is not None else self.rotulo(canal_y)
+
+    def registrar_derivado(self, operacao: str, parametros: dict, resultado: ResultadoAmostragem,
+                           canal_y: str, eixo_x: str, pai: str | None = None,
+                           nome: str | None = None) -> NoDerivado:
+        """
+        Botão OK: guarda o resultado na árvore. Com 'pai', o nó é filho de
+        outro nó (e herda dele o canal raiz e o eixo X); sem, sai direto do
+        canal 'canal_y' contra 'eixo_x'.
+        """
+        if pai is not None:
+            no_pai = self.arvore.no(pai)
+            canal_y, eixo_x = no_pai.canal_raiz, no_pai.eixo_x
+        no = NoDerivado(
+            id=self.arvore.novo_id(),
+            nome=nome or nome_padrao(operacao, self.rotulo_origem(canal_y, pai)),
+            canal_raiz=canal_y,
+            eixo_x=eixo_x,
+            pai=pai,
+            operacao=operacao,
+            parametros=dict(parametros),
+            serie=resultado.serie,
+            info=dict(resultado.info),
+            versoes_origem={c: self.versoes_colunas.get(c, 0) for c in (eixo_x, canal_y)},
+        )
+        return self.arvore.adicionar(no)
+
+    def derivado_desatualizado(self, id_no: str) -> bool:
+        """
+        True se os dados de origem mudaram depois do OK deste nó ou de
+        qualquer nó acima dele (um filho de um nó velho também é velho).
+        """
+        return any(
+            self.versoes_colunas.get(coluna, 0) != versao
+            for no in self.arvore.ancestrais(id_no)
+            for coluna, versao in no.versoes_origem.items()
+        )
+
+    def excluir_derivado(self, id_no: str) -> list[str]:
+        """Remove o nó e todos os que saíram dele. Devolve os ids removidos."""
+        return self.arvore.excluir(id_no)
 
     def criar_canal_calculado(self, nome_saida: str, operacao_fn, *args, **kwargs) -> None:
         """

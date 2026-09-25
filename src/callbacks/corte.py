@@ -2,8 +2,9 @@
 Callbacks do modo de seleção de corte ('Aparar dados' / 'Excluir dados'):
 iniciar -> registrar os 2 cliques no gráfico -> confirmar OU cancelar.
 
-A operação sobre os dados (aparar_dados/excluir_dados) mora no core
-(src/core/operations/sampling.py); aqui só a orquestração.
+A operação sobre os dados mora no core (Arquivo.cortar_dados, que usa
+aparar_dados/excluir_dados de src/core/operations/sampling.py e marca os
+derivados da Nova Amostragem como desatualizados); aqui só a orquestração.
 
 Observação: 'desligar_calculadora_ao_iniciar_corte' escuta os mesmos
 botões, mas escreve só no estado da Nova Análise — por isso mora com ela,
@@ -14,7 +15,6 @@ from dash import Input, Output, State, ctx, no_update
 from dash.exceptions import PreventUpdate
 
 from src.callbacks._comum import classe_painel_direito
-from src.core.operations.sampling import aparar_dados, excluir_dados
 from src.core.plotting.plotter import (
     aplicar_guias_corte, construir_figura_serie_temporal, resolver_eixo_x,
 )
@@ -310,12 +310,11 @@ def registrar_callbacks_corte(app, estado):
         arquivo = estado.arquivos[aba_ativa]
         eixo_x = resolver_eixo_x(estado, arquivo)
         if tipo == 'excluir':
-            arquivo.df_editado = excluir_dados(arquivo.df_editado, eixo_x, primeiro, segundo)
+            arquivo.cortar_dados(eixo_x, primeiro, segundo, modo='excluir')
             feedback = Feedback.sucesso('Trecho excluído! O que estava entre os dois cortes sumiu, o resto ficou.')
         else:
-            arquivo.df_editado = aparar_dados(arquivo.df_editado, eixo_x, primeiro, segundo)
+            arquivo.cortar_dados(eixo_x, primeiro, segundo, modo='aparar')
             feedback = Feedback.sucesso('Dados aparados! Só ficou o que estava entre os dois cortes.')
-        arquivo.invalidar_grafico()
 
         fig = construir_figura_serie_temporal(estado, aba_ativa)
         arquivo.figura = fig

@@ -86,12 +86,14 @@ Wizzard_Analytics/
     │   └── edicao.py              # Painel de edição (curva, eixos, ticks, outros)
     │
     ├── core/                      # 3. LÓGICA: dados e cálculos, sem nada de Dash
-    │   ├── arquivo.py             # Arquivo, Canal e preferências; regras de leitura (recusa, índice implícito)
+    │   ├── arquivo.py             # Arquivo, Canal e preferências; regras de leitura (recusa, índice implícito); corte; árvore de derivados
+    │   ├── derivados.py           # Nova Amostragem: Serie (x/y com tamanho próprio) e árvore de proveniência
     │   ├── extractor.py           # Leitura e limpeza de TXT/CSV
     │   ├── rotulos.py             # Rótulo exibido -> nome interno de coluna
     │   ├── operations/
     │   │   ├── calculadora.py     # Avaliação de expressões da Nova Análise
-    │   │   ├── sampling.py        # Aparar, excluir e amostrar dados
+    │   │   ├── sampling.py        # Aparar e excluir dados
+    │   │   ├── amostragem.py      # Nova Amostragem: downsampling, média móvel, ajuste polinomial
     │   │   ├── math.py            # Operações entre colunas, derivada, integral, ajustes
     │   │   ├── stats.py           # Estatísticas, histograma, correlação, outliers
     │   │   └── filters.py         # Filtros (ainda vazio)
@@ -100,6 +102,14 @@ Wizzard_Analytics/
     │
     └── utils/
         └── helpers.py             # Upload do Dash -> arquivo temporário -> extractor
+
+tests/                             # Testes do core (unittest, sem Dash)
+```
+
+### Testes
+
+```bash
+python -m unittest discover -s tests -v
 ```
 
 ## 🧩 Convenções
@@ -150,5 +160,7 @@ Botões que nascem dentro de listas reconstruídas por callbacks (canais, abas, 
 1. ✅ Rodapé e `Feedback`: um único responsável pela mensagem do mago.
 2. ✅ Separar o antigo `callbacks.py` (2492 linhas) em `src/callbacks/`, um módulo por área.
 3. ✅ Limpeza: código morto, filtro de cliques sem Store, renderização duplicada, regra de dados movida pro `core` (canal calculado, leitura de arquivo com índice implícito).
-4. ⏳ Nova Amostragem (downsample, média móvel, ajuste polinomial).
+4. ⏳ Nova Amostragem (branch `NovaAmostragem`): downsampling, média móvel e polynomial fit com Preview, árvore de derivados (OK) e canal com X próprio (Add).
+   * ✅ 4.1 Core: `Serie`, árvore de proveniência no `Arquivo`, operações e testes.
+   * ⏳ 4.2 Modo e painel · 4.3 Downsampling + Preview · 4.4 OK/árvore · 4.5 Média móvel · 4.6 Polynomial fit · 4.7 Add.
 5. ⏳ Revisar arquitetura: `allow_duplicate`, `EstadoApp`, renderização excessiva, cache do gráfico.
