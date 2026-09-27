@@ -23,8 +23,11 @@ from enum import Enum
 
 import pandas as pd
 
-from src.core.derivados import ArvoreDerivados, NoDerivado, Serie
-from src.core.operations.amostragem import ResultadoAmostragem, nome_padrao
+from src.core.derivados import (
+    PARAMETROS_NA_UNIDADE_DE_X, ArvoreDerivados, NoDerivado, PendenciaRecalculo,
+    RelatorioRecalculo, Serie,
+)
+from src.core.operations.amostragem import ResultadoAmostragem, executar_operacao, nome_padrao
 from src.core.operations.sampling import aparar_dados, excluir_dados
 from src.core.rotulos import sanitizar_rotulo_para_nome_coluna
 
@@ -281,8 +284,12 @@ class Arquivo:
     # src/core/derivados.py. 'versoes_colunas': quantas vezes os DADOS de
     # cada coluna mudaram (corte, sobrescrita pela calculadora); é assim
     # que um nó sabe que ficou desatualizado. Coluna ausente = versão 0.
+    # 'reescritas_colunas': só as sobrescritas pela calculadora (o valor
+    # muda de significado, ex: s -> min), separadas dos cortes (o valor
+    # continua o mesmo, só some um trecho).
     arvore: ArvoreDerivados = field(default_factory=ArvoreDerivados)
     versoes_colunas: dict = field(default_factory=dict)
+    reescritas_colunas: dict = field(default_factory=dict)
 
     def __post_init__(self):
         # Registra um Canal pra cada coluna que já veio no df, se ainda
@@ -597,6 +604,7 @@ class Arquivo:
         canal.origem = "calculado"
         canal.formula = formula
         self._dados_alterados([nome_interno])
+        self.reescritas_colunas[nome_interno] = self.reescritas_colunas.get(nome_interno, 0) + 1
         self.invalidar_grafico()
 
     # --- Corte de dados (Aparar / Excluir) ---------------------------
@@ -658,20 +666,105 @@ class Arquivo:
             parametros=dict(parametros),
             serie=resultado.serie,
             info=dict(resultado.info),
-            versoes_origem={c: self.versoes_colunas.get(c, 0) for c in (eixo_x, canal_y)},
         )
+        self._carimbar(no)
         return self.arvore.adicionar(no)
+
+    def _carimbar(self, no: NoDerivado) -> None:
+        """Marca o nó como calculado sobre os dados ATUAIS da origem."""
+        no.versoes_origem = {c: self.versoes_colunas.get(c, 0) for c in (no.eixo_x, no.canal_raiz)}
+        no.reescritas_x = self.reescritas_colunas.get(no.eixo_x, 0)
+
+    def _origem_mudou(self, no: NoDerivado) -> bool:
+        return any(self.versoes_colunas.get(c, 0) != v for c, v in no.versoes_origem.items())
+
+    def _x_reescrito(self, no: NoDerivado) -> bool:
+        return self.reescritas_colunas.get(no.eixo_x, 0) != no.reescritas_x
 
     def derivado_desatualizado(self, id_no: str) -> bool:
         """
         True se os dados de origem mudaram depois do OK deste nó ou de
         qualquer nó acima dele (um filho de um nó velho também é velho).
         """
-        return any(
-            self.versoes_colunas.get(coluna, 0) != versao
-            for no in self.arvore.ancestrais(id_no)
-            for coluna, versao in no.versoes_origem.items()
-        )
+        return any(self._origem_mudou(no) for no in self.arvore.ancestrais(id_no))
+
+    def derivado_compativel_com_x(self, id_no: str, eixo_x: str) -> bool:
+        """
+        Um derivado só pode ser exibido num gráfico cujo X é o MESMO canal
+        de onde ele veio (senão os pontos não casam). Com X diferente, a
+        interface mostra o nó acinzentado ('calculado com X = ...').
+        """
+        return self.arvore.no(id_no).eixo_x == eixo_x
+
+    def manter_derivado(self, id_no: str) -> list[str]:
+        """
+        'Manter': o usuário aceita o resultado como está, mesmo com a
+        origem alterada — o alerta some. Vale pra cadeia inteira que passa
+        pelo nó (acima: a origem dele; abaixo: o que saiu dele). Nada é
+        recalculado. Devolve os ids afetados.
+        """
+        grupo = self.arvore.ancestrais(id_no) + self.arvore.descendentes(id_no)
+        for no in grupo:
+            self._carimbar(no)
+        return [no.id for no in grupo]
+
+    def recalcular_derivado(self, id_no: str, parametros: dict | None = None) -> RelatorioRecalculo:
+        """
+        'Recalcular': refaz a cadeia sobre os dados ATUAIS, na mesma
+        sequência e com os mesmos parâmetros.
+
+        Começa no nó desatualizado MAIS ALTO acima de 'id_no' (ou no próprio
+        nó) e desce por todos os filhos. Em cada nó:
+          - se a operação usa Δx e o X foi REESCRITO desde o OK, para ali
+            com uma pendência 'revisar' (o mesmo número pode ter mudado de
+            significado);
+          - se a operação falha com os parâmetros antigos, para ali com uma
+            pendência 'erro' e o resultado antigo fica.
+        Os nós abaixo de uma pendência ficam 'aguardando', intocados; os
+        outros ramos seguem. Pra continuar, o usuário ajusta e chama de novo
+        com 'parametros' (novos parâmetros do nó 'id_no').
+        """
+        alvo = self.arvore.no(id_no)
+        inicio = alvo
+        for no in self.arvore.ancestrais(id_no):   # [nó, pai, avô...]: fica com o mais alto
+            if self._origem_mudou(no):
+                inicio = no
+        novos = {id_no: dict(parametros)} if parametros is not None else {}
+        relatorio = RelatorioRecalculo()
+
+        def parar(no, motivo, mensagem):
+            relatorio.pendencias.append(PendenciaRecalculo(no.id, motivo, mensagem))
+            relatorio.aguardando.extend(d.id for d in self.arvore.descendentes(no.id))
+
+        def processar(no, entrada):
+            parametros_no = novos.get(no.id, no.parametros)
+            if no.id not in novos and self._x_reescrito(no):
+                em_x = [p for p in PARAMETROS_NA_UNIDADE_DE_X if p in parametros_no]
+                if em_x:
+                    valores = ', '.join(f'{p} = {parametros_no[p]}' for p in em_x)
+                    parar(no, 'revisar',
+                          f"O eixo X '{self.rotulo(no.eixo_x)}' foi reescrito. Confira {valores} "
+                          f"(está na unidade de X) antes de recalcular '{no.nome}'.")
+                    return
+            try:
+                if entrada is None:
+                    entrada = self.serie_do_canal(no.canal_raiz, no.eixo_x)
+                resultado = executar_operacao(no.operacao, entrada, parametros_no)
+            except (ValueError, KeyError) as erro:
+                texto = erro.args[0] if erro.args else str(erro)
+                parar(no, 'erro', f"Não deu pra recalcular '{no.nome}': {texto}")
+                return
+            no.serie = resultado.serie
+            no.info = dict(resultado.info)
+            no.parametros = dict(parametros_no)
+            self._carimbar(no)
+            relatorio.recalculados.append(no.id)
+            for filho in self.arvore.filhos(no.id):
+                processar(filho, no.serie)
+
+        entrada_inicial = self.arvore.no(inicio.pai).serie if inicio.pai else None
+        processar(inicio, entrada_inicial)
+        return relatorio
 
     def excluir_derivado(self, id_no: str) -> list[str]:
         """Remove o nó e todos os que saíram dele. Devolve os ids removidos."""

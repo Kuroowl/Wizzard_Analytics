@@ -18,7 +18,11 @@ A árvore
     canal raiz) no momento do OK. Se depois o usuário apara/exclui dados ou
     sobrescreve o canal pela calculadora, a versão muda e o nó (e toda a
     cadeia abaixo dele) aparece como desatualizado. O resultado guardado
-    não é recalculado sozinho.
+    não é recalculado sozinho; o usuário escolhe (ver Arquivo):
+      - Recalcular: refaz a cadeia na mesma sequência, com os mesmos
+        parâmetros. Para no primeiro nó que não dá pra refazer (erro, ou
+        Δx a revisar porque o próprio X foi reescrito) — RelatorioRecalculo.
+      - Manter: aceita os resultados como estão; o alerta some.
 """
 
 from dataclasses import dataclass, field
@@ -96,6 +100,9 @@ class NoDerivado:
     serie           o resultado
     info            extras do resultado: coeficientes, R², janelas vazias...
     versoes_origem  versão de cada coluna de origem no momento do OK
+    reescritas_x    quantas vezes a coluna X tinha sido REESCRITA (calculadora)
+                    no momento do OK — se mudar, parâmetros na unidade de X
+                    (Δx) precisam de revisão antes de recalcular
     canal           nome interno do canal criado pelo 'Add' (None = não virou canal)
     """
     id: str
@@ -108,7 +115,37 @@ class NoDerivado:
     serie: Serie
     info: dict = field(default_factory=dict)
     versoes_origem: dict = field(default_factory=dict)
+    reescritas_x: int = 0
     canal: str | None = None
+
+
+# Parâmetros medidos na unidade do eixo X: se o X for reescrito (ex: s -> min),
+# o mesmo número passa a significar outra coisa.
+PARAMETROS_NA_UNIDADE_DE_X = ('delta_x',)
+
+
+@dataclass
+class PendenciaRecalculo:
+    """
+    Nó em que o Recalcular parou.
+    motivo: 'revisar' (Δx na unidade de um X que foi reescrito: o usuário
+            confere antes) | 'erro' (a operação falhou com os parâmetros
+            antigos, ex: pontos insuficientes depois de um corte).
+    """
+    id: str
+    motivo: str
+    mensagem: str
+
+
+@dataclass
+class RelatorioRecalculo:
+    recalculados: list = field(default_factory=list)   # ids refeitos com sucesso
+    pendencias: list = field(default_factory=list)     # [PendenciaRecalculo]
+    aguardando: list = field(default_factory=list)     # ids abaixo de uma pendência (não tocados)
+
+    @property
+    def concluido(self) -> bool:
+        return not self.pendencias
 
 
 class ArvoreDerivados:

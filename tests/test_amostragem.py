@@ -265,5 +265,118 @@ class TestArquivoDerivados(unittest.TestCase):
         self.assertEqual(len(b.arvore), 0)
 
 
+
+class TestRecalcularManter(unittest.TestCase):
+    """Decisões da Fase 4: alerta ⚠ -> Recalcular (mesma sequência) ou Manter."""
+
+    def cadeia(self):
+        arq = arquivo_teste()                    # t = 0..10, 101 pontos
+        p_mm = {'n_pontos': 21, 'delta_x': 0.5}
+        mm = arq.registrar_derivado('media_movel', p_mm,
+                                    am.executar_operacao('media_movel', arq.serie_do_canal('p', 't'), p_mm), 'p', 't')
+        p_fit = {'grau': 3, 'n_pontos': 30}
+        fit = arq.registrar_derivado('ajuste_polinomial', p_fit,
+                                     am.executar_operacao('ajuste_polinomial', mm.serie, p_fit), 'p', 't', pai=mm.id)
+        ds = arq.registrar_derivado('downsampling', {'n_pontos': 10},
+                                    am.downsampling(mm.serie, 10), 'p', 't', pai=mm.id)
+        return arq, mm, fit, ds
+
+    def test_recalcular_refaz_a_cadeia_com_os_mesmos_parametros(self):
+        arq, mm, fit, ds = self.cadeia()
+        arq.cortar_dados('t', 2, 8)
+        self.assertTrue(all(arq.derivado_desatualizado(n.id) for n in (mm, fit, ds)))
+        # Pedir no neto recalcula desde o topo desatualizado, e os irmãos também.
+        rel = arq.recalcular_derivado(fit.id)
+        self.assertTrue(rel.concluido)
+        self.assertEqual(rel.recalculados, [mm.id, fit.id, ds.id])
+        self.assertFalse(any(arq.derivado_desatualizado(n.id) for n in (mm, fit, ds)))
+        self.assertAlmostEqual(mm.serie.x[0], 2)          # sobre os dados cortados
+        self.assertAlmostEqual(fit.serie.x[-1], 8)
+        self.assertEqual(mm.parametros, {'n_pontos': 21, 'delta_x': 0.5})
+        # O resultado é o mesmo de fazer tudo de novo à mão.
+        esperado = am.executar_operacao('media_movel', arq.serie_do_canal('p', 't'), mm.parametros)
+        np.testing.assert_allclose(mm.serie.y, esperado.serie.y)
+
+    def test_recalcular_para_no_no_que_falha_e_os_outros_ramos_seguem(self):
+        arq = arquivo_teste()
+        ds = arq.registrar_derivado('downsampling', {'n_pontos': 10},
+                                    am.downsampling(arq.serie_do_canal('p', 't'), 10), 'p', 't')
+        p_fit = {'grau': 3, 'n_pontos': 20}
+        fit = arq.registrar_derivado('ajuste_polinomial', p_fit,
+                                     am.executar_operacao('ajuste_polinomial', ds.serie, p_fit), 'p', 't', pai=ds.id)
+        neto = arq.registrar_derivado('downsampling', {'n_pontos': 5},
+                                      am.downsampling(fit.serie, 5), 'p', 't', pai=fit.id)
+        irmao = arq.registrar_derivado('downsampling', {'n_pontos': 2},
+                                       am.downsampling(ds.serie, 2), 'p', 't', pai=ds.id)
+        antigo = fit.serie
+        arq.cortar_dados('t', 2, 2.2)      # sobram 3 pontos: o fit de grau 3 precisa de 4
+        rel = arq.recalcular_derivado(fit.id)
+        self.assertFalse(rel.concluido)
+        self.assertEqual([(x.id, x.motivo) for x in rel.pendencias], [(fit.id, 'erro')])
+        self.assertIn('grau 3', rel.pendencias[0].mensagem)
+        self.assertEqual(rel.recalculados, [ds.id, irmao.id])   # o outro ramo seguiu
+        self.assertEqual(rel.aguardando, [neto.id])
+        self.assertIs(fit.serie, antigo)                         # resultado antigo fica, com ⚠
+        self.assertTrue(arq.derivado_desatualizado(fit.id))
+        self.assertTrue(arq.derivado_desatualizado(neto.id))
+        # O usuário ajusta o grau no painel e a cadeia continua dali.
+        rel2 = arq.recalcular_derivado(fit.id, parametros={'grau': 2, 'n_pontos': 20})
+        self.assertTrue(rel2.concluido)
+        self.assertEqual(rel2.recalculados, [fit.id, neto.id])
+        self.assertEqual(fit.parametros['grau'], 2)
+        self.assertFalse(arq.derivado_desatualizado(neto.id))
+
+    def test_filhos_de_pendencia_ficam_aguardando(self):
+        arq, mm, fit, ds = self.cadeia()
+        arq.sobrescrever_canal_com_calculo('t', arq.df_editado['t'] / 60, 't/60')   # s -> min
+        rel = arq.recalcular_derivado(ds.id)
+        # A média móvel usa Δx: com X reescrito, pede revisão antes de tudo.
+        self.assertEqual([(x.id, x.motivo) for x in rel.pendencias], [(mm.id, 'revisar')])
+        self.assertIn('delta_x = 0.5', rel.pendencias[0].mensagem)
+        self.assertEqual(rel.recalculados, [])
+        self.assertEqual(rel.aguardando, [fit.id, ds.id])
+        # Revisado (0.5 s -> 0.5/60 min), a cadeia inteira segue.
+        rel2 = arq.recalcular_derivado(mm.id, parametros={'n_pontos': 21, 'delta_x': 0.5 / 60})
+        self.assertTrue(rel2.concluido)
+        self.assertEqual(rel2.recalculados, [mm.id, fit.id, ds.id])
+        self.assertAlmostEqual(mm.serie.x[-1], 10 / 60)
+
+    def test_corte_nao_pede_revisao_de_delta_x(self):
+        arq, mm, fit, ds = self.cadeia()
+        arq.cortar_dados('t', 1, 9)
+        self.assertTrue(arq.recalcular_derivado(mm.id).concluido)
+
+    def test_reescrever_y_nao_pede_revisao_de_delta_x(self):
+        arq, mm, fit, ds = self.cadeia()
+        arq.sobrescrever_canal_com_calculo('p', arq.df_editado['p'] * 2, 'p*2')
+        self.assertTrue(arq.recalcular_derivado(mm.id).concluido)
+
+    def test_manter_tira_o_alerta_sem_recalcular(self):
+        arq, mm, fit, ds = self.cadeia()
+        antes = fit.serie
+        arq.cortar_dados('t', 2, 8)
+        afetados = arq.manter_derivado(fit.id)
+        self.assertEqual(set(afetados), {fit.id, mm.id})
+        self.assertIs(fit.serie, antes)
+        self.assertFalse(arq.derivado_desatualizado(fit.id))
+        self.assertFalse(arq.derivado_desatualizado(mm.id))
+        # O irmão não foi mantido: continua com o alerta... pela própria origem.
+        self.assertTrue(arq.derivado_desatualizado(ds.id))
+        # Manter também aceita um X reescrito: não pede mais revisão de Δx.
+        arq.sobrescrever_canal_com_calculo('t', arq.df_editado['t'] / 60, 't/60')
+        arq.manter_derivado(mm.id)
+        self.assertTrue(arq.recalcular_derivado(mm.id).concluido)
+
+    def test_recalcular_no_em_dia_so_refaz_ele_e_abaixo(self):
+        arq, mm, fit, ds = self.cadeia()
+        rel = arq.recalcular_derivado(ds.id)
+        self.assertEqual(rel.recalculados, [ds.id])
+
+    def test_compativel_com_x(self):
+        arq, mm, fit, ds = self.cadeia()
+        self.assertTrue(arq.derivado_compativel_com_x(fit.id, 't'))
+        self.assertFalse(arq.derivado_compativel_com_x(fit.id, 'q'))
+
+
 if __name__ == '__main__':
     unittest.main()

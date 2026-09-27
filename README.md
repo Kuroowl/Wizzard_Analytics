@@ -162,5 +162,6 @@ Botões que nascem dentro de listas reconstruídas por callbacks (canais, abas, 
 3. ✅ Limpeza: código morto, filtro de cliques sem Store, renderização duplicada, regra de dados movida pro `core` (canal calculado, leitura de arquivo com índice implícito).
 4. ⏳ Nova Amostragem (branch `NovaAmostragem`): downsampling, média móvel e polynomial fit com Preview, árvore de derivados (OK) e canal com X próprio (Add).
    * ✅ 4.1 Core: `Serie`, árvore de proveniência no `Arquivo`, operações e testes.
-   * ⏳ 4.2 Modo e painel · 4.3 Downsampling + Preview · 4.4 OK/árvore · 4.5 Média móvel · 4.6 Polynomial fit · 4.7 Add.
+   * ✅ 4.2 Core: origem alterada -> ⚠ com **Recalcular** (mesma sequência e parâmetros; para no nó que falha ou cujo Δx precisa de revisão) ou **Manter**; derivado só é exibido com o mesmo X de onde veio.
+   * ⏳ 4.3 Modo e painel · 4.4 Downsampling + Preview · 4.5 OK/árvore · 4.6 Média móvel · 4.7 Polynomial fit · 4.8 Add (par x', y') · 4.9 Calculadora com pares.
 5. ⏳ Revisar arquitetura: `allow_duplicate`, `EstadoApp`, renderização excessiva, cache do gráfico.
