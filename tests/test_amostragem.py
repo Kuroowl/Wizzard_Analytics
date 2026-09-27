@@ -378,5 +378,42 @@ class TestRecalcularManter(unittest.TestCase):
         self.assertFalse(arq.derivado_compativel_com_x(fit.id, 'q'))
 
 
+
+class TestPreview(unittest.TestCase):
+
+    def test_preview_nao_entra_na_arvore(self):
+        arq = arquivo_teste()
+        pv = arq.gerar_preview_amostragem('downsampling', {'n_pontos': 10}, 'p', 't')
+        self.assertIs(arq.preview_amostragem, pv)
+        self.assertEqual(len(pv.serie), 10)
+        self.assertEqual(len(arq.arvore), 0)
+        self.assertEqual((pv.canal_y, pv.eixo_x, pv.pai), ('p', 't', None))
+
+    def test_preview_novo_substitui_e_erro_mantem_o_anterior(self):
+        arq = arquivo_teste()
+        arq.gerar_preview_amostragem('downsampling', {'n_pontos': 10}, 'p', 't')
+        pv2 = arq.gerar_preview_amostragem('downsampling', {'n_pontos': 20}, 'p', 't')
+        self.assertIs(arq.preview_amostragem, pv2)
+        with self.assertRaises(ValueError):
+            arq.gerar_preview_amostragem('media_movel', {'n_pontos': 10, 'delta_x': -1}, 'p', 't')
+        self.assertIs(arq.preview_amostragem, pv2)
+
+    def test_preview_de_um_no(self):
+        arq = arquivo_teste()
+        mm = arq.registrar_derivado('media_movel', {}, am.media_movel(arq.serie_do_canal('p', 't'), 20, 0.3), 'p', 't')
+        pv = arq.gerar_preview_amostragem('ajuste_polinomial', {'grau': 2, 'n_pontos': 30}, 'q', 'outro', pai=mm.id)
+        self.assertEqual((pv.canal_y, pv.eixo_x, pv.pai), ('p', 't', mm.id))
+
+    def test_limpar_e_corte_tiram_o_preview(self):
+        arq = arquivo_teste()
+        self.assertFalse(arq.limpar_preview_amostragem())
+        arq.gerar_preview_amostragem('downsampling', {'n_pontos': 10}, 'p', 't')
+        self.assertTrue(arq.limpar_preview_amostragem())
+        self.assertIsNone(arq.preview_amostragem)
+        arq.gerar_preview_amostragem('downsampling', {'n_pontos': 10}, 'p', 't')
+        arq.cortar_dados('t', 2, 8)
+        self.assertIsNone(arq.preview_amostragem)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -157,6 +157,43 @@ def _formatar_parametro(valor):
     return valor
 
 
+def preview_desta_configuracao(arquivo, operacao, canal_y, eixo_x):
+    """O preview em exibição, se ele é desta operação/canal/X (senão None)."""
+    preview = arquivo.preview_amostragem
+    if preview and preview.pai is None and (preview.operacao, preview.canal_y, preview.eixo_x) == (operacao, canal_y, eixo_x):
+        return preview
+    return None
+
+
+def _numero(valor):
+    return f'{valor:.6g}'
+
+
+def renderizar_resultado_amostragem(preview):
+    """Resumo do resultado do preview: quantos pontos, estatísticas, coeficientes."""
+    if preview is None:
+        return []
+    info = preview.info
+    linhas = []
+    if preview.operacao == 'downsampling':
+        linhas.append(f"{info['n_obtido']} pontos selecionados de {info['n_origem']}.")
+        if info['n_obtido'] < min(info['n_pedido'], info['n_origem']):
+            linhas.append('Onde a aquisição é esparsa, alguns alvos caíram no mesmo ponto.')
+    elif preview.operacao == 'media_movel':
+        linhas.append(f"{info['n_obtido']} pontos · {info['pontos_por_janela_min']}–"
+                      f"{info['pontos_por_janela_max']} pontos por janela "
+                      f"(média {info['pontos_por_janela_media']:.1f}).")
+        if info['janelas_vazias']:
+            linhas.append(f"{info['janelas_vazias']} janela(s) sem pontos foram descartadas.")
+    elif preview.operacao == 'ajuste_polinomial':
+        linhas.append(info['equacao'])
+        linhas.append(f"R² = {info['r2']:.6f}")
+        grau = info['grau']
+        linhas.append(' · '.join(f'a{grau - i} = {_numero(c)}' for i, c in enumerate(info['coeficientes'])))
+    return [html.Div('Preview no gráfico', className='amostragem-resultado-titulo'),
+            *[html.Div(linha, className='amostragem-resultado-linha') for linha in linhas]]
+
+
 def renderizar_config_amostragem(arquivo, eixo_x, operacao, canal_y=None):
     """
     Configuração da operação escolhida: canal Y (entre os do gráfico), o X
@@ -170,9 +207,12 @@ def renderizar_config_amostragem(arquivo, eixo_x, operacao, canal_y=None):
     if canal_y not in canais_y:
         canal_y = canais_y[0] if canais_y else None
 
+    preview = preview_desta_configuracao(arquivo, operacao, canal_y, eixo_x)
     if canal_y is not None:
         serie = arquivo.serie_do_canal(canal_y, eixo_x)
-        parametros = parametros_iniciais(operacao, serie)
+        # Com um preview no gráfico, o painel mostra os parâmetros DELE (um
+        # redesenho do painel não pode "esquecer" o que o usuário digitou).
+        parametros = dict(preview.parametros) if preview else parametros_iniciais(operacao, serie)
         info = f'{len(serie)} pontos válidos na origem.'
     else:
         parametros = dict(OPERACOES[operacao].parametros_padrao)
@@ -193,9 +233,12 @@ def renderizar_config_amostragem(arquivo, eixo_x, operacao, canal_y=None):
         ]),
         *[_campo_parametro(operacao, nome, _formatar_parametro(valor)) for nome, valor in parametros.items()],
         html.Div(info, className='amostragem-info'),
+        html.Div(id='amostragem-resultado', className='amostragem-resultado',
+                 children=renderizar_resultado_amostragem(preview)),
         html.Div(className='amostragem-acoes', children=[
-            html.Button('Preview', id='amostragem-preview', n_clicks=0, disabled=True,
-                        title=DICA_BOTAO_PENDENTE, className='amostragem-acao-btn'),
+            html.Button('Preview', id='amostragem-preview', n_clicks=0, disabled=canal_y is None,
+                        title='Mostra o resultado no gráfico, sem registrar',
+                        className='amostragem-acao-btn'),
             html.Button('OK', id='amostragem-ok', n_clicks=0, disabled=True,
                         title=DICA_BOTAO_PENDENTE, className='amostragem-acao-btn principal'),
             html.Button('Add', id='amostragem-add', n_clicks=0, disabled=True,

@@ -1754,3 +1754,32 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* Resumo do preview (quantos pontos, janelas, equação/R²). */
+.amostragem-resultado:empty {
+  display: none;
+}
+
+.amostragem-resultado {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-left: 3px solid #1B2430;
+  background: rgba(27, 36, 48, 0.05);
+  border-radius: 0 5px 5px 0;
+}
+
+.amostragem-resultado-titulo {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cor-texto-mudo);
+}
+
+.amostragem-resultado-linha {
+  font-family: var(--fonte-dado);
+  font-size: 12px;
+  color: var(--cor-texto-escuro);
+  word-break: break-word;
+}

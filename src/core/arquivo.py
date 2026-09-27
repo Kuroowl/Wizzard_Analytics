@@ -25,7 +25,7 @@ import pandas as pd
 
 from src.core.derivados import (
     PARAMETROS_NA_UNIDADE_DE_X, ArvoreDerivados, NoDerivado, PendenciaRecalculo,
-    RelatorioRecalculo, Serie,
+    PreviewAmostragem, RelatorioRecalculo, Serie,
 )
 from src.core.operations.amostragem import ResultadoAmostragem, executar_operacao, nome_padrao
 from src.core.operations.sampling import aparar_dados, excluir_dados
@@ -290,6 +290,10 @@ class Arquivo:
     arvore: ArvoreDerivados = field(default_factory=ArvoreDerivados)
     versoes_colunas: dict = field(default_factory=dict)
     reescritas_colunas: dict = field(default_factory=dict)
+    # Preview da Nova Amostragem em exibição (None = nenhum). Estado de
+    # tela, não de dados: o plotter desenha por cima das curvas enquanto
+    # existir. Ver gerar_preview_amostragem / limpar_preview_amostragem.
+    preview_amostragem: PreviewAmostragem | None = None
 
     def __post_init__(self):
         # Registra um Canal pra cada coluna que já veio no df, se ainda
@@ -621,6 +625,7 @@ class Arquivo:
         cortar = excluir_dados if modo == 'excluir' else aparar_dados
         self.df_editado = cortar(self.df_editado, eixo_x, minimo, maximo)
         self._dados_alterados(self.df_editado.columns)
+        self.preview_amostragem = None     # calculado sobre os dados de antes do corte
         self.invalidar_grafico()
 
     def _dados_alterados(self, colunas) -> None:
@@ -641,6 +646,38 @@ class Arquivo:
         if id_no is not None:
             return self.arvore.no(id_no).serie
         return self.serie_do_canal(canal_y, eixo_x)
+
+    def gerar_preview_amostragem(self, operacao: str, parametros: dict, canal_y: str,
+                                 eixo_x: str, pai: str | None = None) -> PreviewAmostragem:
+        """
+        Botão Preview: roda a operação sobre os dados ATUAIS da origem (canal
+        contra o X, ou o nó 'pai') e guarda o resultado pra ser desenhado.
+        Não mexe na árvore. Erros de parâmetro/dados: ValueError (o preview
+        anterior continua).
+        """
+        if pai is not None:
+            no_pai = self.arvore.no(pai)
+            canal_y, eixo_x = no_pai.canal_raiz, no_pai.eixo_x
+        resultado = executar_operacao(operacao, self.serie_de_origem(canal_y, eixo_x, pai), parametros)
+        self.preview_amostragem = PreviewAmostragem(
+            operacao=operacao, parametros=dict(parametros), canal_y=canal_y, eixo_x=eixo_x,
+            serie=resultado.serie, info=dict(resultado.info), pai=pai,
+        )
+        self.invalidar_grafico()
+        return self.preview_amostragem
+
+    def limpar_preview_amostragem(self, invalidar_grafico: bool = True) -> bool:
+        """
+        Tira o preview do gráfico. True se havia um. Por padrão invalida a
+        figura (quem chama redesenha); 'invalidar_grafico=False' quando a
+        figura em cache já não mostra o preview (ex: o X mudou).
+        """
+        if self.preview_amostragem is None:
+            return False
+        self.preview_amostragem = None
+        if invalidar_grafico:
+            self.invalidar_grafico()
+        return True
 
     def rotulo_origem(self, canal_y: str, id_no: str | None = None) -> str:
         return self.arvore.no(id_no).nome if id_no is not None else self.rotulo(canal_y)

@@ -3,6 +3,8 @@ import math
 import numpy as np
 import plotly.graph_objects as go
 
+from src.core.operations.amostragem import nome_padrao
+
 # Paleta fixa (é a paleta padrão do próprio Plotly) — compartilhada com a
 # sidebar da interface, pra garantir que a bolinha ao lado do nome da coluna
 # bate exatamente com a cor da curva no gráfico.
@@ -564,6 +566,8 @@ def construir_figura_serie_temporal(estado, aba_ativa):
                 ),
             ))
 
+    _desenhar_preview_amostragem(fig, arquivo, eixo_x)
+
     fig.update_layout(
         template='plotly_white',
         margin=dict(l=50, r=20, t=20, b=40),
@@ -589,6 +593,56 @@ def construir_figura_serie_temporal(estado, aba_ativa):
         arquivo.adicionar_aviso(mensagem)
 
     return fig
+
+
+# Preview da Nova Amostragem: cor única (tinta escura), fora da paleta das
+# curvas, pra ficar claro que é um resultado provisório por cima dos dados.
+COR_PREVIEW = '#1B2430'
+COR_PREVIEW_FAIXA = 'rgba(27, 36, 48, 0.15)'
+
+
+def _desenhar_preview_amostragem(fig, arquivo, eixo_x):
+    """
+    Desenha o preview (se houver) POR CIMA das curvas, só se ele foi
+    calculado contra o mesmo X do gráfico (senão os pontos não casam):
+      - downsampling: só marcadores (são pontos da própria série);
+      - média móvel: linha das médias + faixa ±σ;
+      - polynomial fit: linha tracejada.
+    """
+    preview = arquivo.preview_amostragem
+    if preview is None or preview.eixo_x != eixo_x:
+        return
+    nome = 'Preview · ' + nome_padrao(preview.operacao, arquivo.rotulo_origem(preview.canal_y, preview.pai))
+    x, y = preview.serie.x, preview.serie.y
+
+    if preview.operacao == 'downsampling':
+        fig.add_trace(go.Scatter(
+            x=x, y=y, mode='markers', name=nome,
+            marker=dict(color=COR_PREVIEW, size=7, symbol='circle-open', line=dict(width=1.5)),
+        ))
+    elif preview.operacao == 'media_movel':
+        if preview.serie.sigma is not None:
+            sigma = preview.serie.sigma
+            fig.add_trace(go.Scatter(
+                x=x, y=y - sigma, mode='lines', line=dict(width=0), hoverinfo='skip',
+                showlegend=False, name=nome + ' −σ',
+            ))
+            fig.add_trace(go.Scatter(
+                x=x, y=y + sigma, mode='lines', line=dict(width=0), fill='tonexty',
+                fillcolor=COR_PREVIEW_FAIXA, hoverinfo='skip', name='±σ',
+            ))
+            # Com uma área preenchida o Plotly inverte a legenda sozinho;
+            # mantém a ordem das curvas.
+            fig.update_layout(legend_traceorder='normal')
+        fig.add_trace(go.Scatter(
+            x=x, y=y, mode='lines+markers', name=nome,
+            line=dict(color=COR_PREVIEW, width=2), marker=dict(color=COR_PREVIEW, size=4),
+        ))
+    else:
+        fig.add_trace(go.Scatter(
+            x=x, y=y, mode='lines', name=nome,
+            line=dict(color=COR_PREVIEW, width=2.5, dash='dash'),
+        ))
 
 
 # Cor das guias de corte (linha + hachura) — vermelho, deliberadamente

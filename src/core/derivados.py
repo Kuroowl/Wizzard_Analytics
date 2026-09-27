@@ -119,6 +119,23 @@ class NoDerivado:
     canal: str | None = None
 
 
+@dataclass(frozen=True)
+class PreviewAmostragem:
+    """
+    Resultado MOSTRADO no gráfico mas ainda não registrado (botão Preview).
+    Não entra na árvore; some ao trocar de operação ou desligar o modo.
+    'parametros' e a origem ficam juntos pro OK registrar exatamente o que
+    está sendo visto.
+    """
+    operacao: str
+    parametros: dict
+    canal_y: str
+    eixo_x: str
+    serie: Serie
+    info: dict
+    pai: str | None = None
+
+
 # Parâmetros medidos na unidade do eixo X: se o X for reescrito (ex: s -> min),
 # o mesmo número passa a significar outra coisa.
 PARAMETROS_NA_UNIDADE_DE_X = ('delta_x',)
