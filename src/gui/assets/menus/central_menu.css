@@ -478,3 +478,74 @@
   box-sizing: border-box;
   text-align: center;
 }
+
+
+/* ==========================================================================
+   Nova Amostragem — barra de operações em cima do gráfico
+   (#area-modo-nova-amostragem, ver layout.py e src/gui/amostragem.py).
+   Mesmo lugar e mesmo "cartão flutuante" da barra da Nova Análise; os
+   dois modos nunca aparecem juntos. O gráfico continua embaixo.
+   ========================================================================== */
+#area-modo-nova-amostragem.area-modo-nova-amostragem {
+  display: none; /* alternado via 'style' inline pelo callback */
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 20px 0 8px 0;
+  box-sizing: border-box;
+}
+
+.amostragem-barra-conteudo {
+  width: 95%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  background-color: #FFFFFF;
+  border: 1px solid var(--cor-borda);
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+}
+
+.amostragem-barra-titulo {
+  margin-bottom: 0;
+}
+
+.amostragem-barra-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.amostragem-op-btn {
+  font-family: var(--fonte-ui);
+  font-size: 13px;
+  color: var(--cor-texto-escuro);
+  background-color: #FFFFFF;
+  border: 1px solid var(--cor-borda);
+  border-radius: 16px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.amostragem-op-btn:hover:not(:disabled) {
+  background-color: rgba(47, 165, 160, 0.14);
+  border-color: var(--cor-accent);
+}
+
+.amostragem-op-btn.ativa,
+.amostragem-op-btn.ativa:hover {
+  background-color: var(--cor-accent);
+  border-color: var(--cor-accent);
+  color: #FFFFFF;
+}
+
+.amostragem-op-btn:disabled {
+  color: var(--cor-texto-mudo);
+  border-style: dashed;
+  cursor: not-allowed;
+  opacity: 0.7;
+}

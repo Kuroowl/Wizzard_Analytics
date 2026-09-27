@@ -40,10 +40,10 @@ def registrar_callbacks_arquivos(app, estado):
             # Arquivo já aberto: mensagem PERSISTENTE (cancela qualquer
             # troca agendada). Nenhuma contagem de arquivo mudou, então os
             # critérios de habilitação ficam como já estavam.
-            sem_arquivo, sem_2_arquivos, _ = estados_toolbar(estado, nome_arquivo)
+            sem_arquivo, sem_2_arquivos, sem_grafico = estados_toolbar(estado, nome_arquivo)
             feedback = Feedback.aviso(f"O arquivo '{nome_arquivo}' já foi aberto!")
             return (nome_arquivo, feedback,
-                    sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
+                    sem_arquivo, sem_2_arquivos, sem_grafico, sem_arquivo,
                     no_update,
                     *obter_estado_rodape(estado, nome_arquivo))
         try:
@@ -76,17 +76,18 @@ def registrar_callbacks_arquivos(app, estado):
             # 'aparar-dados'/'excluir-dados'/'exportar-grafico' continuam
             # desabilitados (não fazem parte deste callback — ver
             # gerar_grafico_serie_temporal). Só o que depende de "existe
-            # arquivo" muda aqui: nova-analise, nova-amostra e exportar-dados.
-            sem_arquivo, sem_2_arquivos, _ = estados_toolbar(estado, nome_arquivo)
+            # arquivo" muda aqui: nova-analise e exportar-dados. 'nova-amostra'
+            # depende do gráfico, que o arquivo novo ainda não tem.
+            sem_arquivo, sem_2_arquivos, sem_grafico = estados_toolbar(estado, nome_arquivo)
 
             return (nome_arquivo, feedback,
-                    sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
+                    sem_arquivo, sem_2_arquivos, sem_grafico, sem_arquivo,
                     area_grafico,
                     *obter_estado_rodape(estado, nome_arquivo))
         except Exception as e:
-            sem_arquivo, sem_2_arquivos, _ = estados_toolbar(estado, aba_atual)
+            sem_arquivo, sem_2_arquivos, sem_grafico = estados_toolbar(estado, aba_atual)
             feedback = Feedback.erro(f'Erro ao abrir arquivo: {e}')
             return (aba_atual, feedback,
-                    sem_arquivo, sem_2_arquivos, sem_arquivo, sem_arquivo,
+                    sem_arquivo, sem_2_arquivos, sem_grafico, sem_arquivo,
                     no_update,
                     *obter_estado_rodape(estado, aba_atual))

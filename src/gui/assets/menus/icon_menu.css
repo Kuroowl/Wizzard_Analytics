@@ -254,7 +254,8 @@
    app — ver '.painel-edicao-toggle.ativo', '.canal-editar-btn' em
    edição, etc.) em vez do vermelho de corte, pra não confundir com uma
    ação destrutiva em andamento. */
-.toolbar-upload#nova-analise.ativo div {
+.toolbar-upload#nova-analise.ativo div,
+.toolbar-upload#nova-amostra.ativo div {
   background: rgba(47, 165, 160, 0.22);
   border-color: var(--cor-accent);
   color: var(--cor-texto-claro);

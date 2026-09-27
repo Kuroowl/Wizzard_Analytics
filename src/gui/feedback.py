@@ -52,6 +52,9 @@ ORIGENS_FEEDBACK = (
     'corte-clique',
     'corte-confirmar',
     'corte-cancelar',
+    'amostragem-modo',
+    'amostragem-operacao',
+    'amostragem-desligar',
 )
 
 TIPO_STORE_FEEDBACK = 'feedback'

@@ -1,5 +1,6 @@
 from dash import dcc, html
 
+from src.gui.amostragem import renderizar_amostragem_barra
 from src.gui.components import icone_colorido
 from src.gui.renderizadores import (
     renderizar_area_grafico, renderizar_painel_direito_padrao,
@@ -75,6 +76,15 @@ def montar_layout(estado):
         # inteiro (um nome de coluna inteiro, uma função inteira como
         # 'sin(') em vez de um caractere por vez.
         dcc.Store(id='calc-expressao-store', data=[]),
+
+        # Nova Amostragem: modo ligado/desligado e a operação escolhida na
+        # barra ('downsampling' | 'media_movel' | 'ajuste_polinomial' | None).
+        # Ver src/callbacks/nova_amostragem.py.
+        dcc.Store(id='modo-nova-amostragem-store', data=False),
+        dcc.Store(id='amostragem-operacao-store', data=None),
+        # Canal Y escolhido no painel (nome interno); sobrevive aos
+        # redesenhos do painel. None = o primeiro Y do gráfico.
+        dcc.Store(id='amostragem-canal-y-store', data=None),
 
         # 'corte-selecao-store': None enquanto nenhuma seleção de corte
         # está em andamento; durante 'Aparar dados' (e, no futuro,
@@ -163,11 +173,13 @@ def montar_layout(estado):
                     children=html.Div([icone_colorido('NewAnalysis_icon.png'), html.Span('Nova análise', className='toolbar-tooltip')]),
                     className='toolbar-upload', disabled=sem_arquivo, n_clicks=0,
                 ),
-                dcc.Upload(
+                # Liga/desliga, como 'nova-analise'. Depende do GRÁFICO da
+                # aba ativa (as operações partem do X e dos Y desenhados),
+                # não só de existir arquivo — ver estados_toolbar.
+                html.Button(
                     id='nova-amostra',
                     children=html.Div([icone_colorido('SampleData_icon.png'), html.Span('Nova Amostragem', className='toolbar-tooltip')]),
-                    className='toolbar-upload', disabled=sem_arquivo,
-                    multiple=False,
+                    className='toolbar-upload', disabled=sem_grafico, n_clicks=0,
                 ),
                 dcc.Upload(
                     id='fundir-arquivos',
@@ -281,6 +293,13 @@ def montar_layout(estado):
                     id='area-modo-nova-analise', className='area-modo-nova-analise-completa',
                     style={'display': 'none'},
                 ),
+                # Barra de operações da Nova Amostragem: mesmo lugar e mesma
+                # ideia da barra da Nova Análise (os dois modos nunca ficam
+                # ligados juntos). Montada uma vez aqui, nunca reconstruída.
+                html.Div(
+                    id='area-modo-nova-amostragem', className='area-modo-nova-amostragem',
+                    style={'display': 'none'}, children=renderizar_amostragem_barra(),
+                ),
                 html.Div(id='area-grafico-normal', children=[
                     dcc.Loading(
                         id="loading-grafico",
@@ -345,6 +364,9 @@ def montar_layout(estado):
                 # já que as DUAS partes — barra + botões — são a MESMA
                 # calculadora, só espalhada em dois lugares da tela.
                 html.Div(id='area-modo-nova-analise-edicao', className='area-modo-nova-analise-edicao', style={'display': 'none'}),
+                # Camada da Nova Amostragem: árvore de dados em cima,
+                # configuração da operação embaixo (src/gui/amostragem.py).
+                html.Div(id='area-modo-nova-amostragem-edicao', className='area-modo-nova-amostragem-edicao', style={'display': 'none'}),
             ]),
         ]),
 

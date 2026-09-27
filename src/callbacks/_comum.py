@@ -84,13 +84,14 @@ def estados_toolbar(estado, aba_ativa):
 
     Retorna (sem_arquivo, sem_2_arquivos, sem_grafico_da_aba):
       - sem_arquivo: nenhum arquivo carregado -> usado por
-        'nova-analise', 'nova-amostra' e 'exportar-dados' (dependem só
-        de existir arquivo, não de gráfico).
+        'nova-analise' e 'exportar-dados' (dependem só de existir
+        arquivo, não de gráfico).
       - sem_2_arquivos: menos de 2 arquivos carregados -> usado só por
         'fundir-arquivos'.
       - sem_grafico_da_aba: a aba ATIVA especificamente não tem gráfico
         gerado (nunca "algum arquivo tem gráfico") -> usado por
-        'aparar-dados', 'excluir-dados' e 'exportar-grafico'.
+        'aparar-dados', 'excluir-dados', 'nova-amostra' (as operações
+        partem do X e dos Y desenhados) e 'exportar-grafico'.
     """
     sem_arquivo = len(estado.arquivos) == 0
     sem_2_arquivos = len(estado.arquivos) < 2

@@ -12,7 +12,8 @@ O **Wizard Analytics** é uma ferramenta em Python (Dash + Plotly) para extraç�
 * **Nova Análise:** calculadora de canais. Monte uma expressão com colunas, números, operadores e funções (`sin`, `√`, derivada, integral, média...) e crie uma coluna nova ou sobrescreva uma existente. A barra de cálculo aparece em cima do gráfico, que continua funcionando normalmente.
 * **Painel de edição:** cor, espessura, estilo e marcador de cada curva; títulos, fontes e limites dos eixos; ticks; grade e cor de fundo.
 * **Mensagens do mago 🧙‍♂️:** o rodapé mostra o resultado de cada ação e a próxima instrução.
-* **Em desenvolvimento:** Nova Amostragem, fundir arquivos, salvar gráfico e exportar dados.
+* **Nova Amostragem (em construção):** com um gráfico aberto, liga uma barra de operações em cima do gráfico (Downsampling, Média móvel, Polynomial Fit) e, no painel direito, a árvore de dados/análises dos canais do Y e a configuração da operação. Não fica ligada junto com a Nova Análise.
+* **Em desenvolvimento:** fundir arquivos, salvar gráfico e exportar dados.
 
 ## ▶️ Como executar
 
@@ -56,6 +57,7 @@ Wizzard_Analytics/
     │   ├── app.py                 # Monta o app Dash (layout + src/callbacks + scripts)
     │   ├── layout.py              # Árvore de componentes da página
     │   ├── renderizadores.py      # Funções puras que constroem o HTML (abas, canais, painel, calculadora...)
+    │   ├── amostragem.py          # Barra e painel (árvore + configuração) da Nova Amostragem
     │   ├── rodape.py              # Dono do rodapé: info do arquivo, avisos e a mensagem do mago
     │   ├── feedback.py            # Contrato Feedback: o que o mago deve dizer (sucesso/aviso/erro/instrução)
     │   ├── estado.py              # EstadoApp: arquivos abertos na sessão
@@ -82,7 +84,7 @@ Wizzard_Analytics/
     │   ├── canais.py              # Eixos X/Y, excluir e renomear canais
     │   ├── corte.py               # Aparar/Excluir dados (seleção, confirmar, cancelar, Esc)
     │   ├── nova_analise.py        # Modo Nova Análise e calculadora de canais
-    │   ├── nova_amostragem.py     # Nova Amostragem (em definição)
+    │   ├── nova_amostragem.py     # Nova Amostragem: liga/desliga, operação, canal Y, painel em dia com o gráfico
     │   └── edicao.py              # Painel de edição (curva, eixos, ticks, outros)
     │
     ├── core/                      # 3. LÓGICA: dados e cálculos, sem nada de Dash
@@ -163,5 +165,6 @@ Botões que nascem dentro de listas reconstruídas por callbacks (canais, abas, 
 4. ⏳ Nova Amostragem (branch `NovaAmostragem`): downsampling, média móvel e polynomial fit com Preview, árvore de derivados (OK) e canal com X próprio (Add).
    * ✅ 4.1 Core: `Serie`, árvore de proveniência no `Arquivo`, operações e testes.
    * ✅ 4.2 Core: origem alterada -> ⚠ com **Recalcular** (mesma sequência e parâmetros; para no nó que falha ou cujo Δx precisa de revisão) ou **Manter**; derivado só é exibido com o mesmo X de onde veio.
-   * ⏳ 4.3 Modo e painel · 4.4 Downsampling + Preview · 4.5 OK/árvore · 4.6 Média móvel · 4.7 Polynomial fit · 4.8 Add (par x', y') · 4.9 Calculadora com pares.
+   * ✅ 4.3 Modo liga/desliga (exclusivo com a Nova Análise; corte, fechar gráfico e trocar aba desligam), barra de operações e painel (árvore + configuração).
+   * ⏳ 4.4 Downsampling + Preview · 4.5 OK/árvore · 4.6 Média móvel · 4.7 Polynomial fit · 4.8 Add (par x', y') · 4.9 Calculadora com pares.
 5. ⏳ Revisar arquitetura: `allow_duplicate`, `EstadoApp`, renderização excessiva, cache do gráfico.

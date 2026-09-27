@@ -122,7 +122,7 @@ def registrar_callbacks_abas(app, estado):
 
         return (aba_ativa,
                 feedback, sem_arquivo, sem_2_arquivos, area_grafico,
-                sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
+                sem_grafico_da_aba, sem_grafico_da_aba, sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo,
                 sem_grafico_da_aba,
                 classe_painel_direito(ativo=False),
                 renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba),

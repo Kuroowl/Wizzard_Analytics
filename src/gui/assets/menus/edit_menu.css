@@ -1572,3 +1572,185 @@
   padding: 6px 2px;
 }
 
+
+
+/* ==========================================================================
+   Nova Amostragem — camada sobre '#painel-direito' (mesma mecânica da
+   camada da Nova Análise, logo acima): árvore de dados em cima,
+   configuração da operação embaixo. Ver src/gui/amostragem.py.
+   ========================================================================== */
+.area-modo-nova-amostragem-edicao {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: none;
+  flex-direction: column;
+  padding: 14px;
+  overflow-y: auto;
+  background-color: var(--cor-fundo-grafico);
+  background-image:
+    linear-gradient(rgba(253, 246, 227, 0.88), rgba(253, 246, 227, 0.88)),
+    url("../icones/graph.svg");
+  background-repeat: no-repeat, no-repeat;
+  background-position: center center, center center;
+  background-size: cover, 40% auto;
+}
+
+.amostragem-painel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+}
+
+.amostragem-secao {
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--cor-borda);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.amostragem-secao-arvore {
+  flex: 0 1 auto;
+  max-height: 45%;
+  overflow-y: auto;
+}
+
+.amostragem-secao-config {
+  flex: 1 0 auto;
+}
+
+.amostragem-titulo-x {
+  float: right;
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--fonte-dado);
+}
+
+.amostragem-vazio {
+  font-size: 12px;
+  color: var(--cor-texto-mudo);
+  font-style: italic;
+  padding: 4px 2px;
+}
+
+.amostragem-raiz-bloco + .amostragem-raiz-bloco {
+  margin-top: 6px;
+}
+
+.amostragem-raiz {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cor-texto-escuro);
+  padding: 3px 4px;
+}
+
+.amostragem-no {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--cor-texto-escuro);
+  padding: 3px 4px;
+  border-radius: 4px;
+}
+
+.amostragem-no:hover {
+  background-color: rgba(47, 165, 160, 0.10);
+}
+
+.amostragem-no-ramo {
+  color: var(--cor-texto-mudo);
+  font-family: var(--fonte-dado);
+}
+
+.amostragem-no.incompativel {
+  opacity: 0.45;
+}
+
+.amostragem-no-alerta {
+  color: #C98A00;
+}
+
+.amostragem-sem-analises {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--cor-texto-mudo);
+  padding: 0 0 2px 22px;
+}
+
+.amostragem-config {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.amostragem-param {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.amostragem-param-rotulo {
+  font-size: 11px;
+  color: var(--cor-texto-mudo);
+}
+
+.amostragem-param-input {
+  font-family: var(--fonte-dado);
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px solid var(--cor-borda);
+  border-radius: 5px;
+  background: #FFFFFF;
+}
+
+.amostragem-param-dropdown {
+  font-size: 13px;
+}
+
+.amostragem-param-fixo {
+  font-family: var(--fonte-dado);
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px dashed var(--cor-borda);
+  border-radius: 5px;
+  color: var(--cor-texto-mudo);
+}
+
+.amostragem-info {
+  font-size: 11px;
+  color: var(--cor-texto-mudo);
+}
+
+.amostragem-acoes {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.amostragem-acao-btn {
+  flex: 1;
+  font-family: var(--fonte-ui);
+  font-size: 13px;
+  padding: 7px 0;
+  border: 1px solid var(--cor-borda);
+  border-radius: 5px;
+  background: #FFFFFF;
+  color: var(--cor-texto-escuro);
+  cursor: pointer;
+}
+
+.amostragem-acao-btn.principal {
+  background: var(--cor-accent);
+  border-color: var(--cor-accent);
+  color: #FFFFFF;
+}
+
+.amostragem-acao-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

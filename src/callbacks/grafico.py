@@ -176,15 +176,15 @@ def registrar_callbacks_grafico(app, estado):
             estilo_prompt_corte = no_update
 
         # O arquivo continua carregado (só o gráfico foi fechado), então
-        # 'nova-amostra' e 'exportar-dados' NÃO devem voltar a ficar
-        # desabilitados aqui — só 'aparar-dados'/'excluir-dados'/
+        # 'exportar-dados' NÃO deve voltar a ficar desabilitado aqui — só
+        # 'aparar-dados'/'excluir-dados'/'nova-amostra'/
         # 'exportar-grafico'/'iniciar-edicao' (que dependem do gráfico da
         # aba ativa, agora invalidado) e o painel de edição (que volta ao
         # estado normal, já que não faz sentido continuar "em edição" de
         # um gráfico que não existe mais).
         sem_arquivo, _, sem_grafico_da_aba = estados_toolbar(estado, aba_ativa)
         return (area_grafico, lista_canais, selecao_eixos, feedback,
-                sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo, sem_grafico_da_aba, sem_arquivo,
+                sem_grafico_da_aba, sem_grafico_da_aba, sem_grafico_da_aba, sem_grafico_da_aba, sem_arquivo,
                 sem_grafico_da_aba, classe_painel_direito(ativo=False),
                 renderizar_painel_direito_padrao(disabled=sem_grafico_da_aba),
                 corte_store, classe_sidebar, classe_toolbar_icones, estilo_prompt_corte)
