@@ -459,6 +459,13 @@ class TestDuplicataNomeVisibilidade(unittest.TestCase):
             arq.registrar_preview_amostragem()
         self.assertIs(ctx.exception.existente, n1)
 
+    def test_nomes_automaticos_repetidos_sao_numerados(self):
+        arq = arquivo_teste()
+        s = arq.serie_do_canal('p', 't')
+        nomes = [arq.registrar_derivado('downsampling', {'n_pontos': n}, am.downsampling(s, n), 'p', 't').nome
+                 for n in (5, 10, 20)]
+        self.assertEqual(nomes, ['Downsampling p', 'Downsampling p (2)', 'Downsampling p (3)'])
+
     def test_renomear(self):
         arq = arquivo_teste()
         n1 = arq.registrar_derivado('downsampling', {'n_pontos': 5},

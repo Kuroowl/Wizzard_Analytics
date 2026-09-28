@@ -169,5 +169,6 @@ Botões que nascem dentro de listas reconstruídas por callbacks (canais, abas, 
    * ✅ 4.4 Preview das três operações (desenho por cima do gráfico, resumo no painel; some ao trocar de operação, desligar o modo, cortar dados ou trocar o X).
    * ✅ 4.5 OK/árvore: registrar, abrir um nó (restaura operação e parâmetros), usar como origem, excluir (com os filhos), ⚠ com Recalcular/Manter e o Recalcular que para pedindo ajuste.
    * ✅ 4.5.1 Revisão: origem só pelo clique na árvore (caixa "Origem dos dados"), olho/lápis/lixeira no hover, análise repetida bloqueada.
+   * ✅ 4.5.2 Detalhes da análise recolhíveis (fechados de início) e árvore sem altura fixa; nomes automáticos repetidos numerados.
    * ⏳ 4.6 Add (par x', y') · 4.7 Calculadora com pares.
 5. ⏳ Revisar arquitetura: `allow_duplicate`, `EstadoApp`, renderização excessiva, cache do gráfico.

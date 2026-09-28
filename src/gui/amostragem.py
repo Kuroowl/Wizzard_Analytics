@@ -18,6 +18,8 @@ O "contexto" (dict guardado em 'amostragem-contexto-store'):
     recalculando  id da análise em que o Recalcular parou esperando parâmetros
     motivo        por que ele parou (texto mostrado no cartão)
     renomeando    id da análise com o nome em edição (lápis)
+    detalhes      detalhes da análise (origem, parâmetros, resultado) abertos
+                  no cartão? Começa fechado: a árvore fica com mais altura.
 """
 from dash import dcc, html
 
@@ -53,7 +55,8 @@ CAMPOS_PARAMETROS = {
 DICA_BOTAO_PENDENTE = 'Disponível nas próximas etapas.'
 
 CONTEXTO_VAZIO = {'canal_y': None, 'pai': None, 'selecionado': None,
-                  'recalculando': None, 'motivo': None, 'renomeando': None}
+                  'recalculando': None, 'motivo': None, 'renomeando': None,
+                  'detalhes': False}
 
 
 def contexto_normalizado(contexto):
@@ -281,12 +284,27 @@ def renderizar_cartao_no(arquivo, no, eixo_x, contexto):
         avisos.append(html.Div(
             f"Calculado com X = '{arquivo.rotulo(no.eixo_x)}': só pode ser usado com esse X no gráfico.",
             className='amostragem-cartao-aviso neutro'))
-    return html.Div(className='amostragem-cartao', children=[
-        html.Div(no.nome, className='amostragem-cartao-nome'),
+    # Cabeçalho sempre à vista (nome, ⚠, avisos e Recalcular/Manter); os
+    # detalhes (origem, parâmetros, resultado) recolhem — começam fechados.
+    aberto = bool(contexto['detalhes'])
+    detalhes = [
         html.Div(f"{OPERACOES[no.operacao].rotulo} de {origem} · X = {arquivo.rotulo(no.eixo_x)}",
                  className='amostragem-cartao-linha'),
         html.Div(_texto_parametros(no), className='amostragem-cartao-linha'),
         *[html.Div(linha, className='amostragem-cartao-linha dado') for linha in linhas_resultado(no.operacao, no.info)],
+    ] if aberto else []
+    return html.Div(className='amostragem-cartao' + (' aberto' if aberto else ''), children=[
+        html.Button(
+            id=id_acao('detalhes', no.id), n_clicks=0,
+            title='Esconder os detalhes' if aberto else 'Mostrar origem, parâmetros e resultado',
+            className='amostragem-cartao-cabecalho',
+            children=[
+                html.Span('▾' if aberto else '▸', className='amostragem-cartao-seta'),
+                html.Span(no.nome, className='amostragem-cartao-nome'),
+                html.Span('⚠', className='amostragem-no-alerta') if desatualizado else None,
+            ],
+        ),
+        *detalhes,
         *avisos,
         html.Div(acoes, className='amostragem-acoes') if acoes else None,
     ])

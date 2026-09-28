@@ -1610,14 +1610,15 @@
   padding: 10px;
 }
 
+/* Sem altura fixa: a árvore ocupa o que precisar e o painel inteiro rola
+   (a camada '.area-modo-nova-amostragem-edicao' tem overflow-y: auto). Os
+   detalhes da análise recolhem pra sobrar espaço pra ela. */
 .amostragem-secao-arvore {
-  flex: 0 1 auto;
-  max-height: 45%;
-  overflow-y: auto;
+  flex: 0 0 auto;
 }
 
 .amostragem-secao-config {
-  flex: 1 0 auto;
+  flex: 0 0 auto;
 }
 
 .amostragem-titulo-x {
@@ -1894,10 +1895,38 @@
   background: #FFFFFF;
 }
 
+.amostragem-cartao-cabecalho {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--fonte-ui);
+}
+
+.amostragem-cartao-seta {
+  flex: 0 0 auto;
+  width: 10px;
+  font-size: 10px;
+  color: var(--cor-texto-mudo);
+}
+
 .amostragem-cartao-nome {
   font-size: 13px;
   font-weight: 600;
   color: var(--cor-texto-escuro);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.amostragem-cartao-cabecalho:hover .amostragem-cartao-nome {
+  color: var(--cor-accent);
 }
 
 .amostragem-cartao-linha {

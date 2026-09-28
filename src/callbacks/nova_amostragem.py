@@ -438,7 +438,7 @@ def registrar_callbacks_nova_amostragem(app, estado):
             return Feedback.sucesso(f"'{antigo}' agora se chama '{novo}'."), redesenhar(aba_ativa)
 
         if tipo == 'amostragem-raiz':
-            contexto = {**CONTEXTO_VAZIO, 'canal_y': gatilho['canal']}
+            contexto = {**CONTEXTO_VAZIO, 'canal_y': gatilho['canal'], 'detalhes': contexto['detalhes']}
             feedback = Feedback.instrucao(f"Origem: canal '{arquivo.rotulo(gatilho['canal'])}'.")
 
         elif tipo == 'amostragem-no':
@@ -446,7 +446,8 @@ def registrar_callbacks_nova_amostragem(app, estado):
             if id_no not in arquivo.arvore:
                 raise PreventUpdate
             no = arquivo.arvore.no(id_no)
-            contexto = {**CONTEXTO_VAZIO, 'canal_y': no.canal_raiz, 'pai': id_no, 'selecionado': id_no}
+            contexto = {**CONTEXTO_VAZIO, 'canal_y': no.canal_raiz, 'pai': id_no, 'selecionado': id_no,
+                        'detalhes': contexto['detalhes']}
             if arquivo.derivado_compativel_com_x(id_no, _eixo_x(estado, arquivo)):
                 feedback = Feedback.instrucao(f"Origem: '{no.nome}'.")
             else:
@@ -469,6 +470,9 @@ def registrar_callbacks_nova_amostragem(app, estado):
                 arquivo.manter_derivado(id_no)
                 contexto = {**contexto, 'recalculando': None}
                 feedback = Feedback.info('Resultado mantido como está. O alerta foi removido.')
+            elif acao == 'detalhes':
+                contexto = {**contexto, 'detalhes': not contexto['detalhes']}
+                feedback = no_update
             elif acao == 'olho':
                 visivel = arquivo.alternar_visibilidade_derivado(id_no)
                 figura = redesenhar(aba_ativa)

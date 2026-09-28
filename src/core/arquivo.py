@@ -716,7 +716,7 @@ class Arquivo:
             raise DerivadoDuplicado(existente)
         no = NoDerivado(
             id=self.arvore.novo_id(),
-            nome=nome or nome_padrao(operacao, self.rotulo_origem(canal_y, pai)),
+            nome=nome or self._nome_livre(nome_padrao(operacao, self.rotulo_origem(canal_y, pai))),
             canal_raiz=canal_y,
             eixo_x=eixo_x,
             pai=pai,
@@ -727,6 +727,15 @@ class Arquivo:
         )
         self._carimbar(no)
         return self.arvore.adicionar(no)
+
+    def _nome_livre(self, base: str) -> str:
+        """'Downsampling sinal' -> 'Downsampling sinal (2)', '(3)'... se já existir."""
+        usados = {no.nome for no in self.arvore}
+        nome, n = base, 1
+        while nome in usados:
+            n += 1
+            nome = f'{base} ({n})'
+        return nome
 
     def derivado_equivalente(self, operacao: str, parametros: dict, canal_y: str, eixo_x: str,
                              pai: str | None = None) -> NoDerivado | None:
