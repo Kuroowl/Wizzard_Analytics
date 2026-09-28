@@ -21,6 +21,8 @@ O cálculo mora no core (src/core/operations/amostragem.py, Arquivo); a
 aparência em src/gui/amostragem.py; o desenho do preview no plotter. Aqui
 só a orquestração.
 """
+import functools
+
 from dash import ALL, Input, Output, State, ctx, no_update
 from dash.exceptions import PreventUpdate
 
@@ -33,7 +35,9 @@ from src.gui.amostragem import (
     contexto_normalizado, origem_efetiva, renderizar_painel_amostragem,
     renderizar_resultado_amostragem,
 )
+from src.gui.analises import renderizar_analises_da_aba_ativa
 from src.gui.feedback import Feedback, saida_feedback
+from src.gui.renderizadores import renderizar_selecao_eixos
 
 ESCONDIDO = {'display': 'none'}
 VISIVEL = {'display': 'flex'}
@@ -43,6 +47,8 @@ PAINEL = Output('area-modo-nova-amostragem-edicao', 'children', allow_duplicate=
 CONTEXTO = Output('amostragem-contexto-store', 'data', allow_duplicate=True)
 OPERACAO = Output('amostragem-operacao-store', 'data', allow_duplicate=True)
 CLASSES_BARRA = Output({'type': 'amostragem-op', 'op': ALL}, 'className', allow_duplicate=True)
+LISTA_ANALISES = Output('lista-analises-aba', 'children', allow_duplicate=True)
+CAIXA_EIXOS = Output('selecao-eixos-container', 'children', allow_duplicate=True)
 
 
 def _classes_barra(operacao):
@@ -68,6 +74,19 @@ def _faltando(operacao, parametros):
 
 
 def registrar_callbacks_nova_amostragem(app, estado):
+
+    def com_lista_de_analises(funcao):
+        """
+        Acrescenta 'Análises do arquivo:' e a caixa Y: (menu da esquerda)
+        redesenhadas ao fim da resposta: recalcular, manter ou excluir uma
+        análise muda o ⚠ e o vínculo dos canais que vieram dela. O último
+        argumento do callback é a aba ativa.
+        """
+        @functools.wraps(funcao)
+        def envolvida(*args):
+            return (*funcao(*args), renderizar_analises_da_aba_ativa(estado, args[-1]),
+                    renderizar_selecao_eixos(estado, args[-1]))
+        return envolvida
 
     def arquivo_da(aba_ativa):
         return estado.arquivos.get(aba_ativa) if aba_ativa else None
@@ -310,6 +329,7 @@ def registrar_callbacks_nova_amostragem(app, estado):
         PAINEL, CONTEXTO, OPERACAO, CLASSES_BARRA,
         saida_feedback('amostragem-ok'),
         FIGURA_GRAFICO,
+        LISTA_ANALISES, CAIXA_EIXOS,
         Input('amostragem-ok', 'n_clicks'),
         State({'type': 'amostragem-param', 'nome': ALL}, 'value'),
         State('amostragem-operacao-store', 'data'),
@@ -317,6 +337,7 @@ def registrar_callbacks_nova_amostragem(app, estado):
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
+    @com_lista_de_analises
     def registrar_ok_amostragem(_n, _valores, operacao, contexto, aba_ativa):
         if processar_cliques_padrao(ctx.inputs_list) is None:
             raise PreventUpdate
@@ -354,10 +375,70 @@ def registrar_callbacks_nova_amostragem(app, estado):
         figura = redesenhar(aba_ativa)
         # A origem (e o cartão, que mostra a origem) continuam os mesmos: dá
         # pra aplicar outra operação sobre ela em seguida.
-        contexto = {**contexto, 'canal_y': canal_y, 'recalculando': None}
+        contexto = {**contexto, 'canal_y': canal_y, 'recalculando': None,
+                    'ultimos': {**(contexto['ultimos'] or {}), operacao: parametros}}
         feedback = Feedback.sucesso(f"'{no.nome}' registrado na árvore.")
         return (painel(aba_ativa, operacao, contexto), contexto, no_update, BARRA_SEM_MUDANCA,
                 feedback, figura)
+
+    # ------------------------------------------------------------------
+    # Add: a análise configurada vira canal em 'Análises do arquivo:'. Se
+    # ela ainda não está na árvore, é registrada (como no OK); se já está
+    # (mesma origem, operação e parâmetros), usa a que existe. Não vai pro
+    # gráfico sozinha: o usuário clica nela na lista pra pôr no Y.
+    # ------------------------------------------------------------------
+    @app.callback(
+        PAINEL, CONTEXTO,
+        saida_feedback('amostragem-add'),
+        FIGURA_GRAFICO,
+        LISTA_ANALISES, CAIXA_EIXOS,
+        Input('amostragem-add', 'n_clicks'),
+        State({'type': 'amostragem-param', 'nome': ALL}, 'value'),
+        State('amostragem-operacao-store', 'data'),
+        State('amostragem-contexto-store', 'data'),
+        State('aba-ativa-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def adicionar_analise_como_canal(_n, _valores, operacao, contexto, aba_ativa):
+        if processar_cliques_padrao(ctx.inputs_list) is None:
+            raise PreventUpdate
+        arquivo = arquivo_da(aba_ativa)
+        if arquivo is None or operacao not in OPERACOES:
+            raise PreventUpdate
+        contexto = contexto_normalizado(contexto)
+        nada = (no_update,) * 6
+        parametros = _parametros_do_painel(ctx.states_list[0])
+        faltando = _faltando(operacao, parametros)
+        if faltando:
+            return nada[:2] + (Feedback.aviso(f"Preencha: {', '.join(faltando)}."),) + nada[:3]
+        canal_y, eixo_origem, pai = origem_efetiva(arquivo, _eixo_x(estado, arquivo), contexto)
+        if canal_y is None:
+            return nada[:2] + (Feedback.aviso('Escolha a origem dos dados clicando na árvore.'),) + nada[:3]
+
+        figura = no_update
+        no = arquivo.derivado_equivalente(operacao, parametros, canal_y, eixo_origem, pai)
+        ja_existia = no is not None
+        if not ja_existia:
+            try:
+                arquivo.gerar_preview_amostragem(operacao, parametros, canal_y, eixo_origem, pai)
+                no = arquivo.registrar_preview_amostragem()
+            except ValueError as erro:
+                return nada[:2] + (Feedback.erro(f'Não adicionada: {erro}'),) + nada[:3]
+            figura = redesenhar(aba_ativa)       # o preview (se havia) saiu
+        try:
+            canal = arquivo.adicionar_canal_derivado(no.id)
+        except ValueError as erro:               # já virou canal antes
+            feedback = Feedback.aviso(str(erro))
+        else:
+            prefixo = f"'{no.nome}' já estava na árvore. " if ja_existia else ''
+            feedback = Feedback.sucesso(
+                f"{prefixo}'{canal.rotulo}' está em Análises do arquivo (menu da esquerda): "
+                'clique nela para pôr no gráfico.')
+        contexto = {**contexto, 'recalculando': None,
+                    'ultimos': {**(contexto['ultimos'] or {}), operacao: parametros}}
+        return (painel(aba_ativa, operacao, contexto), contexto, feedback, figura,
+                renderizar_analises_da_aba_ativa(estado, aba_ativa),
+                renderizar_selecao_eixos(estado, aba_ativa))
 
     def resultado_recalculo(arquivo, aba_ativa, id_no, parametros=None):
         """
@@ -368,7 +449,10 @@ def registrar_callbacks_nova_amostragem(app, estado):
         relatorio = arquivo.recalcular_derivado(id_no, parametros)
         feito = len(relatorio.recalculados)
         figura = no_update
-        if any(arquivo.arvore.no(i).visivel for i in relatorio.recalculados):
+        def aparece_no_grafico(id_no):
+            canal = arquivo.canal_da_analise(id_no)
+            return arquivo.arvore.no(id_no).visivel or (canal is not None and canal.nome in arquivo.eixos_y_derivados)
+        if any(aparece_no_grafico(i) for i in relatorio.recalculados):
             figura = redesenhar(aba_ativa)
         if relatorio.concluido:
             no = arquivo.arvore.no(id_no)
@@ -403,6 +487,7 @@ def registrar_callbacks_nova_amostragem(app, estado):
         PAINEL, CONTEXTO, OPERACAO, CLASSES_BARRA,
         saida_feedback('amostragem-arvore'),
         FIGURA_GRAFICO,
+        LISTA_ANALISES, CAIXA_EIXOS,
         Input({'type': 'amostragem-raiz', 'canal': ALL}, 'n_clicks'),
         Input({'type': 'amostragem-no', 'id': ALL}, 'n_clicks'),
         Input({'type': 'amostragem-acao', 'acao': ALL, 'no': ALL}, 'n_clicks'),
@@ -413,6 +498,7 @@ def registrar_callbacks_nova_amostragem(app, estado):
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
+    @com_lista_de_analises
     def acao_arvore_amostragem(_raizes, _nos, _acoes, _enter, _nomes, operacao, contexto, aba_ativa):
         gatilho = processar_cliques_padrao(ctx.inputs_list)
         arquivo = arquivo_da(aba_ativa)

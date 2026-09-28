@@ -12,7 +12,7 @@ O **Wizard Analytics** é uma ferramenta em Python (Dash + Plotly) para extraç�
 * **Nova Análise:** calculadora de canais. Monte uma expressão com colunas, números, operadores e funções (`sin`, `√`, derivada, integral, média...) e crie uma coluna nova ou sobrescreva uma existente. A barra de cálculo aparece em cima do gráfico, que continua funcionando normalmente.
 * **Painel de edição:** cor, espessura, estilo e marcador de cada curva; títulos, fontes e limites dos eixos; ticks; grade e cor de fundo.
 * **Mensagens do mago 🧙‍♂️:** o rodapé mostra o resultado de cada ação e a próxima instrução.
-* **Nova Amostragem (em construção):** com um gráfico aberto, liga uma barra de operações em cima do gráfico (Downsampling, Média móvel, Polynomial Fit) e, no painel direito, a árvore de dados/análises dos canais do Y e a configuração da operação. **Preview** desenha o resultado por cima do gráfico sem registrar nada (marcadores no downsampling, linha + faixa ±σ na média móvel, linha tracejada no fit) e mostra o resumo (pontos, janelas, equação e R²). A **origem dos dados** é escolhida clicando na árvore: um canal ou uma análise já registrada (ex.: média móvel → polynomial fit). **OK** registra o resultado na árvore — a mesma análise (mesma origem, operação e parâmetros) não entra duas vezes. Em cada análise, ao passar o mouse: 👁 mostra/esconde no gráfico, ✏️ renomeia, 🗑 exclui (com as que saíram dela). Se os dados de origem mudarem (corte ou calculadora), os nós ganham ⚠ com **Recalcular** (refaz a cadeia com os mesmos parâmetros; para no passo que não dá, ou pede para conferir o Δx se o X foi reescrito) ou **Manter**. Não fica ligada junto com a Nova Análise.
+* **Nova Amostragem (em construção):** com um gráfico aberto, liga uma barra de operações em cima do gráfico (Downsampling, Média móvel, Polynomial Fit) e, no painel direito, a árvore de dados/análises dos canais do Y e a configuração da operação. **Preview** desenha o resultado por cima do gráfico sem registrar nada (marcadores no downsampling, linha + faixa ±σ na média móvel, linha tracejada no fit) e mostra o resumo (pontos, janelas, equação e R²). A **origem dos dados** é escolhida clicando na árvore: um canal ou uma análise já registrada (ex.: média móvel → polynomial fit). **OK** registra o resultado na árvore — a mesma análise (mesma origem, operação e parâmetros) não entra duas vezes. Em cada análise, ao passar o mouse: 👁 mostra/esconde no gráfico, ✏️ renomeia, 🗑 exclui (com as que saíram dela). **Add** transforma a análise num canal (x', y') em **Análises do arquivo:**, no menu da esquerda: clicar nela põe no eixo Y (só com o mesmo X de onde veio), e ela acompanha o Recalcular da análise de origem. Se os dados de origem mudarem (corte ou calculadora), os nós ganham ⚠ com **Recalcular** (refaz a cadeia com os mesmos parâmetros; para no passo que não dá, ou pede para conferir o Δx se o X foi reescrito) ou **Manter**. Não fica ligada junto com a Nova Análise.
 * **Em desenvolvimento:** fundir arquivos, salvar gráfico e exportar dados.
 
 ## ▶️ Como executar
@@ -58,6 +58,7 @@ Wizzard_Analytics/
     │   ├── layout.py              # Árvore de componentes da página
     │   ├── renderizadores.py      # Funções puras que constroem o HTML (abas, canais, painel, calculadora...)
     │   ├── amostragem.py          # Barra e painel (árvore + configuração) da Nova Amostragem
+    │   ├── analises.py            # 'Análises do arquivo:' (análises que viraram canal pelo Add)
     │   ├── rodape.py              # Dono do rodapé: info do arquivo, avisos e a mensagem do mago
     │   ├── feedback.py            # Contrato Feedback: o que o mago deve dizer (sucesso/aviso/erro/instrução)
     │   ├── estado.py              # EstadoApp: arquivos abertos na sessão
@@ -84,7 +85,8 @@ Wizzard_Analytics/
     │   ├── canais.py              # Eixos X/Y, excluir e renomear canais
     │   ├── corte.py               # Aparar/Excluir dados (seleção, confirmar, cancelar, Esc)
     │   ├── nova_analise.py        # Modo Nova Análise e calculadora de canais
-    │   ├── nova_amostragem.py     # Nova Amostragem: liga/desliga, operação, canal Y, painel em dia com o gráfico
+    │   ├── nova_amostragem.py     # Nova Amostragem: modo, origem, Preview, OK, Add, árvore
+    │   ├── analises.py            # 'Análises do arquivo:' (pôr/tirar do Y, renomear, excluir)
     │   └── edicao.py              # Painel de edição (curva, eixos, ticks, outros)
     │
     ├── core/                      # 3. LÓGICA: dados e cálculos, sem nada de Dash
@@ -170,5 +172,6 @@ Botões que nascem dentro de listas reconstruídas por callbacks (canais, abas, 
    * ✅ 4.5 OK/árvore: registrar, abrir um nó (restaura operação e parâmetros), usar como origem, excluir (com os filhos), ⚠ com Recalcular/Manter e o Recalcular que para pedindo ajuste.
    * ✅ 4.5.1 Revisão: origem só pelo clique na árvore (caixa "Origem dos dados"), olho/lápis/lixeira no hover, análise repetida bloqueada.
    * ✅ 4.5.2 Detalhes da análise recolhíveis (fechados de início) e árvore sem altura fixa; nomes automáticos repetidos numerados.
-   * ⏳ 4.6 Add (par x', y') · 4.7 Calculadora com pares.
+   * ✅ 4.6 Add: a análise vira um canal (x', y') em "Análises do arquivo:" (menu da esquerda); entra no Y só com o mesmo X; acompanha o Recalcular; ⚠ quando a origem muda; renomear/excluir; excluir a análise da árvore deixa o canal desvinculado.
+   * ⏳ 4.7 Calculadora com pares (mesmo x'); desvinculado ao editar.
 5. ⏳ Revisar arquitetura: `allow_duplicate`, `EstadoApp`, renderização excessiva, cache do gráfico.

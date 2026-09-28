@@ -1,5 +1,6 @@
 from dash import dcc, html
 
+from src.gui.analises import linhas_analises_no_y
 from src.gui.components import icone_colorido
 from src.core.plotting.plotter import cor_da_coluna, colunas_plotadas, PALETA_CORES
 from src.core.operations.calculadora import (
@@ -221,7 +222,7 @@ def renderizar_colunas_da_aba_ativa(estado, aba_ativa, canal_em_edicao=None):
     return [html.Div(className='canais-cartao', children=lista_canais)]
 
 
-def renderizar_selecao_eixos(estado, aba_ativa, canal_em_edicao=None):
+def renderizar_selecao_eixos(estado, aba_ativa, canal_em_edicao=None, analise_em_edicao=None):
     """
     A área de atribuição manual de eixos do botão 'Plotar Seleção'
     (era 'Gerar Série Temporal') — dois "slots" acima da lista 'Dados
@@ -274,10 +275,10 @@ def renderizar_selecao_eixos(estado, aba_ativa, canal_em_edicao=None):
         [_linha(arquivo.eixo_x_manual, 'x')] if arquivo.eixo_x_manual
         else [html.Span('clique num canal na lista abaixo', className='eixo-caixa-vazia')]
     )
-    conteudo_y = (
-        [_linha(coluna, 'y') for coluna in arquivo.eixos_y_manual] if arquivo.eixos_y_manual
-        else [html.Span('clique nos canais que quer plotar', className='eixo-caixa-vazia')]
-    )
+    # Depois das colunas, as análises (Add) que estão no Y — ver src/gui/analises.py.
+    linhas_y = [_linha(coluna, 'y') for coluna in arquivo.eixos_y_manual] \
+        + linhas_analises_no_y(arquivo, aba_ativa, analise_em_edicao)
+    conteudo_y = linhas_y or [html.Span('clique nos canais que quer plotar', className='eixo-caixa-vazia')]
 
     return [
         html.Div('Variáveis do gráfico:', className='sidebar-secao-titulo'),

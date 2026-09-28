@@ -43,6 +43,9 @@ def montar_layout(estado):
         # lugar do rótulo estático, em vez de precisar reconstruir a
         # lista inteira num modo "tudo editável".
         dcc.Store(id='canal-em-edicao-store', data=None),
+        # Mesma ideia, pras análises de 'Análises do arquivo:':
+        # {'arquivo': <aba>, 'canal': <nome interno>} enquanto renomeia.
+        dcc.Store(id='analise-em-edicao-store', data=None),
 
         # 'modo-nova-analise-store': True/False — 'Nova análise' na
         # toolbar deixou de ser um dcc.Upload (nunca esteve de fato
@@ -267,7 +270,11 @@ def montar_layout(estado):
                 # colunas ainda não atribuídas.
                 html.Div(id='selecao-eixos-container'),
                 html.Div('Dados do arquivo:', className='sidebar-secao-titulo'),
-                html.Div(id='lista-canais-aba', className='menu-canais-container')
+                html.Div(id='lista-canais-aba', className='menu-canais-container'),
+                # 'Análises do arquivo:' — análises da Nova Amostragem que
+                # viraram canal (Add). Some quando não há nenhuma. Ver
+                # src/gui/analises.py e src/callbacks/analises.py.
+                html.Div(id='lista-analises-aba', className='menu-analises-container'),
             ]),
 
             html.Div(id='divisor-resize', className='divisor-resize'),

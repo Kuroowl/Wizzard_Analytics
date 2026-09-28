@@ -24,7 +24,7 @@ from enum import Enum
 import pandas as pd
 
 from src.core.derivados import (
-    PARAMETROS_NA_UNIDADE_DE_X, ArvoreDerivados, DerivadoDuplicado, NoDerivado,
+    PARAMETROS_NA_UNIDADE_DE_X, ArvoreDerivados, CanalDerivado, DerivadoDuplicado, NoDerivado,
     PendenciaRecalculo, PreviewAmostragem, RelatorioRecalculo, Serie, parametros_iguais,
 )
 from src.core.operations.amostragem import ResultadoAmostragem, executar_operacao, nome_padrao
@@ -294,6 +294,10 @@ class Arquivo:
     # tela, não de dados: o plotter desenha por cima das curvas enquanto
     # existir. Ver gerar_preview_amostragem / limpar_preview_amostragem.
     preview_amostragem: PreviewAmostragem | None = None
+    # Análises que viraram canal (Add): pares (x', y') fora do df_editado,
+    # e quais delas estão no eixo Y do gráfico (na ordem do clique).
+    canais_derivados: dict = field(default_factory=dict)
+    eixos_y_derivados: list = field(default_factory=list)
 
     def __post_init__(self):
         # Registra um Canal pra cada coluna que já veio no df, se ainda
@@ -848,6 +852,9 @@ class Arquivo:
             no.info = dict(resultado.info)
             no.parametros = dict(parametros_no)
             self._carimbar(no)
+            canal = self.canal_da_analise(no.id)
+            if canal is not None:          # o canal (Add) acompanha a análise
+                canal.serie = no.serie
             relatorio.recalculados.append(no.id)
             for filho in self.arvore.filhos(no.id):
                 processar(filho, no.serie)
@@ -857,8 +864,90 @@ class Arquivo:
         return relatorio
 
     def excluir_derivado(self, id_no: str) -> list[str]:
-        """Remove o nó e todos os que saíram dele. Devolve os ids removidos."""
-        return self.arvore.excluir(id_no)
+        """
+        Remove o nó e todos os que saíram dele. Devolve os ids removidos.
+        Canais que vieram deles (Add) continuam, desvinculados.
+        """
+        removidos = self.arvore.excluir(id_no)
+        for canal in self.canais_derivados.values():
+            if canal.no_origem in removidos:
+                canal.no_origem = None
+        return removidos
+
+    # --- Análises que viraram canal (Add) ------------------------------
+
+    def canal_derivado(self, nome: str) -> CanalDerivado:
+        try:
+            return self.canais_derivados[nome]
+        except KeyError:
+            raise KeyError(f"Análise '{nome}' não existe em 'Análises do arquivo'.") from None
+
+    def canal_da_analise(self, id_no: str) -> CanalDerivado | None:
+        """O canal (Add) ligado a esta análise, se houver."""
+        return next((c for c in self.canais_derivados.values() if c.no_origem == id_no), None)
+
+    def adicionar_canal_derivado(self, id_no: str) -> CanalDerivado:
+        """
+        Botão Add: a análise vira um canal (x', y') em 'Análises do arquivo'.
+        Uma análise vira canal uma vez só (ValueError se já virou).
+        """
+        no = self.arvore.no(id_no)
+        existente = self.canal_da_analise(id_no)
+        if existente is not None:
+            raise ValueError(f"'{no.nome}' já está em Análises do arquivo como '{existente.rotulo}'.")
+        n = 1
+        while f'analise_{n}' in self.canais_derivados:
+            n += 1
+        canal = CanalDerivado(nome=f'analise_{n}', rotulo=no.nome, serie=no.serie,
+                              eixo_x=no.eixo_x, canal_raiz=no.canal_raiz, no_origem=id_no)
+        self.canais_derivados[canal.nome] = canal
+        no.canal = canal.nome
+        return canal
+
+    def renomear_canal_derivado(self, nome: str, rotulo: str) -> None:
+        rotulo = (rotulo or '').strip()
+        if not rotulo:
+            raise ValueError('O nome não pode ficar vazio.')
+        self.canal_derivado(nome).rotulo = rotulo
+        if nome in self.eixos_y_derivados:
+            self.invalidar_grafico()      # a legenda mostra o nome
+
+    def excluir_canal_derivado(self, nome: str) -> CanalDerivado:
+        """Tira o canal de 'Análises do arquivo' (a análise da árvore continua)."""
+        canal = self.canais_derivados.pop(self.canal_derivado(nome).nome)
+        if nome in self.eixos_y_derivados:
+            self.eixos_y_derivados.remove(nome)
+            self.invalidar_grafico()
+        if canal.no_origem in self.arvore:
+            self.arvore.no(canal.no_origem).canal = None
+        return canal
+
+    def mover_derivado_para_y(self, nome: str) -> None:
+        """
+        Põe o canal (x', y') no eixo Y. Só com o MESMO X de onde ele veio no
+        gráfico (senão os pontos não casam): ValueError explicando.
+        """
+        canal = self.canal_derivado(nome)
+        if self.eixo_x_manual is None:
+            raise ValueError(f"Escolha o eixo X do gráfico antes: '{canal.rotulo}' "
+                             f"precisa de X = '{self.rotulo(canal.eixo_x)}'.")
+        if self.eixo_x_manual != canal.eixo_x:
+            raise ValueError(f"'{canal.rotulo}' foi calculada com X = '{self.rotulo(canal.eixo_x)}': "
+                             f"só pode ser vista com esse X no gráfico.")
+        if nome not in self.eixos_y_derivados:
+            self.eixos_y_derivados.append(nome)
+            self.invalidar_grafico()
+
+    def remover_derivado_do_y(self, nome: str) -> None:
+        if nome in self.eixos_y_derivados:
+            self.eixos_y_derivados.remove(nome)
+            self.invalidar_grafico()
+
+    def canal_derivado_desatualizado(self, nome: str) -> bool:
+        """Ligado a uma análise cuja origem mudou (⚠ até Recalcular/Manter)."""
+        canal = self.canal_derivado(nome)
+        return canal.vinculado and canal.no_origem in self.arvore \
+            and self.derivado_desatualizado(canal.no_origem)
 
     def criar_canal_calculado(self, nome_saida: str, operacao_fn, *args, **kwargs) -> None:
         """

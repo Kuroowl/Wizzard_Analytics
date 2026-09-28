@@ -485,5 +485,78 @@ class TestDuplicataNomeVisibilidade(unittest.TestCase):
         self.assertFalse(arq.alternar_visibilidade_derivado(n1.id))
 
 
+
+class TestCanalDerivado(unittest.TestCase):
+    """Add: a análise vira um par (x', y') em 'Análises do arquivo'."""
+
+    def base(self):
+        arq = arquivo_teste()
+        arq.mover_para_eixo_x('t')
+        n = arq.registrar_derivado('downsampling', {'n_pontos': 10},
+                                   am.downsampling(arq.serie_do_canal('p', 't'), 10), 'p', 't')
+        return arq, n
+
+    def test_add_cria_canal_com_x_proprio(self):
+        arq, n = self.base()
+        c = arq.adicionar_canal_derivado(n.id)
+        self.assertEqual((c.rotulo, c.eixo_x, c.canal_raiz, c.no_origem), ('Downsampling p', 't', 'p', n.id))
+        self.assertEqual(len(c.serie), 10)
+        self.assertNotIn(c.nome, arq.df_editado.columns)      # não entra na tabela
+        self.assertIs(arq.canal_da_analise(n.id), c)
+        with self.assertRaises(ValueError):                   # uma vez só
+            arq.adicionar_canal_derivado(n.id)
+
+    def test_y_so_com_o_mesmo_x(self):
+        arq, n = self.base()
+        c = arq.adicionar_canal_derivado(n.id)
+        arq.mover_derivado_para_y(c.nome)
+        self.assertEqual(arq.eixos_y_derivados, [c.nome])
+        arq.remover_derivado_do_y(c.nome)
+        arq.mover_para_eixo_x('q')
+        with self.assertRaises(ValueError) as ctx:
+            arq.mover_derivado_para_y(c.nome)
+        self.assertIn("X = 't'", str(ctx.exception))
+        self.assertEqual(arq.eixos_y_derivados, [])
+
+    def test_acompanha_o_recalcular_e_mostra_o_alerta(self):
+        arq, n = self.base()
+        c = arq.adicionar_canal_derivado(n.id)
+        antiga = c.serie
+        arq.cortar_dados('t', 2, 8)
+        self.assertTrue(arq.canal_derivado_desatualizado(c.nome))
+        self.assertIs(c.serie, antiga)                        # o corte não mexe no canal
+        arq.recalcular_derivado(n.id)
+        self.assertIs(c.serie, n.serie)
+        self.assertFalse(arq.canal_derivado_desatualizado(c.nome))
+        self.assertGreaterEqual(c.serie.x[0], 2)
+
+    def test_excluir_analise_desvincula_e_excluir_canal_nao_mexe_na_arvore(self):
+        arq, n = self.base()
+        c = arq.adicionar_canal_derivado(n.id)
+        arq.mover_derivado_para_y(c.nome)
+        arq.excluir_derivado(n.id)
+        self.assertFalse(c.vinculado)
+        self.assertIn(c.nome, arq.canais_derivados)           # continua, independente
+        self.assertFalse(arq.canal_derivado_desatualizado(c.nome))
+        n2 = arq.registrar_derivado('downsampling', {'n_pontos': 7},
+                                    am.downsampling(arq.serie_do_canal('p', 't'), 7), 'p', 't')
+        c2 = arq.adicionar_canal_derivado(n2.id)
+        arq.excluir_canal_derivado(c2.nome)
+        self.assertIn(n2.id, arq.arvore)
+        self.assertIsNone(arq.canal_da_analise(n2.id))
+        arq.adicionar_canal_derivado(n2.id)                   # pode virar canal de novo
+        arq.excluir_canal_derivado(c.nome)
+        self.assertEqual(arq.eixos_y_derivados, [])
+
+    def test_renomear_canal(self):
+        arq, n = self.base()
+        c = arq.adicionar_canal_derivado(n.id)
+        arq.renomear_canal_derivado(c.nome, ' Amostra ')
+        self.assertEqual(c.rotulo, 'Amostra')
+        self.assertEqual(n.nome, 'Downsampling p')            # a análise não muda
+        with self.assertRaises(ValueError):
+            arq.renomear_canal_derivado(c.nome, '')
+
+
 if __name__ == '__main__':
     unittest.main()

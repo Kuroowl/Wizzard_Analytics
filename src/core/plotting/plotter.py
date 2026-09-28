@@ -566,6 +566,7 @@ def construir_figura_serie_temporal(estado, aba_ativa):
                 ),
             ))
 
+    _desenhar_canais_derivados(fig, arquivo, eixo_x, len(colunas_y))
     _desenhar_derivados_visiveis(fig, arquivo, eixo_x, colunas_y)
     _desenhar_preview_amostragem(fig, arquivo, eixo_x)
 
@@ -600,6 +601,37 @@ def construir_figura_serie_temporal(estado, aba_ativa):
 # curvas, pra ficar claro que é um resultado provisório por cima dos dados.
 COR_PREVIEW = '#1B2430'
 COR_PREVIEW_FAIXA = 'rgba(27, 36, 48, 0.15)'
+
+
+def cor_do_canal_derivado(arquivo, nome):
+    """Cor de uma análise (Add) no Y: continua a paleta depois das colunas do Y."""
+    n_colunas = len(colunas_plotadas_do_arquivo(arquivo))
+    return cor_da_coluna(n_colunas + arquivo.eixos_y_derivados.index(nome))
+
+
+def colunas_plotadas_do_arquivo(arquivo):
+    return [col for col in arquivo.eixos_y_manual if col in arquivo.df_editado.columns]
+
+
+def _desenhar_canais_derivados(fig, arquivo, eixo_x, n_colunas):
+    """
+    Análises (Add) colocadas no eixo Y: cada uma com o PRÓPRIO x', e só se
+    ela veio deste X (com outro X os pontos não casariam — a caixa Y: da
+    sidebar mostra ela apagada). Cores continuam a paleta das colunas.
+    """
+    for i, nome in enumerate(arquivo.eixos_y_derivados):
+        canal = arquivo.canais_derivados.get(nome)
+        if canal is None or canal.eixo_x != eixo_x:
+            continue
+        cor = cor_da_coluna(n_colunas + i)
+        x, y = canal.serie.x, canal.serie.y
+        indices = _indices_amostra_uniforme(len(x))
+        if indices is not None:
+            x, y = x[indices], y[indices]
+        fig.add_trace(go.Scatter(
+            x=x, y=y, mode='lines+markers', name=canal.rotulo,
+            line=dict(color=cor, width=1.5), marker=dict(color=cor, size=4),
+        ))
 
 
 def _escurecer(cor_hex, fator=0.45):

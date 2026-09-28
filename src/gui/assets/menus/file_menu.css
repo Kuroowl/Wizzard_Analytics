@@ -487,3 +487,54 @@
   border-color: var(--cor-accent);
   box-shadow: 0 0 0 2px rgba(47, 165, 160, 0.18);
 }
+
+/* ==========================================================================
+   'Análises do arquivo:' — análises da Nova Amostragem que viraram canal
+   (Add). Mesmas linhas das colunas ('.coluna-item'), com um ◆ na frente.
+   ========================================================================== */
+.canal-analise-marcador {
+  color: var(--cor-accent);
+  font-size: 9px;
+  margin-right: 5px;
+}
+
+.canal-analise-alerta {
+  color: #C98A00;
+}
+
+/* Na caixa Y:, uma análise calculada com outro X não é desenhada. */
+.coluna-item.analise.fora-do-x .canal-rotulo {
+  opacity: 0.45;
+  text-decoration: line-through dotted;
+}
+
+.analises-vazio {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--cor-texto-mudo);
+  padding: 2px 12px 8px;
+}
+
+/* A seção de análises fica LOGO ABAIXO de 'Dados do arquivo:'. Sem
+   análises, a lista de colunas continua ocupando a sobra da barra (e o
+   'Abra um arquivo.' centralizado); com análises, as duas listas ficam
+   empilhadas no topo, cada uma rolando se for longa. */
+.menu-analises-container {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 0 6px;
+}
+
+.sidebar:has(#lista-analises-aba > *) #lista-canais-aba {
+  flex: 0 1 auto;
+  overflow-y: auto;
+}
+
+/* Título alinhado com 'Dados do arquivo:' (que fica fora do container). */
+.menu-analises-container > .sidebar-secao-titulo {
+  margin-left: -6px;
+  margin-right: -6px;
+}

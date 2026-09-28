@@ -9,6 +9,7 @@ from dash.exceptions import PreventUpdate
 from src.callbacks._comum import (
     classe_painel_direito, estados_toolbar, processar_cliques_padrao,
 )
+from src.gui.analises import renderizar_analises_da_aba_ativa
 from src.gui.feedback import Feedback, saida_feedback
 from src.gui.renderizadores import (
     renderizar_abas_estilo_chrome, renderizar_area_grafico, renderizar_calculadora_botoes,
@@ -136,6 +137,7 @@ def registrar_callbacks_abas(app, estado):
         Output('lista-canais-aba', 'children', allow_duplicate=True),
         Output('selecao-eixos-container', 'children', allow_duplicate=True),
         Output('area-modo-nova-analise-edicao', 'children', allow_duplicate=True),
+        Output('lista-analises-aba', 'children', allow_duplicate=True),
         Input('aba-ativa-store', 'data'),
         State('modo-nova-analise-store', 'data'),
         prevent_initial_call=True,
@@ -151,4 +153,4 @@ def registrar_callbacks_abas(app, estado):
             botoes_calculadora = renderizar_calculadora_botoes(estado, aba_ativa)
         return (renderizar_abas_estilo_chrome(estado, aba_ativa), renderizar_colunas_da_aba_ativa(estado, aba_ativa),
                 renderizar_selecao_eixos(estado, aba_ativa),
-                botoes_calculadora)
+                botoes_calculadora, renderizar_analises_da_aba_ativa(estado, aba_ativa))

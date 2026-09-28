@@ -12,6 +12,7 @@ novo aqui + uma linha no registrador.
 """
 from src.gui.rodape import registrar_callbacks_rodape
 from src.callbacks.abas import registrar_callbacks_abas
+from src.callbacks.analises import registrar_callbacks_analises
 from src.callbacks.arquivos import registrar_callbacks_arquivos
 from src.callbacks.canais import registrar_callbacks_canais
 from src.callbacks.corte import registrar_callbacks_corte
@@ -36,6 +37,7 @@ def registrar_callbacks(app, estado):
     registrar_callbacks_abas(app, estado)
     registrar_callbacks_grafico(app, estado)
     registrar_callbacks_canais(app, estado)
+    registrar_callbacks_analises(app, estado)
     registrar_callbacks_corte(app, estado)
     registrar_callbacks_nova_analise(app, estado)
     registrar_callbacks_nova_amostragem(app, estado)

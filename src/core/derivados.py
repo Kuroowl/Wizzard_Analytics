@@ -121,6 +121,32 @@ class NoDerivado:
     visivel: bool = False     # olho da árvore: desenhado no gráfico?
 
 
+@dataclass
+class CanalDerivado:
+    """
+    Uma análise que virou canal (botão Add): um par (x', y') com tamanho e
+    X próprios, listado em 'Análises do arquivo:' no menu da esquerda.
+
+    nome        nome interno (único no arquivo)
+    rotulo      nome exibido (renomeável; nasce com o nome da análise)
+    serie       os dados (x', y')
+    eixo_x      canal X de onde veio: só é desenhado com esse X no gráfico
+    canal_raiz  canal Y de onde a cadeia começou
+    no_origem   id da análise de onde veio. Enquanto ligado, acompanha o
+                Recalcular dela. None = desvinculado (a análise foi excluída).
+    """
+    nome: str
+    rotulo: str
+    serie: Serie
+    eixo_x: str
+    canal_raiz: str
+    no_origem: str | None = None
+
+    @property
+    def vinculado(self) -> bool:
+        return self.no_origem is not None
+
+
 class DerivadoDuplicado(ValueError):
     """
     OK de uma análise que já existe: mesma origem (canal/X ou nó pai),

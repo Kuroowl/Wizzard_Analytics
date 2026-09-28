@@ -20,6 +20,8 @@ O "contexto" (dict guardado em 'amostragem-contexto-store'):
     renomeando    id da análise com o nome em edição (lápis)
     detalhes      detalhes da análise (origem, parâmetros, resultado) abertos
                   no cartão? Começa fechado: a árvore fica com mais altura.
+    ultimos       {operação: parâmetros} usados por último (Preview/OK/Add):
+                  o painel volta com eles em vez dos valores iniciais.
 """
 from dash import dcc, html
 
@@ -52,11 +54,9 @@ CAMPOS_PARAMETROS = {
     },
 }
 
-DICA_BOTAO_PENDENTE = 'Disponível nas próximas etapas.'
-
 CONTEXTO_VAZIO = {'canal_y': None, 'pai': None, 'selecionado': None,
                   'recalculando': None, 'motivo': None, 'renomeando': None,
-                  'detalhes': False}
+                  'detalhes': False, 'ultimos': {}}
 
 
 def contexto_normalizado(contexto):
@@ -150,6 +150,7 @@ def _linha_no(arquivo, no, eixo_x, nivel, contexto):
     desatualizado = arquivo.derivado_desatualizado(no.id)
     compativel = arquivo.derivado_compativel_com_x(no.id, eixo_x)
     renomeando = contexto['renomeando'] == no.id
+    canal = arquivo.canal_da_analise(no.id)       # virou canal (Add)?
     classes = ['amostragem-no']
     dicas = [f"{OPERACOES[no.operacao].rotulo} — {len(no.serie)} pontos"]
     if not compativel:
@@ -177,6 +178,8 @@ def _linha_no(arquivo, no, eixo_x, nivel, contexto):
             children=[
                 html.Span('└', className='amostragem-no-ramo'),
                 html.Span(no.nome, className='amostragem-no-nome'),
+                html.Span('◆', className='amostragem-no-canal', title=f"Virou canal: '{canal.rotulo}'")
+                if canal else None,
                 html.Span('⚠', className='amostragem-no-alerta') if desatualizado else None,
             ],
         )
@@ -398,7 +401,9 @@ def renderizar_config_amostragem(arquivo, eixo_x, operacao, contexto=None):
     Valores dos parâmetros, nesta ordem de preferência:
       1. Recalcular parado numa análise -> os parâmetros dela (pra ajustar);
       2. preview desta configuração no gráfico -> os do preview;
-      3. valores iniciais calculados dos dados da origem.
+      3. os últimos usados nesta operação (OK/Add não "esquecem" o que foi
+         digitado);
+      4. valores iniciais calculados dos dados da origem.
     """
     contexto = contexto_normalizado(contexto)
     no_sel = arquivo.arvore.no(contexto['selecionado']) if contexto['selecionado'] in arquivo.arvore else None
@@ -418,10 +423,13 @@ def renderizar_config_amostragem(arquivo, eixo_x, operacao, contexto=None):
     preview = preview_desta_configuracao(arquivo, operacao, canal_y, eixo_origem, pai)
     if canal_y is not None:
         serie = arquivo.serie_de_origem(canal_y, eixo_origem, pai)
+        ultimos = (contexto['ultimos'] or {}).get(operacao)
         if recalculando:
             parametros = dict(no_sel.parametros)
         elif preview:
             parametros = dict(preview.parametros)
+        elif ultimos:
+            parametros = {**parametros_iniciais(operacao, serie), **ultimos}
         else:
             parametros = parametros_iniciais(operacao, serie)
         info = f'{len(serie)} pontos na origem.'
@@ -453,8 +461,9 @@ def renderizar_config_amostragem(arquivo, eixo_x, operacao, contexto=None):
                         title=('Recalcula esta análise com estes parâmetros e segue a cadeia'
                                if recalculando else 'Registra esta análise na árvore'),
                         className='amostragem-acao-btn principal'),
-            html.Button('Add', id='amostragem-add', n_clicks=0, disabled=True,
-                        title=DICA_BOTAO_PENDENTE, className='amostragem-acao-btn'),
+            html.Button('Add', id='amostragem-add', n_clicks=0, disabled=not pode_operar or recalculando,
+                        title="Transforma esta análise num canal (x', y') em 'Análises do arquivo'",
+                        className='amostragem-acao-btn'),
         ]),
     ])
 
