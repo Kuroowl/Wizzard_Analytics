@@ -25,6 +25,7 @@ A árvore
       - Manter: aceita os resultados como estão; o alerta some.
 """
 
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -117,6 +118,32 @@ class NoDerivado:
     versoes_origem: dict = field(default_factory=dict)
     reescritas_x: int = 0
     canal: str | None = None
+    visivel: bool = False     # olho da árvore: desenhado no gráfico?
+
+
+class DerivadoDuplicado(ValueError):
+    """
+    OK de uma análise que já existe: mesma origem (canal/X ou nó pai),
+    mesma operação e mesmos parâmetros. 'existente' é o nó que já está lá.
+    """
+    def __init__(self, existente: 'NoDerivado'):
+        super().__init__(f"Essa análise já existe: '{existente.nome}'.")
+        self.existente = existente
+
+
+def parametros_iguais(a: dict, b: dict) -> bool:
+    """Mesmos nomes e mesmos valores (60 == 60.0; 0.4 ≈ 0.4000000001)."""
+    if set(a) != set(b):
+        return False
+    for nome in a:
+        va, vb = a[nome], b[nome]
+        try:
+            if not math.isclose(float(va), float(vb), rel_tol=1e-9, abs_tol=1e-12):
+                return False
+        except (TypeError, ValueError):
+            if va != vb:
+                return False
+    return True
 
 
 @dataclass(frozen=True)

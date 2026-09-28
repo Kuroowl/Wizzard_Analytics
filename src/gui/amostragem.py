@@ -6,13 +6,18 @@ embaixo).
 Funções puras: recebem o estado e devolvem componentes. Quem decide
 QUANDO redesenhar é src/callbacks/nova_amostragem.py.
 
-O "contexto" (dict guardado em 'amostragem-contexto-store') diz de onde a
-próxima operação parte e o que está selecionado na árvore:
-    canal_y       canal raiz escolhido (nome interno)
-    pai           id do nó usado como ORIGEM (None = o próprio canal)
-    selecionado   id do nó aberto no cartão (None = nenhum)
-    recalculando  id do nó em que o Recalcular parou esperando parâmetros
+A ORIGEM dos dados é escolhida só clicando na árvore: um canal ou uma
+análise. A caixa "Origem dos dados" do painel começa vazia e mostra o que
+foi clicado.
+
+O "contexto" (dict guardado em 'amostragem-contexto-store'):
+    canal_y       canal raiz da origem (nome interno); None = origem vazia
+    pai           id da análise usada como origem (None = o próprio canal)
+    selecionado   id da análise mostrada no cartão: a da origem, ou a que o
+                  Recalcular está refazendo (None = nenhuma)
+    recalculando  id da análise em que o Recalcular parou esperando parâmetros
     motivo        por que ele parou (texto mostrado no cartão)
+    renomeando    id da análise com o nome em edição (lápis)
 """
 from dash import dcc, html
 
@@ -47,7 +52,8 @@ CAMPOS_PARAMETROS = {
 
 DICA_BOTAO_PENDENTE = 'Disponível nas próximas etapas.'
 
-CONTEXTO_VAZIO = {'canal_y': None, 'pai': None, 'selecionado': None, 'recalculando': None, 'motivo': None}
+CONTEXTO_VAZIO = {'canal_y': None, 'pai': None, 'selecionado': None,
+                  'recalculando': None, 'motivo': None, 'renomeando': None}
 
 
 def contexto_normalizado(contexto):
@@ -66,7 +72,7 @@ def classe_botao_operacao(chave, ativa):
 
 
 def id_acao(acao, id_no=''):
-    """Botões do cartão do nó (recalcular, manter, usar como origem...)."""
+    """Botões da árvore e do cartão (olho, renomear, excluir, recalcular, manter)."""
     return {'type': 'amostragem-acao', 'acao': acao, 'no': id_no}
 
 
@@ -132,8 +138,15 @@ def renderizar_resultado_amostragem(preview):
 # ============================================================================
 
 def _linha_no(arquivo, no, eixo_x, nivel, contexto):
+    """
+    Uma análise: rótulo clicável (vira a origem e abre o cartão) + botões
+    que aparecem no hover, no mesmo padrão do menu da esquerda: olho
+    (mostra no gráfico — fica aceso enquanto ligado), lápis (renomeia) e
+    lixeira (exclui com o que saiu dela).
+    """
     desatualizado = arquivo.derivado_desatualizado(no.id)
     compativel = arquivo.derivado_compativel_com_x(no.id, eixo_x)
+    renomeando = contexto['renomeando'] == no.id
     classes = ['amostragem-no']
     dicas = [f"{OPERACOES[no.operacao].rotulo} — {len(no.serie)} pontos"]
     if not compativel:
@@ -142,20 +155,46 @@ def _linha_no(arquivo, no, eixo_x, nivel, contexto):
     if desatualizado:
         classes.append('desatualizado')
         dicas.append('Os dados de origem mudaram depois desta análise.')
-    if no.id == contexto['selecionado']:
-        classes.append('selecionado')
     if no.id == contexto['pai']:
         classes.append('origem')
-        dicas.append('Origem da próxima operação.')
+    if no.visivel and compativel:
+        classes.append('visivel')
+    if renomeando:
+        classes.append('editando')
+
+    if renomeando:
+        rotulo = dcc.Input(
+            id={'type': 'amostragem-nome-input', 'no': no.id}, type='text', value=no.nome,
+            autoFocus=True, debounce=False, maxLength=80, className='canal-rotulo-input',
+        )
+    else:
+        rotulo = html.Div(
+            id={'type': 'amostragem-no', 'id': no.id}, n_clicks=0,
+            className='amostragem-no-rotulo', title='\n'.join(dicas + ['Clique para usar como origem.']),
+            children=[
+                html.Span('└', className='amostragem-no-ramo'),
+                html.Span(no.nome, className='amostragem-no-nome'),
+                html.Span('⚠', className='amostragem-no-alerta') if desatualizado else None,
+            ],
+        )
+    olho = html.Button(
+        '👁', id=id_acao('olho', no.id), n_clicks=0, disabled=not compativel,
+        title=('Esconder do gráfico' if no.visivel else 'Mostrar no gráfico') if compativel
+        else f"Só pode ser mostrada com X = '{arquivo.rotulo(no.eixo_x)}'",
+        className='amostragem-olho-btn' + (' ligado' if no.visivel and compativel else ''),
+    )
     return html.Div(
-        id={'type': 'amostragem-no', 'id': no.id}, n_clicks=0,
         className=' '.join(classes),
         style={'paddingLeft': f'{12 + 16 * nivel}px'},
-        title='\n'.join(dicas),
         children=[
-            html.Span('└', className='amostragem-no-ramo'),
-            html.Span(no.nome, className='amostragem-no-nome'),
-            html.Span('⚠', className='amostragem-no-alerta') if desatualizado else None,
+            rotulo,
+            olho,
+            html.Button('✏️', id=id_acao('renomear', no.id), n_clicks=0,
+                        title='Salvar o nome' if renomeando else f"Renomear '{no.nome}'",
+                        className='canal-editar-btn'),
+            html.Button('🗑', id=id_acao('excluir', no.id), n_clicks=0,
+                        title=f"Excluir '{no.nome}' e as análises que saíram dela",
+                        className='canal-lixeira-btn'),
         ],
     )
 
@@ -171,13 +210,12 @@ def _ramos(arquivo, id_pai, canal, eixo_x, nivel, contexto):
 def renderizar_arvore_amostragem(arquivo, eixo_x, contexto=None):
     """
     Raízes = os canais que estão no Y do gráfico agora (na ordem e com a
-    cor das curvas); embaixo de cada um, os derivados registrados. Um canal
-    que sai do Y só some daqui — os derivados dele continuam no Arquivo.
-    Clicar num canal: ele vira a origem. Clicar num nó: abre o cartão dele
-    e restaura a operação e os parâmetros.
+    cor das curvas); embaixo de cada um, as análises registradas. Um canal
+    que sai do Y só some daqui — as análises dele continuam no Arquivo.
+    Clicar num canal ou numa análise: vira a origem dos dados.
     """
     contexto = contexto_normalizado(contexto)
-    canais_y = [c for c in arquivo.eixos_y_manual if c in arquivo.df_editado.columns]
+    canais_y = canais_do_grafico(arquivo)
     if not canais_y:
         return html.Div(
             'Nenhum canal no eixo Y. Clique nos canais da barra lateral pra colocá-los no gráfico.',
@@ -191,7 +229,7 @@ def renderizar_arvore_amostragem(arquivo, eixo_x, contexto=None):
             html.Div(
                 id={'type': 'amostragem-raiz', 'canal': canal}, n_clicks=0,
                 className='amostragem-raiz' + (' origem' if eh_origem else ''),
-                title='Usar este canal como origem',
+                title='Clique para usar este canal como origem',
                 children=[
                     html.Span('●', className='amostragem-raiz-cor', style={'color': cor_da_coluna(indice)}),
                     html.Span(arquivo.rotulo(canal), className='amostragem-raiz-nome'),
@@ -203,7 +241,7 @@ def renderizar_arvore_amostragem(arquivo, eixo_x, contexto=None):
 
 
 # ============================================================================
-# Cartão do nó selecionado
+# Cartão da análise selecionada
 # ============================================================================
 
 def _texto_parametros(no):
@@ -216,6 +254,7 @@ def _texto_parametros(no):
 
 
 def renderizar_cartao_no(arquivo, no, eixo_x, contexto):
+    """Resultado da análise clicada e, se desatualizada, Recalcular/Manter."""
     desatualizado = arquivo.derivado_desatualizado(no.id)
     compativel = arquivo.derivado_compativel_com_x(no.id, eixo_x)
     origem = arquivo.arvore.no(no.pai).nome if no.pai else arquivo.rotulo(no.canal_raiz)
@@ -242,15 +281,6 @@ def renderizar_cartao_no(arquivo, no, eixo_x, contexto):
         avisos.append(html.Div(
             f"Calculado com X = '{arquivo.rotulo(no.eixo_x)}': só pode ser usado com esse X no gráfico.",
             className='amostragem-cartao-aviso neutro'))
-    acoes += [
-        html.Button('Usar como origem', id=id_acao('usar-origem', no.id), n_clicks=0,
-                    disabled=not compativel,
-                    title='A próxima operação parte deste resultado',
-                    className='amostragem-acao-btn'),
-        html.Button('🗑', id=id_acao('excluir', no.id), n_clicks=0,
-                    title='Excluir esta análise e as que saíram dela',
-                    className='amostragem-acao-btn excluir'),
-    ]
     return html.Div(className='amostragem-cartao', children=[
         html.Div(no.nome, className='amostragem-cartao-nome'),
         html.Div(f"{OPERACOES[no.operacao].rotulo} de {origem} · X = {arquivo.rotulo(no.eixo_x)}",
@@ -258,7 +288,7 @@ def renderizar_cartao_no(arquivo, no, eixo_x, contexto):
         html.Div(_texto_parametros(no), className='amostragem-cartao-linha'),
         *[html.Div(linha, className='amostragem-cartao-linha dado') for linha in linhas_resultado(no.operacao, no.info)],
         *avisos,
-        html.Div(acoes, className='amostragem-acoes'),
+        html.Div(acoes, className='amostragem-acoes') if acoes else None,
     ])
 
 
@@ -307,76 +337,70 @@ def canais_do_grafico(arquivo):
 
 def origem_efetiva(arquivo, eixo_x, contexto):
     """
-    (canal_y, eixo_x_da_origem, pai) de onde a próxima operação parte. Um
-    nó de origem que não existe mais cai de volta pro canal.
+    (canal_y, eixo_x_da_origem, pai) de onde a próxima operação parte, ou
+    (None, eixo_x, None) com a origem vazia. Uma análise que não existe
+    mais, ou um canal que saiu do Y, esvaziam a origem.
     """
     contexto = contexto_normalizado(contexto)
-    pai = contexto['pai'] if contexto['pai'] in arquivo.arvore else None
+    pai = contexto['pai']
     if pai is not None:
-        no = arquivo.arvore.no(pai)
-        return no.canal_raiz, no.eixo_x, pai
-    canais = canais_do_grafico(arquivo)
-    canal_y = contexto['canal_y'] if contexto['canal_y'] in canais else (canais[0] if canais else None)
+        if pai in arquivo.arvore:
+            no = arquivo.arvore.no(pai)
+            return no.canal_raiz, no.eixo_x, pai
+        return None, eixo_x, None
+    canal_y = contexto['canal_y'] if contexto['canal_y'] in canais_do_grafico(arquivo) else None
     return canal_y, eixo_x, None
+
+
+def _caixa_origem(arquivo, canal_y, eixo_origem, pai):
+    """'Origem dos dados': vazia até o usuário clicar na árvore."""
+    if canal_y is None:
+        conteudo = html.Span('Clique num canal ou numa análise na árvore acima.',
+                             className='amostragem-origem-vazia')
+    elif pai is not None:
+        no = arquivo.arvore.no(pai)
+        conteudo = [html.Span(no.nome, className='amostragem-origem-nome'),
+                    html.Span(f"{OPERACOES[no.operacao].rotulo} · {len(no.serie)} pontos",
+                              className='amostragem-origem-detalhe')]
+    else:
+        conteudo = [html.Span(arquivo.rotulo(canal_y), className='amostragem-origem-nome'),
+                    html.Span('canal', className='amostragem-origem-detalhe')]
+    return html.Div(className='amostragem-param', children=[
+        html.Label('Origem dos dados', className='amostragem-param-rotulo'),
+        html.Div(conteudo, className='amostragem-origem' + (' vazia' if canal_y is None else '')),
+    ])
 
 
 def renderizar_config_amostragem(arquivo, eixo_x, operacao, contexto=None):
     """
-    Cartão do nó selecionado (se houver) + configuração da operação
-    escolhida: origem (canal Y do gráfico ou um nó), o X, os parâmetros e
-    os botões Preview / OK / Add.
+    Cartão da análise clicada (se houver) + configuração: a origem dos
+    dados (caixa preenchida pelo clique na árvore), o X, os parâmetros e os
+    botões Preview / OK / Add.
 
     Valores dos parâmetros, nesta ordem de preferência:
-      1. Recalcular parado neste nó -> os parâmetros do nó (pra ajustar);
-      2. nó selecionado desta mesma operação e origem -> os dele
-         ("restaurar" uma análise);
-      3. preview desta configuração no gráfico -> os do preview;
-      4. valores iniciais calculados dos dados da origem.
+      1. Recalcular parado numa análise -> os parâmetros dela (pra ajustar);
+      2. preview desta configuração no gráfico -> os do preview;
+      3. valores iniciais calculados dos dados da origem.
     """
     contexto = contexto_normalizado(contexto)
     no_sel = arquivo.arvore.no(contexto['selecionado']) if contexto['selecionado'] in arquivo.arvore else None
     cartao = [renderizar_cartao_no(arquivo, no_sel, eixo_x, contexto)] if no_sel else []
 
     canal_y, eixo_origem, pai = origem_efetiva(arquivo, eixo_x, contexto)
-    canais = canais_do_grafico(arquivo)
     recalculando = no_sel is not None and contexto['recalculando'] == no_sel.id
-
-    # O dropdown de canal existe SEMPRE (escondido quando a origem é um nó):
-    # os callbacks leem o valor dele como State.
-    seletor_canal = html.Div(
-        className='amostragem-param', style={'display': 'none'} if pai else None, children=[
-            html.Label('Canal Y', className='amostragem-param-rotulo'),
-            dcc.Dropdown(
-                id='amostragem-canal-y', value=canal_y, clearable=False,
-                options=[{'label': arquivo.rotulo(c), 'value': c} for c in canais],
-                placeholder='nenhum canal no Y', className='amostragem-param-dropdown',
-            ),
-        ])
-    origem_no = []
-    if pai:
-        origem_no = [html.Div(className='amostragem-param', children=[
-            html.Label('Origem (análise)', className='amostragem-param-rotulo'),
-            html.Div(className='amostragem-origem-no', children=[
-                html.Span(arquivo.arvore.no(pai).nome),
-                html.Button('usar o canal', id=id_acao('voltar-canal'), n_clicks=0,
-                            title=f"Voltar a partir do canal '{arquivo.rotulo(canal_y)}'",
-                            className='amostragem-link-btn'),
-            ]),
-        ])]
+    caixa_origem = _caixa_origem(arquivo, canal_y, eixo_origem, pai)
 
     if operacao is None:
-        dica = ('Escolha uma operação na barra acima do gráfico'
-                + (f" para aplicar sobre '{arquivo.arvore.no(pai).nome}'." if pai else '.'))
         return html.Div(className='amostragem-config', children=[
-            *cartao, seletor_canal, *origem_no, html.Div(dica, className='amostragem-vazio'),
+            *cartao, caixa_origem,
+            html.Div('Escolha uma operação na barra acima do gráfico.', className='amostragem-vazio'),
         ])
 
     compativel = eixo_origem == eixo_x
     preview = preview_desta_configuracao(arquivo, operacao, canal_y, eixo_origem, pai)
     if canal_y is not None:
         serie = arquivo.serie_de_origem(canal_y, eixo_origem, pai)
-        if recalculando or (no_sel and no_sel.operacao == operacao and no_sel.pai == pai
-                            and no_sel.canal_raiz == canal_y):
+        if recalculando:
             parametros = dict(no_sel.parametros)
         elif preview:
             parametros = dict(preview.parametros)
@@ -388,19 +412,18 @@ def renderizar_config_amostragem(arquivo, eixo_x, operacao, contexto=None):
                     'coloque esse X no gráfico para operar sobre ela.')
     else:
         parametros = dict(OPERACOES[operacao].parametros_padrao)
-        info = 'Coloque um canal no eixo Y do gráfico pra escolher a origem.'
+        info = ''
 
     pode_operar = canal_y is not None and compativel
     return html.Div(className='amostragem-config', children=[
         *cartao,
-        seletor_canal,
-        *origem_no,
+        caixa_origem,
         html.Div(className='amostragem-param', children=[
             html.Label('Eixo X', className='amostragem-param-rotulo'),
             html.Div(arquivo.rotulo(eixo_origem) if eixo_origem else '—', className='amostragem-param-fixo'),
         ]),
         *[_campo_parametro(operacao, nome, _formatar_parametro(valor)) for nome, valor in parametros.items()],
-        html.Div(info, className='amostragem-info'),
+        html.Div(info, className='amostragem-info') if info else None,
         html.Div(id='amostragem-resultado', className='amostragem-resultado',
                  children=renderizar_resultado_amostragem(preview)),
         html.Div(className='amostragem-acoes', children=[

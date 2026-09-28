@@ -24,8 +24,8 @@ from enum import Enum
 import pandas as pd
 
 from src.core.derivados import (
-    PARAMETROS_NA_UNIDADE_DE_X, ArvoreDerivados, NoDerivado, PendenciaRecalculo,
-    PreviewAmostragem, RelatorioRecalculo, Serie,
+    PARAMETROS_NA_UNIDADE_DE_X, ArvoreDerivados, DerivadoDuplicado, NoDerivado,
+    PendenciaRecalculo, PreviewAmostragem, RelatorioRecalculo, Serie, parametros_iguais,
 )
 from src.core.operations.amostragem import ResultadoAmostragem, executar_operacao, nome_padrao
 from src.core.operations.sampling import aparar_dados, excluir_dados
@@ -704,10 +704,16 @@ class Arquivo:
         Botão OK: guarda o resultado na árvore. Com 'pai', o nó é filho de
         outro nó (e herda dele o canal raiz e o eixo X); sem, sai direto do
         canal 'canal_y' contra 'eixo_x'.
+
+        A mesma análise (mesma origem, operação e parâmetros) não entra duas
+        vezes: DerivadoDuplicado, com o nó que já existe.
         """
         if pai is not None:
             no_pai = self.arvore.no(pai)
             canal_y, eixo_x = no_pai.canal_raiz, no_pai.eixo_x
+        existente = self.derivado_equivalente(operacao, parametros, canal_y, eixo_x, pai)
+        if existente is not None:
+            raise DerivadoDuplicado(existente)
         no = NoDerivado(
             id=self.arvore.novo_id(),
             nome=nome or nome_padrao(operacao, self.rotulo_origem(canal_y, pai)),
@@ -721,6 +727,29 @@ class Arquivo:
         )
         self._carimbar(no)
         return self.arvore.adicionar(no)
+
+    def derivado_equivalente(self, operacao: str, parametros: dict, canal_y: str, eixo_x: str,
+                             pai: str | None = None) -> NoDerivado | None:
+        """O nó que já tem esta mesma origem, operação e parâmetros (ou None)."""
+        for no in self.arvore.filhos(pai, canal_y):
+            if (no.operacao == operacao and no.canal_raiz == canal_y and no.eixo_x == eixo_x
+                    and parametros_iguais(no.parametros, parametros)):
+                return no
+        return None
+
+    def renomear_derivado(self, id_no: str, nome: str) -> None:
+        nome = (nome or '').strip()
+        if not nome:
+            raise ValueError('O nome da análise não pode ficar vazio.')
+        self.arvore.no(id_no).nome = nome
+        self.invalidar_grafico()      # o nome aparece na legenda se estiver visível
+
+    def alternar_visibilidade_derivado(self, id_no: str) -> bool:
+        """Olho da árvore: liga/desliga o desenho do nó no gráfico. Devolve o novo estado."""
+        no = self.arvore.no(id_no)
+        no.visivel = not no.visivel
+        self.invalidar_grafico()
+        return no.visivel
 
     def _carimbar(self, no: NoDerivado) -> None:
         """Marca o nó como calculado sobre os dados ATUAIS da origem."""

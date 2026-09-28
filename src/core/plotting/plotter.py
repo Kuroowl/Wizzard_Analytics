@@ -566,6 +566,7 @@ def construir_figura_serie_temporal(estado, aba_ativa):
                 ),
             ))
 
+    _desenhar_derivados_visiveis(fig, arquivo, eixo_x, colunas_y)
     _desenhar_preview_amostragem(fig, arquivo, eixo_x)
 
     fig.update_layout(
@@ -599,6 +600,39 @@ def construir_figura_serie_temporal(estado, aba_ativa):
 # curvas, pra ficar claro que é um resultado provisório por cima dos dados.
 COR_PREVIEW = '#1B2430'
 COR_PREVIEW_FAIXA = 'rgba(27, 36, 48, 0.15)'
+
+
+def _escurecer(cor_hex, fator=0.45):
+    """A mesma cor, mais escura (mistura com preto) — '#636efa' -> '#363c89'."""
+    cor_hex = cor_hex.lstrip('#')
+    if len(cor_hex) != 6:
+        return COR_PREVIEW
+    r, g, b = (int(cor_hex[i:i + 2], 16) for i in (0, 2, 4))
+    return '#{:02x}{:02x}{:02x}'.format(*(round(c * (1 - fator)) for c in (r, g, b)))
+
+
+def _desenhar_derivados_visiveis(fig, arquivo, eixo_x, colunas_y):
+    """
+    Análises da árvore com o olho aceso, num tom ESCURECIDO da cor da curva
+    do canal de origem (a mesma família de cor, mas legível por cima dela). Só aparecem se foram calculadas com este X
+    e se o canal de origem está no gráfico (a árvore só mostra esses).
+    """
+    for no in arquivo.arvore:
+        if not no.visivel or no.eixo_x != eixo_x or no.canal_raiz not in colunas_y:
+            continue
+        indice = colunas_y.index(no.canal_raiz)
+        prefs = arquivo.preferencias.por_canal.get(no.canal_raiz)
+        cor = _escurecer(prefs.cor if prefs and prefs.cor else cor_da_coluna(indice))
+        x, y = no.serie.x, no.serie.y
+        if no.operacao == 'downsampling':
+            fig.add_trace(go.Scatter(x=x, y=y, mode='markers', name=no.nome,
+                                     marker=dict(color=cor, size=7, line=dict(color='#FFFFFF', width=1))))
+        elif no.operacao == 'media_movel':
+            fig.add_trace(go.Scatter(x=x, y=y, mode='lines+markers', name=no.nome,
+                                     line=dict(color=cor, width=2.5), marker=dict(color=cor, size=4)))
+        else:
+            fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=no.nome,
+                                     line=dict(color=cor, width=2.5, dash='dash')))
 
 
 def _desenhar_preview_amostragem(fig, arquivo, eixo_x):

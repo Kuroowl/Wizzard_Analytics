@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from src.core.arquivo import Arquivo
-from src.core.derivados import ArvoreDerivados, NoDerivado, Serie
+from src.core.derivados import ArvoreDerivados, DerivadoDuplicado, NoDerivado, Serie
 from src.core.operations import amostragem as am
 
 
@@ -238,8 +238,9 @@ class TestArquivoDerivados(unittest.TestCase):
                                     am.downsampling(n1.serie, 5), 'p', 't', pai=n1.id)
         self.assertTrue(arq.derivado_desatualizado(n2.id))
         # Nó novo direto do canal: em dia. O resultado antigo não mudou.
-        n3 = arq.registrar_derivado('downsampling', {'n_pontos': 10},
-                                    am.downsampling(arq.serie_do_canal('p', 't'), 10), 'p', 't')
+        # (Os mesmos parâmetros do n1 seriam recusados como duplicata.)
+        n3 = arq.registrar_derivado('downsampling', {'n_pontos': 12},
+                                    am.downsampling(arq.serie_do_canal('p', 't'), 12), 'p', 't')
         self.assertFalse(arq.derivado_desatualizado(n3.id))
         self.assertEqual(n1.serie.x[0], 0)
 
@@ -429,6 +430,52 @@ class TestPreview(unittest.TestCase):
         arq.gerar_preview_amostragem('downsampling', {'n_pontos': 10}, 'p', 't')
         arq.cortar_dados('t', 2, 8)
         self.assertIsNone(arq.preview_amostragem)
+
+
+
+class TestDuplicataNomeVisibilidade(unittest.TestCase):
+
+    def test_mesma_analise_nao_entra_duas_vezes(self):
+        arq = arquivo_teste()
+        r = am.media_movel(arq.serie_do_canal('p', 't'), 20, 0.3)
+        n1 = arq.registrar_derivado('media_movel', {'n_pontos': 20, 'delta_x': 0.3}, r, 'p', 't')
+        with self.assertRaises(DerivadoDuplicado) as ctx:
+            arq.registrar_derivado('media_movel', {'n_pontos': 20.0, 'delta_x': 0.30000000001}, r, 'p', 't')
+        self.assertIs(ctx.exception.existente, n1)
+        self.assertEqual(len(arq.arvore), 1)
+        # Mudando qualquer coisa, entra: outro parâmetro, outra origem, outro X, filho.
+        arq.registrar_derivado('media_movel', {'n_pontos': 21, 'delta_x': 0.3}, r, 'p', 't')
+        arq.registrar_derivado('media_movel', {'n_pontos': 20, 'delta_x': 0.3}, r, 'q', 't')
+        arq.registrar_derivado('media_movel', {'n_pontos': 20, 'delta_x': 0.3}, r, 'p', 'u')
+        arq.registrar_derivado('media_movel', {'n_pontos': 20, 'delta_x': 0.3}, r, 'p', 't', pai=n1.id)
+        self.assertEqual(len(arq.arvore), 5)
+
+    def test_ok_do_mesmo_preview_duas_vezes(self):
+        arq = arquivo_teste()
+        arq.gerar_preview_amostragem('downsampling', {'n_pontos': 10}, 'p', 't')
+        n1 = arq.registrar_preview_amostragem()
+        arq.gerar_preview_amostragem('downsampling', {'n_pontos': 10}, 'p', 't')
+        with self.assertRaises(DerivadoDuplicado) as ctx:
+            arq.registrar_preview_amostragem()
+        self.assertIs(ctx.exception.existente, n1)
+
+    def test_renomear(self):
+        arq = arquivo_teste()
+        n1 = arq.registrar_derivado('downsampling', {'n_pontos': 5},
+                                    am.downsampling(arq.serie_do_canal('p', 't'), 5), 'p', 't')
+        arq.renomear_derivado(n1.id, '  Amostra rápida ')
+        self.assertEqual(n1.nome, 'Amostra rápida')
+        with self.assertRaises(ValueError):
+            arq.renomear_derivado(n1.id, '   ')
+        self.assertEqual(n1.nome, 'Amostra rápida')
+
+    def test_visibilidade(self):
+        arq = arquivo_teste()
+        n1 = arq.registrar_derivado('downsampling', {'n_pontos': 5},
+                                    am.downsampling(arq.serie_do_canal('p', 't'), 5), 'p', 't')
+        self.assertFalse(n1.visivel)
+        self.assertTrue(arq.alternar_visibilidade_derivado(n1.id))
+        self.assertFalse(arq.alternar_visibilidade_derivado(n1.id))
 
 
 if __name__ == '__main__':

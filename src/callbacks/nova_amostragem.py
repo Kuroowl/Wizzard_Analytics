@@ -3,8 +3,10 @@ Callbacks da Nova Amostragem (botão 'nova-amostra' da toolbar).
 
 Liga/desliga o modo (barra de operações em cima do gráfico + painel
 direito com a árvore de dados e a configuração), escolhe a operação e a
-origem, gera o Preview, registra na árvore (OK) e cuida das ações sobre
-os nós (Recalcular, Manter, usar como origem, excluir).
+origem (clicando na árvore), gera o Preview, registra na árvore (OK) e
+cuida das ações sobre as análises (olho, renomear, excluir, Recalcular,
+Manter). A mesma análise (mesma origem, operação e parâmetros) não é
+registrada duas vezes.
 
 Regras de convivência (decisões da Fase 4):
   - Nova Amostragem e Nova Análise nunca ficam ligadas juntas: ligar uma
@@ -23,11 +25,12 @@ from dash import ALL, Input, Output, State, ctx, no_update
 from dash.exceptions import PreventUpdate
 
 from src.callbacks._comum import processar_cliques_padrao
+from src.core.derivados import DerivadoDuplicado
 from src.core.operations.amostragem import OPERACOES
 from src.core.plotting.plotter import construir_figura_serie_temporal, resolver_eixo_x
 from src.gui.amostragem import (
-    CAMPOS_PARAMETROS, OPERACOES_BARRA, classe_botao_operacao, contexto_normalizado,
-    origem_efetiva, renderizar_config_amostragem, renderizar_painel_amostragem,
+    CAMPOS_PARAMETROS, CONTEXTO_VAZIO, OPERACOES_BARRA, classe_botao_operacao,
+    contexto_normalizado, origem_efetiva, renderizar_painel_amostragem,
     renderizar_resultado_amostragem,
 )
 from src.gui.feedback import Feedback, saida_feedback
@@ -142,11 +145,11 @@ def registrar_callbacks_nova_amostragem(app, estado):
                     no_update, no_update, no_update, no_update,
                     tirar_preview(aba_ativa))
 
-        contexto = {**contexto_normalizado(None), 'canal_y': contexto_normalizado(contexto)['canal_y']}
+        contexto = dict(CONTEXTO_VAZIO)     # a origem começa vazia: o usuário clica na árvore
         desligar_analise = (False, CLASSE_BOTAO_TOOLBAR, ESCONDIDO, ESCONDIDO) if analise_ativa \
             else (no_update,) * 4
         feedback = Feedback.instrucao(
-            'Nova Amostragem: escolha uma operação na barra acima do gráfico.')
+            'Nova Amostragem: clique num canal na árvore (origem) e escolha uma operação na barra.')
         return (True, CLASSE_BOTAO_TOOLBAR + ' ativo', VISIVEL, VISIVEL,
                 painel(aba_ativa, None, contexto), None, _classes_barra(None), contexto, feedback,
                 *desligar_analise, no_update)
@@ -247,38 +250,12 @@ def registrar_callbacks_nova_amostragem(app, estado):
         operacao = gatilho.get('op')
         if operacao not in OPERACOES or operacao == operacao_atual:
             raise PreventUpdate
-        contexto = {**contexto_normalizado(contexto), 'selecionado': None, 'recalculando': None}
+        contexto = {**contexto_normalizado(contexto), 'recalculando': None, 'renomeando': None}
         figura = tirar_preview(aba_ativa)
         feedback = Feedback.instrucao(
             f'{OPERACOES[operacao].rotulo}: escolha a origem e os parâmetros e clique em Preview.')
         return (operacao, _classes_barra(operacao), painel(aba_ativa, operacao, contexto),
                 contexto, feedback, figura)
-
-    # ------------------------------------------------------------------
-    # Canal Y escolhido no dropdown: vira a origem e refaz só a
-    # configuração — os valores iniciais dos parâmetros (ex: Δx sugerido)
-    # dependem dos dados desse canal. O dropdown nasce de novo a cada
-    # redesenho com o valor já guardado: valor igual ao do contexto =
-    # redesenho, não escolha do usuário.
-    # ------------------------------------------------------------------
-    @app.callback(
-        CONTEXTO,
-        Output('amostragem-config-container', 'children'),
-        Input('amostragem-canal-y', 'value'),
-        State('amostragem-contexto-store', 'data'),
-        State('amostragem-operacao-store', 'data'),
-        State('aba-ativa-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def escolher_canal_y_amostragem(canal_y, contexto, operacao, aba_ativa):
-        contexto = contexto_normalizado(contexto)
-        if not canal_y or canal_y == contexto['canal_y'] or contexto['pai']:
-            raise PreventUpdate
-        arquivo = arquivo_da(aba_ativa)
-        if arquivo is None:
-            raise PreventUpdate
-        contexto = {**contexto, 'canal_y': canal_y, 'selecionado': None, 'recalculando': None}
-        return contexto, renderizar_config_amostragem(arquivo, _eixo_x(estado, arquivo), operacao, contexto)
 
     # ------------------------------------------------------------------
     # Preview: calcula sobre os dados atuais da origem (canal ou nó) e
@@ -305,7 +282,7 @@ def registrar_callbacks_nova_amostragem(app, estado):
             raise PreventUpdate
         canal_y, eixo_origem, pai = origem_efetiva(arquivo, _eixo_x(estado, arquivo), contexto)
         if canal_y is None:
-            raise PreventUpdate
+            return no_update, no_update, Feedback.aviso('Escolha a origem dos dados clicando na árvore.')
 
         parametros = _parametros_do_painel(ctx.states_list[0])
         faltando = _faltando(operacao, parametros)
@@ -358,15 +335,26 @@ def registrar_callbacks_nova_amostragem(app, estado):
 
         canal_y, eixo_origem, pai = origem_efetiva(arquivo, _eixo_x(estado, arquivo), contexto)
         if canal_y is None:
-            raise PreventUpdate
+            return (no_update, no_update, no_update, BARRA_SEM_MUDANCA,
+                    Feedback.aviso('Escolha a origem dos dados clicando na árvore.'), no_update)
+        existente = arquivo.derivado_equivalente(operacao, parametros, canal_y, eixo_origem, pai)
+        if existente is not None:
+            # Mesma origem, operação e parâmetros: não duplica.
+            return (no_update, no_update, no_update, BARRA_SEM_MUDANCA,
+                    Feedback.aviso(f"Essa análise já existe: '{existente.nome}'."), no_update)
         try:
             arquivo.gerar_preview_amostragem(operacao, parametros, canal_y, eixo_origem, pai)
+            no = arquivo.registrar_preview_amostragem()
+        except DerivadoDuplicado as erro:     # (checado acima; aqui só por garantia)
+            redesenhar(aba_ativa)
+            return (no_update, no_update, no_update, BARRA_SEM_MUDANCA, Feedback.aviso(str(erro)), no_update)
         except ValueError as erro:
             return (no_update, no_update, no_update, BARRA_SEM_MUDANCA,
                     Feedback.erro(f'Não registrado: {erro}'), no_update)
-        no = arquivo.registrar_preview_amostragem()
         figura = redesenhar(aba_ativa)
-        contexto = {**contexto, 'canal_y': canal_y, 'selecionado': no.id, 'recalculando': None}
+        # A origem (e o cartão, que mostra a origem) continuam os mesmos: dá
+        # pra aplicar outra operação sobre ela em seguida.
+        contexto = {**contexto, 'canal_y': canal_y, 'recalculando': None}
         feedback = Feedback.sucesso(f"'{no.nome}' registrado na árvore.")
         return (painel(aba_ativa, operacao, contexto), contexto, no_update, BARRA_SEM_MUDANCA,
                 feedback, figura)
@@ -379,11 +367,13 @@ def registrar_callbacks_nova_amostragem(app, estado):
         """
         relatorio = arquivo.recalcular_derivado(id_no, parametros)
         feito = len(relatorio.recalculados)
+        figura = no_update
+        if any(arquivo.arvore.no(i).visivel for i in relatorio.recalculados):
+            figura = redesenhar(aba_ativa)
         if relatorio.concluido:
             no = arquivo.arvore.no(id_no)
             operacao = no.operacao
-            contexto = {'canal_y': no.canal_raiz, 'pai': no.pai, 'selecionado': id_no,
-                        'recalculando': None, 'motivo': None}
+            contexto = {**CONTEXTO_VAZIO, 'canal_y': no.canal_raiz, 'pai': id_no, 'selecionado': id_no}
             feedback = Feedback.sucesso(f'Recalculado: {feito} análise(s) com os dados atuais.')
         else:
             pendencia = relatorio.pendencias[0]
@@ -391,21 +381,23 @@ def registrar_callbacks_nova_amostragem(app, estado):
                 # Os parâmetros novos também não serviram: o painel fica como
                 # está (com o que o usuário digitou), só o mago avisa.
                 return (no_update, no_update, no_update, BARRA_SEM_MUDANCA,
-                        Feedback.aviso(pendencia.mensagem), no_update)
+                        Feedback.aviso(pendencia.mensagem), figura)
+            # Pra refazer a análise, a origem é a de ONDE ela saiu (o pai dela).
             no = arquivo.arvore.no(pendencia.id)
             operacao = no.operacao
-            contexto = {'canal_y': no.canal_raiz, 'pai': no.pai, 'selecionado': no.id,
+            contexto = {**CONTEXTO_VAZIO, 'canal_y': no.canal_raiz, 'pai': no.pai, 'selecionado': no.id,
                         'recalculando': no.id, 'motivo': pendencia.mensagem}
             prefixo = f'{feito} análise(s) recalculada(s); ' if feito else ''
             feedback = Feedback.aviso(f"{prefixo}parou em '{no.nome}'. Veja o motivo no painel.")
         return (painel(aba_ativa, operacao, contexto), contexto, operacao, _classes_barra(operacao),
-                feedback, no_update)
+                feedback, figura)
 
     # ------------------------------------------------------------------
-    # Árvore e cartão do nó: clicar num canal (vira a origem), num nó (abre
-    # o cartão e restaura a operação e os parâmetros) e os botões do
-    # cartão (Recalcular, Manter, usar como origem, excluir, voltar ao
-    # canal). Tudo nasce dentro do painel redesenhado: filtro anti-fantasma.
+    # Árvore e cartão: clicar num canal ou numa análise (vira a origem; a
+    # análise também abre o cartão), olho (mostra/esconde no gráfico), lápis
+    # (renomear; Enter ou o lápis de novo salvam), lixeira (exclui com o que
+    # saiu dela), Recalcular e Manter. Tudo nasce dentro do painel
+    # redesenhado: filtro anti-fantasma.
     # ------------------------------------------------------------------
     @app.callback(
         PAINEL, CONTEXTO, OPERACAO, CLASSES_BARRA,
@@ -414,24 +406,39 @@ def registrar_callbacks_nova_amostragem(app, estado):
         Input({'type': 'amostragem-raiz', 'canal': ALL}, 'n_clicks'),
         Input({'type': 'amostragem-no', 'id': ALL}, 'n_clicks'),
         Input({'type': 'amostragem-acao', 'acao': ALL, 'no': ALL}, 'n_clicks'),
+        Input({'type': 'amostragem-nome-input', 'no': ALL}, 'n_submit'),
+        State({'type': 'amostragem-nome-input', 'no': ALL}, 'value'),
         State('amostragem-operacao-store', 'data'),
         State('amostragem-contexto-store', 'data'),
         State('aba-ativa-store', 'data'),
         prevent_initial_call=True,
     )
-    def acao_arvore_amostragem(_raizes, _nos, _acoes, operacao, contexto, aba_ativa):
+    def acao_arvore_amostragem(_raizes, _nos, _acoes, _enter, _nomes, operacao, contexto, aba_ativa):
         gatilho = processar_cliques_padrao(ctx.inputs_list)
         arquivo = arquivo_da(aba_ativa)
         if gatilho is None or arquivo is None:
             raise PreventUpdate
         contexto = contexto_normalizado(contexto)
+        nomes_digitados = {item['id']['no']: item.get('value') for item in ctx.states_list[0]}
         tipo = gatilho.get('type')
         figura = no_update
-        operacao_nova = no_update
+
+        def salvar_nome(id_no):
+            """Grava o nome digitado. Devolve (feedback, figura)."""
+            if id_no not in arquivo.arvore:
+                return no_update, no_update
+            no = arquivo.arvore.no(id_no)
+            novo = (nomes_digitados.get(id_no) or '').strip()
+            if not novo:
+                return Feedback.aviso('O nome da análise não pode ficar vazio.'), no_update
+            if novo == no.nome:
+                return Feedback.manter(), no_update
+            antigo = no.nome
+            arquivo.renomear_derivado(id_no, novo)
+            return Feedback.sucesso(f"'{antigo}' agora se chama '{novo}'."), redesenhar(aba_ativa)
 
         if tipo == 'amostragem-raiz':
-            contexto = {**contexto, 'canal_y': gatilho['canal'], 'pai': None,
-                        'selecionado': None, 'recalculando': None}
+            contexto = {**CONTEXTO_VAZIO, 'canal_y': gatilho['canal']}
             feedback = Feedback.instrucao(f"Origem: canal '{arquivo.rotulo(gatilho['canal'])}'.")
 
         elif tipo == 'amostragem-no':
@@ -439,50 +446,61 @@ def registrar_callbacks_nova_amostragem(app, estado):
             if id_no not in arquivo.arvore:
                 raise PreventUpdate
             no = arquivo.arvore.no(id_no)
-            # Restaura: a mesma operação, a mesma origem, os mesmos parâmetros.
-            contexto = {'canal_y': no.canal_raiz, 'pai': no.pai, 'selecionado': id_no, 'recalculando': None}
-            operacao_nova = no.operacao
-            feedback = Feedback.info(f"'{no.nome}': operação e parâmetros restaurados.")
+            contexto = {**CONTEXTO_VAZIO, 'canal_y': no.canal_raiz, 'pai': id_no, 'selecionado': id_no}
+            if arquivo.derivado_compativel_com_x(id_no, _eixo_x(estado, arquivo)):
+                feedback = Feedback.instrucao(f"Origem: '{no.nome}'.")
+            else:
+                feedback = Feedback.aviso(
+                    f"'{no.nome}' foi calculada com X = '{arquivo.rotulo(no.eixo_x)}': "
+                    'coloque esse X no gráfico para operar sobre ela.')
+
+        elif tipo == 'amostragem-nome-input':
+            feedback, figura = salvar_nome(gatilho['no'])
+            contexto = {**contexto, 'renomeando': None}
 
         else:
             acao, id_no = gatilho['acao'], gatilho['no']
-            if acao == 'voltar-canal':
-                contexto = {**contexto, 'pai': None, 'selecionado': None, 'recalculando': None}
-                feedback = Feedback.instrucao(f"Origem: canal '{arquivo.rotulo(contexto['canal_y'])}'.")
-            elif id_no not in arquivo.arvore:
+            if id_no not in arquivo.arvore:
                 raise PreventUpdate
-            elif acao == 'recalcular':
+            no = arquivo.arvore.no(id_no)
+            if acao == 'recalcular':
                 return resultado_recalculo(arquivo, aba_ativa, id_no)
             elif acao == 'manter':
                 arquivo.manter_derivado(id_no)
                 contexto = {**contexto, 'recalculando': None}
                 feedback = Feedback.info('Resultado mantido como está. O alerta foi removido.')
-            elif acao == 'usar-origem':
-                no = arquivo.arvore.no(id_no)
-                contexto = {'canal_y': no.canal_raiz, 'pai': id_no, 'selecionado': None, 'recalculando': None}
-                operacao_nova = None
-                feedback = Feedback.instrucao(
-                    f"Origem: '{no.nome}'. Escolha a operação na barra acima do gráfico.")
+            elif acao == 'olho':
+                visivel = arquivo.alternar_visibilidade_derivado(id_no)
+                figura = redesenhar(aba_ativa)
+                feedback = Feedback.info(f"'{no.nome}' {'no gráfico' if visivel else 'fora do gráfico'}.")
+            elif acao == 'renomear':
+                if contexto['renomeando'] == id_no:
+                    feedback, figura = salvar_nome(id_no)
+                    contexto = {**contexto, 'renomeando': None}
+                else:
+                    contexto = {**contexto, 'renomeando': id_no}
+                    feedback = Feedback.instrucao('Digite o novo nome e aperte Enter.')
             elif acao == 'excluir':
-                nome = arquivo.arvore.no(id_no).nome
+                tinha_visivel = any(n.visivel for n in [no] + arquivo.arvore.descendentes(id_no))
                 removidos = arquivo.excluir_derivado(id_no)
                 if contexto['pai'] in removidos:
-                    contexto = {**contexto, 'pai': None}
+                    contexto = {**contexto, 'canal_y': None, 'pai': None}
                 if contexto['selecionado'] in removidos or contexto['recalculando'] in removidos:
                     contexto = {**contexto, 'selecionado': None, 'recalculando': None}
+                if contexto['renomeando'] in removidos:
+                    contexto = {**contexto, 'renomeando': None}
                 preview = arquivo.preview_amostragem
                 if preview is not None and preview.pai in removidos:
-                    figura = tirar_preview(aba_ativa)
+                    arquivo.limpar_preview_amostragem()
+                    tinha_visivel = True
+                if tinha_visivel:
+                    figura = redesenhar(aba_ativa)
                 extra = f' (e {len(removidos) - 1} análise(s) que saíram dela)' if len(removidos) > 1 else ''
-                feedback = Feedback.info(f"'{nome}' excluída{extra}.")
+                feedback = Feedback.info(f"'{no.nome}' excluída{extra}.")
             else:
                 raise PreventUpdate
 
-        operacao_painel = operacao if operacao_nova is no_update else operacao_nova
-        classes = BARRA_SEM_MUDANCA if operacao_nova is no_update else _classes_barra(operacao_nova)
-        if operacao_nova is not no_update and operacao_nova != operacao:
-            figura = tirar_preview(aba_ativa)
-        return (painel(aba_ativa, operacao_painel, contexto), contexto, operacao_nova, classes,
+        return (painel(aba_ativa, operacao, contexto), contexto, no_update, BARRA_SEM_MUDANCA,
                 feedback, figura)
 
     # ------------------------------------------------------------------
