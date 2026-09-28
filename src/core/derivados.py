@@ -138,7 +138,7 @@ class PreviewAmostragem:
 
 # Parâmetros medidos na unidade do eixo X: se o X for reescrito (ex: s -> min),
 # o mesmo número passa a significar outra coisa.
-PARAMETROS_NA_UNIDADE_DE_X = ('delta_x',)
+PARAMETROS_NA_UNIDADE_DE_X = {'delta_x': 'Δx'}   # nome interno -> como aparece nas mensagens
 
 
 @dataclass

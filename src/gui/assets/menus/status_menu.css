@@ -152,6 +152,9 @@
 
 #rodape-status {
   transition: opacity 0.25s ease;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;   /* mensagem maior que a faixa: corta com '…' */
 }
 
 /* --- Barra de carregamento da seção central do rodapé ---

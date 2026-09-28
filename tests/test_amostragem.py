@@ -332,7 +332,7 @@ class TestRecalcularManter(unittest.TestCase):
         rel = arq.recalcular_derivado(ds.id)
         # A média móvel usa Δx: com X reescrito, pede revisão antes de tudo.
         self.assertEqual([(x.id, x.motivo) for x in rel.pendencias], [(mm.id, 'revisar')])
-        self.assertIn('delta_x = 0.5', rel.pendencias[0].mensagem)
+        self.assertIn('Δx = 0.5', rel.pendencias[0].mensagem)
         self.assertEqual(rel.recalculados, [])
         self.assertEqual(rel.aguardando, [fit.id, ds.id])
         # Revisado (0.5 s -> 0.5/60 min), a cadeia inteira segue.
@@ -403,6 +403,22 @@ class TestPreview(unittest.TestCase):
         mm = arq.registrar_derivado('media_movel', {}, am.media_movel(arq.serie_do_canal('p', 't'), 20, 0.3), 'p', 't')
         pv = arq.gerar_preview_amostragem('ajuste_polinomial', {'grau': 2, 'n_pontos': 30}, 'q', 'outro', pai=mm.id)
         self.assertEqual((pv.canal_y, pv.eixo_x, pv.pai), ('p', 't', mm.id))
+
+    def test_ok_registra_o_preview(self):
+        arq = arquivo_teste()
+        with self.assertRaises(ValueError):
+            arq.registrar_preview_amostragem()
+        pv = arq.gerar_preview_amostragem('media_movel', {'n_pontos': 20, 'delta_x': 0.3}, 'p', 't')
+        no = arq.registrar_preview_amostragem()
+        self.assertIsNone(arq.preview_amostragem)
+        self.assertIs(no.serie, pv.serie)
+        self.assertEqual(no.parametros, {'n_pontos': 20, 'delta_x': 0.3})
+        self.assertEqual(no.nome, 'Média móvel p')
+        # Preview a partir do nó, e OK: vira filho dele.
+        arq.gerar_preview_amostragem('ajuste_polinomial', {'grau': 1, 'n_pontos': 10}, 'p', 't', pai=no.id)
+        filho = arq.registrar_preview_amostragem()
+        self.assertEqual(filho.pai, no.id)
+        self.assertEqual(filho.nome, 'Polynomial Fit Média móvel p')
 
     def test_limpar_e_corte_tiram_o_preview(self):
         arq = arquivo_teste()

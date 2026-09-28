@@ -1783,3 +1783,109 @@
   color: var(--cor-texto-escuro);
   word-break: break-word;
 }
+
+/* Árvore clicável: canal = origem; nó = abre o cartão. */
+.amostragem-raiz,
+.amostragem-no {
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.amostragem-raiz:hover {
+  background-color: rgba(47, 165, 160, 0.10);
+  border-radius: 4px;
+}
+
+.amostragem-raiz.origem,
+.amostragem-no.origem {
+  border-color: var(--cor-accent);
+  border-radius: 4px;
+}
+
+.amostragem-raiz.origem::after,
+.amostragem-no.origem::after {
+  content: 'origem';
+  margin-left: auto;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cor-accent);
+}
+
+.amostragem-no.selecionado {
+  background-color: var(--cor-accent-suave);
+}
+
+/* Cartão do nó selecionado (em cima da configuração). */
+.amostragem-cartao {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--cor-borda);
+  border-left: 3px solid var(--cor-accent);
+  border-radius: 0 5px 5px 0;
+  background: #FFFFFF;
+}
+
+.amostragem-cartao-nome {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cor-texto-escuro);
+}
+
+.amostragem-cartao-linha {
+  font-size: 11px;
+  color: var(--cor-texto-mudo);
+}
+
+.amostragem-cartao-linha.dado {
+  font-family: var(--fonte-dado);
+  color: var(--cor-texto-escuro);
+  word-break: break-word;
+}
+
+.amostragem-cartao-aviso {
+  font-size: 11px;
+  color: #8A5A00;
+  background: rgba(201, 138, 0, 0.12);
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin-top: 3px;
+}
+
+.amostragem-cartao-aviso.neutro {
+  color: var(--cor-texto-mudo);
+  background: rgba(110, 122, 118, 0.10);
+}
+
+.amostragem-acao-btn.excluir {
+  flex: 0 0 36px;
+}
+
+.amostragem-acao-btn.excluir:hover {
+  border-color: #D62728;
+  background: rgba(214, 39, 40, 0.08);
+}
+
+.amostragem-origem-no {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px solid var(--cor-accent);
+  border-radius: 5px;
+  background: #FFFFFF;
+}
+
+.amostragem-link-btn {
+  border: none;
+  background: none;
+  color: var(--cor-accent);
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}

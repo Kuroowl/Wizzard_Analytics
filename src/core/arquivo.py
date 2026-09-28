@@ -666,6 +666,21 @@ class Arquivo:
         self.invalidar_grafico()
         return self.preview_amostragem
 
+    def registrar_preview_amostragem(self, nome: str | None = None) -> NoDerivado:
+        """
+        Botão OK: o preview em exibição vira um nó da árvore (mesma origem,
+        operação, parâmetros e resultado) e sai do gráfico.
+        """
+        preview = self.preview_amostragem
+        if preview is None:
+            raise ValueError('Não há preview para registrar.')
+        no = self.registrar_derivado(
+            preview.operacao, preview.parametros, ResultadoAmostragem(preview.serie, preview.info),
+            preview.canal_y, preview.eixo_x, pai=preview.pai, nome=nome,
+        )
+        self.limpar_preview_amostragem()
+        return no
+
     def limpar_preview_amostragem(self, invalidar_grafico: bool = True) -> bool:
         """
         Tira o preview do gráfico. True se havia um. Por padrão invalida a
@@ -778,7 +793,7 @@ class Arquivo:
             if no.id not in novos and self._x_reescrito(no):
                 em_x = [p for p in PARAMETROS_NA_UNIDADE_DE_X if p in parametros_no]
                 if em_x:
-                    valores = ', '.join(f'{p} = {parametros_no[p]}' for p in em_x)
+                    valores = ', '.join(f'{PARAMETROS_NA_UNIDADE_DE_X[p]} = {parametros_no[p]}' for p in em_x)
                     parar(no, 'revisar',
                           f"O eixo X '{self.rotulo(no.eixo_x)}' foi reescrito. Confira {valores} "
                           f"(está na unidade de X) antes de recalcular '{no.nome}'.")

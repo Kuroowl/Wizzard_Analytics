@@ -82,9 +82,10 @@ def montar_layout(estado):
         # Ver src/callbacks/nova_amostragem.py.
         dcc.Store(id='modo-nova-amostragem-store', data=False),
         dcc.Store(id='amostragem-operacao-store', data=None),
-        # Canal Y escolhido no painel (nome interno); sobrevive aos
-        # redesenhos do painel. None = o primeiro Y do gráfico.
-        dcc.Store(id='amostragem-canal-y-store', data=None),
+        # De onde a próxima operação parte e o que está selecionado na
+        # árvore: {'canal_y', 'pai', 'selecionado', 'recalculando'} — ver
+        # src/gui/amostragem.py. Sobrevive aos redesenhos do painel.
+        dcc.Store(id='amostragem-contexto-store', data=None),
 
         # 'corte-selecao-store': None enquanto nenhuma seleção de corte
         # está em andamento; durante 'Aparar dados' (e, no futuro,

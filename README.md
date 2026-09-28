@@ -12,7 +12,7 @@ O **Wizard Analytics** é uma ferramenta em Python (Dash + Plotly) para extraç�
 * **Nova Análise:** calculadora de canais. Monte uma expressão com colunas, números, operadores e funções (`sin`, `√`, derivada, integral, média...) e crie uma coluna nova ou sobrescreva uma existente. A barra de cálculo aparece em cima do gráfico, que continua funcionando normalmente.
 * **Painel de edição:** cor, espessura, estilo e marcador de cada curva; títulos, fontes e limites dos eixos; ticks; grade e cor de fundo.
 * **Mensagens do mago 🧙‍♂️:** o rodapé mostra o resultado de cada ação e a próxima instrução.
-* **Nova Amostragem (em construção):** com um gráfico aberto, liga uma barra de operações em cima do gráfico (Downsampling, Média móvel, Polynomial Fit) e, no painel direito, a árvore de dados/análises dos canais do Y e a configuração da operação. **Preview** desenha o resultado por cima do gráfico sem registrar nada (marcadores no downsampling, linha + faixa ±σ na média móvel, linha tracejada no fit) e mostra o resumo (pontos, janelas, equação e R²). Não fica ligada junto com a Nova Análise.
+* **Nova Amostragem (em construção):** com um gráfico aberto, liga uma barra de operações em cima do gráfico (Downsampling, Média móvel, Polynomial Fit) e, no painel direito, a árvore de dados/análises dos canais do Y e a configuração da operação. **Preview** desenha o resultado por cima do gráfico sem registrar nada (marcadores no downsampling, linha + faixa ±σ na média móvel, linha tracejada no fit) e mostra o resumo (pontos, janelas, equação e R²). **OK** registra o resultado na árvore de análises; clicar num nó restaura a operação e os parâmetros, e **Usar como origem** aplica outra operação sobre aquele resultado (ex.: média móvel → polynomial fit). Se os dados de origem mudarem (corte ou calculadora), os nós ganham ⚠ com **Recalcular** (refaz a cadeia com os mesmos parâmetros; para no passo que não dá, ou pede para conferir o Δx se o X foi reescrito) ou **Manter**. Não fica ligada junto com a Nova Análise.
 * **Em desenvolvimento:** fundir arquivos, salvar gráfico e exportar dados.
 
 ## ▶️ Como executar
@@ -167,5 +167,6 @@ Botões que nascem dentro de listas reconstruídas por callbacks (canais, abas, 
    * ✅ 4.2 Core: origem alterada -> ⚠ com **Recalcular** (mesma sequência e parâmetros; para no nó que falha ou cujo Δx precisa de revisão) ou **Manter**; derivado só é exibido com o mesmo X de onde veio.
    * ✅ 4.3 Modo liga/desliga (exclusivo com a Nova Análise; corte, fechar gráfico e trocar aba desligam), barra de operações e painel (árvore + configuração).
    * ✅ 4.4 Preview das três operações (desenho por cima do gráfico, resumo no painel; some ao trocar de operação, desligar o modo, cortar dados ou trocar o X).
-   * ⏳ 4.5 OK/árvore · 4.6 Add (par x', y') · 4.7 Calculadora com pares.
+   * ✅ 4.5 OK/árvore: registrar, abrir um nó (restaura operação e parâmetros), usar como origem, excluir (com os filhos), ⚠ com Recalcular/Manter e o Recalcular que para pedindo ajuste.
+   * ⏳ 4.6 Add (par x', y') · 4.7 Calculadora com pares.
 5. ⏳ Revisar arquitetura: `allow_duplicate`, `EstadoApp`, renderização excessiva, cache do gráfico.

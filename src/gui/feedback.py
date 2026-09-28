@@ -56,6 +56,8 @@ ORIGENS_FEEDBACK = (
     'amostragem-operacao',
     'amostragem-desligar',
     'amostragem-preview',
+    'amostragem-ok',
+    'amostragem-arvore',
 )
 
 TIPO_STORE_FEEDBACK = 'feedback'
