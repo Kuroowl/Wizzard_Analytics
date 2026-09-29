@@ -133,7 +133,11 @@ class CanalDerivado:
     eixo_x      canal X de onde veio: só é desenhado com esse X no gráfico
     canal_raiz  canal Y de onde a cadeia começou
     no_origem   id da análise de onde veio. Enquanto ligado, acompanha o
-                Recalcular dela. None = desvinculado (a análise foi excluída).
+                Recalcular dela. None = desvinculado (a análise foi excluída,
+                o par foi editado pela calculadora, ou nasceu dela).
+    formula     expressão da calculadora que gerou/editou o par (auditoria)
+    x_editado   o x' foi reescrito pela calculadora: pode não corresponder
+                mais ao X de origem (o mago avisa; o par continua plotável)
     """
     nome: str
     rotulo: str
@@ -141,6 +145,8 @@ class CanalDerivado:
     eixo_x: str
     canal_raiz: str
     no_origem: str | None = None
+    formula: str | None = None
+    x_editado: bool = False
 
     @property
     def vinculado(self) -> bool:

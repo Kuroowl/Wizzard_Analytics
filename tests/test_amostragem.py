@@ -558,5 +558,80 @@ class TestCanalDerivado(unittest.TestCase):
             arq.renomear_canal_derivado(c.nome, '')
 
 
+
+class TestCalculadoraComAnalises(unittest.TestCase):
+    """4.7: a calculadora opera sobre pares (x', y') com o mesmo x'."""
+
+    def base(self):
+        from src.gui.estado import EstadoApp
+        estado = EstadoApp()
+        arq = arquivo_teste()
+        estado.arquivos['a.csv'] = arq
+        arq.mover_para_eixo_x('t')
+        s_p, s_q = arq.serie_do_canal('p', 't'), arq.serie_do_canal('q', 't')
+        mp = arq.registrar_derivado('media_movel', {'n_pontos': 11, 'delta_x': 0.5},
+                                    am.media_movel(s_p, 11, 0.5), 'p', 't')
+        mq = arq.registrar_derivado('media_movel', {'n_pontos': 11, 'delta_x': 0.5},
+                                    am.media_movel(s_q, 11, 0.5), 'q', 't')
+        dp = arq.registrar_derivado('downsampling', {'n_pontos': 7}, am.downsampling(s_p, 7), 'p', 't')
+        cp, cq, cd = (arq.adicionar_canal_derivado(n.id) for n in (mp, mq, dp))
+        return estado, arq, cp, cq, cd
+
+    def test_pares_com_o_mesmo_x_se_combinam(self):
+        from src.core.operations.calculadora import avaliar_calculo
+        estado, arq, cp, cq, cd = self.base()
+        r = avaliar_calculo(f"der[{cp.nome!r}]-der[{cq.nome!r}]*2", arq, estado)
+        self.assertEqual(r.analise, cp.nome)
+        np.testing.assert_allclose(r.valores.to_numpy(), cp.serie.y - 2 * cq.serie.y)
+        # x' do próprio par e funções
+        r = avaliar_calculo(f"derx[{cp.nome!r}]/60", arq, estado)
+        np.testing.assert_allclose(r.valores.to_numpy(), cp.serie.x / 60)
+        r = avaliar_calculo(f"Maximo(der[{cp.nome!r}])", arq, estado)
+        self.assertEqual(len(r.valores), 11)
+        self.assertTrue((r.valores == cp.serie.y.max()).all())
+        r = avaliar_calculo(f"Derivada(derx[{cp.nome!r}])", arq, estado)   # dx/dx = 1 no x' dele
+        np.testing.assert_allclose(r.valores.to_numpy(), 1.0)
+        r = avaliar_calculo("2+3", arq, estado)                             # sem dado: tabela, como antes
+        self.assertIsNone(r.analise)
+        self.assertEqual(len(r.valores), len(arq.df_editado))
+
+    def test_misturas_bloqueadas(self):
+        from src.core.operations.calculadora import avaliar_calculo, avaliar_expressao_calculadora
+        estado, arq, cp, cq, cd = self.base()
+        with self.assertRaisesRegex(ValueError, 'misturar'):
+            avaliar_calculo(f"der[{cp.nome!r}]+col['p']", arq, estado)
+        with self.assertRaisesRegex(ValueError, "mesmo x'"):
+            avaliar_calculo(f"der[{cp.nome!r}]+der[{cd.nome!r}]", arq, estado)
+        with self.assertRaisesRegex(ValueError, 'não cabe'):
+            avaliar_expressao_calculadora(f"der[{cp.nome!r}]*2", arq, estado)
+        with self.assertRaisesRegex(ValueError, 'não existe mais'):
+            avaliar_calculo("der['analise_99']*2", arq, estado)
+
+    def test_nova_analise_calculada(self):
+        estado, arq, cp, cq, cd = self.base()
+        novo = arq.adicionar_canal_derivado_calculado('Diferença', cp.serie.x, cp.serie.y - cq.serie.y,
+                                                      cp.eixo_x, cp.canal_raiz, 'der-der')
+        self.assertFalse(novo.vinculado)
+        self.assertEqual(novo.formula, 'der-der')
+        np.testing.assert_array_equal(novo.serie.x, cp.serie.x)
+
+    def test_editar_desvincula(self):
+        estado, arq, cp, cq, cd = self.base()
+        no_id = cp.no_origem
+        arq.sobrescrever_canal_derivado(cp.nome, 'y', cp.serie.y * 10, 'der*10')
+        self.assertFalse(cp.vinculado)
+        self.assertFalse(cp.x_editado)
+        arq.cortar_dados('t', 2, 8)
+        arq.recalcular_derivado(no_id)                        # o Recalcular não apaga a edição
+        self.assertEqual(len(cp.serie), 11)
+        self.assertFalse(arq.canal_derivado_desatualizado(cp.nome))
+        arq.sobrescrever_canal_derivado(cq.nome, 'x', cq.serie.x / 60, 'derx/60')
+        self.assertTrue(cq.x_editado)
+        with self.assertRaises(ValueError):                   # tamanho errado
+            arq.sobrescrever_canal_derivado(cd.nome, 'y', [1, 2, 3], 'x')
+        # a análise de origem pode virar canal de novo
+        arq.adicionar_canal_derivado(no_id)
+
+
 if __name__ == '__main__':
     unittest.main()

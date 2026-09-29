@@ -21,6 +21,9 @@ arquivo/aba está ativa. Só o vocabulário FIXO (operadores, funções)
 mora aqui.
 """
 
+import re
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 
@@ -146,7 +149,86 @@ def calc_criar_desabilitado(tokens_expressao, tipo_destino, nome_novo_canal, col
     return not coluna_destino
 
 
+# ============================================================================
+# Domínio da expressão: tabela (colunas) OU análises (x', y')
+# ============================================================================
+# Tokens de dados na expressão:
+#   col['nome']   coluna da tabela (df_editado)
+#   der['nome']   y' de uma análise de 'Análises do arquivo' (Add)
+#   derx['nome']  x' dessa análise
+# Uma análise tem tamanho e X próprios: não se mistura com colunas da tabela
+# (não preenchemos com None nem interpolamos), e duas análises só se
+# combinam se tiverem EXATAMENTE o mesmo x'.
+_REF_DADO = re.compile(r"\b(col|der|derx)\[(['\"])(.*?)\2\]")
+
+
+@dataclass
+class ResultadoCalculo:
+    """
+    valores     o resultado (pd.Series)
+    analise     None = domínio da tabela (cabe numa coluna do df);
+                senão, nome interno de uma análise usada na expressão —
+                o resultado tem o tamanho e o x' dela
+    """
+    valores: pd.Series
+    analise: str | None = None
+
+    @property
+    def em_analise(self) -> bool:
+        return self.analise is not None
+
+
+def dominio_da_expressao(codigo, arquivo):
+    """
+    None (tabela) ou o nome da 1ª análise referenciada. ValueError se a
+    expressão mistura tabela e análise, ou análises com x' diferentes.
+    """
+    refs = _REF_DADO.findall(codigo or '')
+    usa_tabela = any(tipo == 'col' for tipo, _, _ in refs)
+    analises = []
+    for tipo, _, nome in refs:
+        if tipo in ('der', 'derx') and nome not in analises:
+            analises.append(nome)
+    if not analises:
+        return None
+    for nome in analises:
+        if nome not in arquivo.canais_derivados:
+            raise ValueError('uma das análises da expressão não existe mais — monte a expressão de novo.')
+    if usa_tabela:
+        raise ValueError("não dá pra misturar colunas do arquivo com análises (x', y'): "
+                         'elas têm tamanhos e X diferentes.')
+    base = arquivo.canais_derivados[analises[0]]
+    for nome in analises[1:]:
+        outra = arquivo.canais_derivados[nome]
+        if len(outra.serie) != len(base.serie) or not np.array_equal(outra.serie.x, base.serie.x):
+            raise ValueError(f"'{base.rotulo}' e '{outra.rotulo}' não têm o mesmo x': "
+                             'só análises com os mesmos pontos em X se combinam.')
+    return analises[0]
+
+
+def avaliar_calculo(codigo, arquivo, estado):
+    """
+    Avalia a expressão no domínio certo (ver dominio_da_expressao) e
+    devolve um ResultadoCalculo. Mesmas funções e mesma segurança de
+    avaliar_expressao_calculadora (abaixo); no domínio de uma análise,
+    Derivada/Integral usam o x' dela e Media/Maximo/Minimo repetem o
+    escalar no tamanho dela.
+    """
+    analise = dominio_da_expressao(codigo, arquivo)
+    if analise is None:
+        return ResultadoCalculo(_avaliar(codigo, arquivo, estado, None))
+    return ResultadoCalculo(_avaliar(codigo, arquivo, estado, arquivo.canais_derivados[analise]), analise)
+
+
 def avaliar_expressao_calculadora(codigo, arquivo, estado):
+    """Só o domínio da tabela: devolve a Series pronta pra virar coluna (ver _avaliar)."""
+    resultado = avaliar_calculo(codigo, arquivo, estado)
+    if resultado.em_analise:
+        raise ValueError("a expressão usa análises (x', y'): o resultado não cabe numa coluna do arquivo.")
+    return resultado.valores
+
+
+def _avaliar(codigo, arquivo, estado, analise):
     """
     Avalia 'codigo' (a concatenação dos 'codigo' de cada token
     clicado, ver 'calc-expressao-store' em layout.py) contra as
@@ -212,8 +294,25 @@ def avaliar_expressao_calculadora(codigo, arquivo, estado):
         raise ValueError("tem um ')' sobrando sem um '(' pra combinar.")
 
     df = arquivo.df_editado
-    n_linhas = len(df)
-    col = {nome: df[nome] for nome in df.columns}
+    if analise is None:
+        indice = df.index
+        col = {nome: df[nome] for nome in df.columns}
+        der, derx = {}, {}
+    else:
+        # Domínio de uma análise: só os pares com o mesmo x' (checado em
+        # dominio_da_expressao), todos com o índice 0..n-1 do x' dela.
+        indice = pd.RangeIndex(len(analise.serie))
+        col = {}
+        der = {n: pd.Series(c.serie.y, index=indice) for n, c in arquivo.canais_derivados.items()
+               if len(c.serie) == len(analise.serie)}
+        derx = {n: pd.Series(c.serie.x, index=indice) for n, c in arquivo.canais_derivados.items()
+                if len(c.serie) == len(analise.serie)}
+    n_linhas = len(indice)
+
+    def _eixo_x():
+        if analise is not None:
+            return analise.serie.x.astype(float)
+        return df[resolver_eixo_x(estado, arquivo)].to_numpy(dtype=float)
 
     def _como_serie(valor):
         """Normaliza o argumento de Media/Maximo/Minimo/Derivada/
@@ -224,27 +323,26 @@ def avaliar_expressao_calculadora(codigo, arquivo, estado):
         if isinstance(valor, pd.Series):
             return valor
         if np.isscalar(valor):
-            return pd.Series([valor] * n_linhas, index=df.index)
-        return pd.Series(valor, index=df.index)
+            return pd.Series([valor] * n_linhas, index=indice)
+        return pd.Series(valor, index=indice)
 
     def Media(valor):
         serie = _como_serie(valor)
-        return pd.Series(serie.mean(), index=df.index)
+        return pd.Series(serie.mean(), index=indice)
 
     def Maximo(valor):
         serie = _como_serie(valor)
-        return pd.Series(serie.max(), index=df.index)
+        return pd.Series(serie.max(), index=indice)
 
     def Minimo(valor):
         serie = _como_serie(valor)
-        return pd.Series(serie.min(), index=df.index)
+        return pd.Series(serie.min(), index=indice)
 
     def Derivada(valor):
         serie = _como_serie(valor)
-        coluna_x = resolver_eixo_x(estado, arquivo)
-        x = df[coluna_x].to_numpy(dtype=float)
+        x = _eixo_x()
         y = serie.to_numpy(dtype=float)
-        return pd.Series(np.gradient(y, x), index=df.index)
+        return pd.Series(np.gradient(y, x), index=indice)
 
     def Integral(valor):
         # Trapézio cumulativo — mesmo espírito de
@@ -255,16 +353,15 @@ def avaliar_expressao_calculadora(codigo, arquivo, estado):
         # aceita nomes de coluna, não uma expressão arbitrária já
         # calculada).
         serie = _como_serie(valor)
-        coluna_x = resolver_eixo_x(estado, arquivo)
-        x = df[coluna_x].to_numpy(dtype=float)
+        x = _eixo_x()
         y = serie.to_numpy(dtype=float)
         if len(x) < 2:
-            return pd.Series(np.zeros(n_linhas), index=df.index)
+            return pd.Series(np.zeros(n_linhas), index=indice)
         area = np.concatenate(([0.0], np.cumsum(np.diff(x) * (y[:-1] + y[1:]) / 2.0)))
-        return pd.Series(area, index=df.index)
+        return pd.Series(area, index=indice)
 
     namespace_seguro = {
-        'col': col, 'np': np,
+        'col': col, 'der': der, 'derx': derx, 'np': np,
         'Media': Media, 'Maximo': Maximo, 'Minimo': Minimo,
         'Derivada': Derivada, 'Integral': Integral,
     }
@@ -295,8 +392,10 @@ def avaliar_expressao_calculadora(codigo, arquivo, estado):
         # Expressão sem coluna nenhuma (ex: '2+2') — permite, mas
         # espalha o mesmo valor em todas as linhas, pra virar uma
         # coluna de verdade (constante) em vez de recusar.
-        resultado = pd.Series([resultado] * n_linhas, index=df.index)
+        resultado = pd.Series([resultado] * n_linhas, index=indice)
     elif len(resultado) != n_linhas:
         raise ValueError('o resultado não tem o mesmo número de linhas do arquivo.')
+    elif not isinstance(resultado, pd.Series):
+        resultado = pd.Series(np.asarray(resultado), index=indice)
 
     return resultado

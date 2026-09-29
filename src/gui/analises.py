@@ -17,8 +17,12 @@ def _dica(arquivo, canal):
     if canal.vinculado and canal.no_origem in arquivo.arvore:
         no = arquivo.arvore.no(canal.no_origem)
         partes.append(f"Vem de '{no.nome}' ({OPERACOES[no.operacao].rotulo}) e acompanha o Recalcular dela.")
+    elif canal.formula:
+        partes.append('Criada ou editada na calculadora: não acompanha nenhuma análise da árvore.')
     else:
         partes.append('Desvinculada: a análise de origem foi excluída.')
+    if canal.x_editado:
+        partes.append(f"x′ reescrito na calculadora: pode não corresponder mais a '{arquivo.rotulo(canal.eixo_x)}'.")
     if arquivo.canal_derivado_desatualizado(canal.nome):
         partes.append('⚠ A origem mudou: recalcule a análise na Nova Amostragem.')
     return '\n'.join(partes)

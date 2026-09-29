@@ -1315,6 +1315,13 @@ def renderizar_calculadora_barra(estado, aba_ativa, tokens_expressao=None,
         opcoes_colunas_destino = [
             {'label': arquivo.rotulo(nome), 'value': nome} for nome in arquivo.colunas_disponiveis_calculo()
         ]
+        # Análises (x', y') de 'Análises do arquivo': dá pra sobrescrever o
+        # y' ou o x' de cada uma (o par se desvincula da análise de origem).
+        for nome, canal in arquivo.canais_derivados.items():
+            opcoes_colunas_destino += [
+                {'label': f"◆ {canal.rotulo} (y′)", 'value': f'analise:{nome}:y'},
+                {'label': f"◆ {canal.rotulo} (x′)", 'value': f'analise:{nome}:x'},
+            ]
 
     # Nome-input e dropdown-de-coluna-existente nascem OS DOIS sempre
     # no DOM (um deles só escondido via CSS, classe
@@ -1556,4 +1563,35 @@ def renderizar_calculadora_botoes(estado, aba_ativa):
                 [html.Div('Abra um arquivo pra ver as colunas aqui.', className='calculadora-colunas-vazio')]
             )),
         ]),
+        *_grupo_analises_calculadora(arquivo),
     ])
+
+
+def _grupo_analises_calculadora(arquivo):
+    """
+    Análises (x', y') de 'Análises do arquivo' como tokens: y′ e x′ de cada
+    uma. Uma expressão com análises não se mistura com as colunas acima, e
+    análises só se combinam com o MESMO x′ (ver dominio_da_expressao,
+    src/core/operations/calculadora.py) — o mago explica quando não dá.
+    """
+    if not arquivo or not arquivo.canais_derivados:
+        return []
+    linhas = []
+    for nome, canal in arquivo.canais_derivados.items():
+        # O nome vai quase inteiro no botão (e no chip da expressão): duas
+        # análises de nome parecido ('Média móvel sinal'/'Média móvel temp')
+        # não podem virar o mesmo 'Média ..'.
+        rotulo = canal.rotulo if len(canal.rotulo) <= 22 else canal.rotulo[:21] + '…'
+        dica = f"{canal.rotulo}: {len(canal.serie)} pontos, X = '{arquivo.rotulo(canal.eixo_x)}'"
+        linhas.append(html.Div(className='calculadora-analise-linha', children=[
+            _botao_token_calculadora(f'y′ · {rotulo}', f'der[{nome!r}]', 'calculadora-token-analise',
+                                     titulo=f"y′ de {dica}"),
+            _botao_token_calculadora(f'x′ · {rotulo}', f'derx[{nome!r}]', 'calculadora-token-analise',
+                                     titulo=f"x′ de {dica}"),
+        ]))
+    return [html.Div(className='calculadora-grupo calculadora-grupo-analises', children=[
+        html.Div("Análises (x′, y′)", className='calculadora-grupo-titulo'),
+        html.Div('Só se combinam análises com o mesmo x′; não se misturam com as colunas.',
+                 className='calculadora-analises-dica'),
+        *linhas,
+    ])]

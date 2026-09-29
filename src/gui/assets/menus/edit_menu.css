@@ -2007,3 +2007,45 @@
   color: var(--cor-accent);
   font-size: 9px;
 }
+
+/* ==========================================================================
+   Calculadora — grupo 'Análises (x′, y′)': os pares de 'Análises do
+   arquivo' (Add). Uma linha por análise: nome + botões y′ e x′. Cor
+   própria (teal da Nova Amostragem), diferente do azul das colunas: as
+   duas famílias não se misturam numa expressão. Vale pro botão E pro
+   chip na barra (mesma classe).
+   ========================================================================== */
+.calculadora-token-analise {
+  font-family: var(--fonte-ui);
+  background-color: var(--cor-accent);
+  border-color: var(--cor-accent);
+  color: #FFFFFF;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.calculadora-token-analise:hover {
+  background-color: #248884;
+  border-color: #248884;
+}
+
+.calculadora-analise-linha {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.calculadora-analise-linha .calculadora-token-analise {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+
+.calculadora-analises-dica {
+  font-size: 11px;
+  color: var(--cor-texto-mudo);
+}

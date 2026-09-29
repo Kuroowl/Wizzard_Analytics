@@ -21,6 +21,7 @@ elimina duas classes de bug que já existiam:
 from dataclasses import dataclass, field
 from enum import Enum
 
+import numpy as np
 import pandas as pd
 
 from src.core.derivados import (
@@ -895,13 +896,58 @@ class Arquivo:
         existente = self.canal_da_analise(id_no)
         if existente is not None:
             raise ValueError(f"'{no.nome}' já está em Análises do arquivo como '{existente.rotulo}'.")
-        n = 1
-        while f'analise_{n}' in self.canais_derivados:
-            n += 1
-        canal = CanalDerivado(nome=f'analise_{n}', rotulo=no.nome, serie=no.serie,
+        canal = CanalDerivado(nome=self._nome_canal_derivado_livre(), rotulo=no.nome, serie=no.serie,
                               eixo_x=no.eixo_x, canal_raiz=no.canal_raiz, no_origem=id_no)
         self.canais_derivados[canal.nome] = canal
         no.canal = canal.nome
+        return canal
+
+    def _nome_canal_derivado_livre(self) -> str:
+        n = 1
+        while f'analise_{n}' in self.canais_derivados:
+            n += 1
+        return f'analise_{n}'
+
+    def adicionar_canal_derivado_calculado(self, rotulo: str, x, y, eixo_x: str, canal_raiz: str,
+                                           formula: str) -> CanalDerivado:
+        """
+        Calculadora com análises (x', y'): o resultado vira um par NOVO em
+        'Análises do arquivo', com o x' de onde veio. Não está ligado a
+        nenhuma análise da árvore.
+        """
+        rotulo = (rotulo or '').strip()
+        if not rotulo:
+            raise ValueError('Dê um nome pra essa análise antes de criar.')
+        canal = CanalDerivado(nome=self._nome_canal_derivado_livre(), rotulo=rotulo,
+                              serie=Serie(np.asarray(x, dtype=float), np.asarray(y, dtype=float)),
+                              eixo_x=eixo_x, canal_raiz=canal_raiz, formula=formula)
+        self.canais_derivados[canal.nome] = canal
+        return canal
+
+    def sobrescrever_canal_derivado(self, nome: str, eixo: str, valores, formula: str) -> CanalDerivado:
+        """
+        Calculadora: substitui o y' (eixo='y') ou o x' (eixo='x') de um par.
+        O par deixa de acompanhar a análise de origem (DESVINCULADO): o que
+        está nele agora foi editado à mão, e um Recalcular não pode apagar
+        isso. Reescrever o x' marca 'x_editado'.
+        """
+        canal = self.canal_derivado(nome)
+        if eixo not in ('x', 'y'):
+            raise ValueError("eixo deve ser 'x' ou 'y'.")
+        valores = np.asarray(valores, dtype=float)
+        if len(valores) != len(canal.serie):
+            raise ValueError(f"o resultado tem {len(valores)} pontos e '{canal.rotulo}' tem {len(canal.serie)}.")
+        x = valores if eixo == 'x' else canal.serie.x
+        y = valores if eixo == 'y' else canal.serie.y
+        canal.serie = Serie(x, y)          # sem σ: ele era da análise de origem
+        if canal.no_origem in self.arvore:
+            self.arvore.no(canal.no_origem).canal = None
+        canal.no_origem = None
+        canal.formula = formula
+        if eixo == 'x':
+            canal.x_editado = True
+        if nome in self.eixos_y_derivados:
+            self.invalidar_grafico()
         return canal
 
     def renomear_canal_derivado(self, nome: str, rotulo: str) -> None:

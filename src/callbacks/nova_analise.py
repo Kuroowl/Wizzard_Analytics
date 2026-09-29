@@ -13,8 +13,9 @@ from dash import ALL, Input, Output, State, ctx, no_update
 from dash.exceptions import PreventUpdate
 
 from src.callbacks._comum import processar_cliques_padrao
-from src.core.operations.calculadora import avaliar_expressao_calculadora, calc_criar_desabilitado
+from src.core.operations.calculadora import avaliar_calculo, calc_criar_desabilitado
 from src.core.plotting.plotter import construir_figura_serie_temporal
+from src.gui.analises import renderizar_analises_da_aba_ativa
 from src.gui.feedback import Feedback, saida_feedback
 from src.gui.renderizadores import (
     renderizar_area_calculadora_completa, renderizar_calculadora_botoes,
@@ -294,6 +295,7 @@ def registrar_callbacks_nova_analise(app, estado):
         Output('container-grafico', 'children', allow_duplicate=True),
         Output('area-modo-nova-analise-edicao', 'children', allow_duplicate=True),
         saida_feedback('calculadora'),
+        Output('lista-analises-aba', 'children', allow_duplicate=True),
         Input('calc-criar', 'n_clicks'),
         State('aba-ativa-store', 'data'),
         State('calc-expressao-store', 'data'),
@@ -320,20 +322,81 @@ def registrar_callbacks_nova_analise(app, estado):
             raise PreventUpdate
 
         def _sem_mudanca_de_conteudo(feedback):
-            """Devolve os 7 valores desta callback quando SÓ a mensagem
+            """Devolve os valores desta callback quando SÓ a mensagem
             do rodapé muda (erro de validação) — a barra/expressão/
             listas continuam exatamente como estavam."""
-            return no_update, no_update, no_update, no_update, no_update, no_update, feedback
+            return no_update, no_update, no_update, no_update, no_update, no_update, feedback, no_update
 
         codigo = ''.join(t['codigo'] for t in (tokens_atuais or []))
         try:
-            valores = avaliar_expressao_calculadora(codigo, arquivo, estado).tolist()
+            # Domínio: tabela (colunas) OU análises (x', y') com o mesmo x' —
+            # ver avaliar_calculo, src/core/operations/calculadora.py.
+            resultado = avaliar_calculo(codigo, arquivo, estado)
         except ValueError as e:
             return _sem_mudanca_de_conteudo(Feedback.erro(f'Não deu pra criar: {e}'))
+        valores = resultado.valores.tolist()
 
         area_grafico = no_update
+        tinha_grafico = arquivo.grafico_gerado
 
-        if tipo_destino == 'existente':
+        def redesenhar_se_preciso():
+            if tinha_grafico and not arquivo.grafico_gerado:
+                fig = construir_figura_serie_temporal(estado, aba_ativa)
+                arquivo.figura = fig
+                return renderizar_grafico_com_fechar(fig)
+            return no_update
+
+        destino_analise = tipo_destino == 'existente' and str(coluna_destino or '').startswith('analise:')
+        if destino_analise:
+            # --- Sobrescreve o y' ou o x' de uma análise (x', y') ---
+            _, nome_par, eixo = coluna_destino.split(':')
+            if nome_par not in arquivo.canais_derivados:
+                return _sem_mudanca_de_conteudo(Feedback.aviso('Essa análise não existe mais. Escolha outro destino.'))
+            if not resultado.em_analise:
+                return _sem_mudanca_de_conteudo(Feedback.erro(
+                    "Não deu pra criar: o resultado é das colunas do arquivo e não cabe numa análise (x', y')."))
+            canal = arquivo.canal_derivado(nome_par)
+            estava_vinculado = canal.vinculado
+            try:
+                arquivo.sobrescrever_canal_derivado(nome_par, eixo, valores, codigo)
+            except ValueError as e:
+                return _sem_mudanca_de_conteudo(Feedback.erro(f'Não deu pra criar: {e}'))
+            area_grafico = redesenhar_se_preciso()
+            partes = [f"{'x′' if eixo == 'x' else 'y′'} de '{canal.rotulo}' recalculado."]
+            if estava_vinculado:
+                partes.append('Desvinculada da análise de origem.')
+            if eixo == 'x':
+                partes.append(f"O x′ pode não bater mais com '{arquivo.rotulo(canal.eixo_x)}'.")
+            feedback = Feedback.aviso(' '.join(partes)) if len(partes) > 1 else Feedback.sucesso(partes[0])
+
+        elif tipo_destino == 'existente' and resultado.em_analise:
+            base = arquivo.canal_derivado(resultado.analise)
+            return _sem_mudanca_de_conteudo(Feedback.erro(
+                f"Não deu pra criar: o resultado tem o x′ de '{base.rotulo}' ({len(base.serie)} pontos) e "
+                "não cabe numa coluna do arquivo. Use 'Nova coluna' ou escolha uma análise como destino."))
+
+        elif tipo_destino != 'existente' and resultado.em_analise:
+            # --- Cria uma análise NOVA (x', y') com o x' das que foram usadas ---
+            nome_novo_canal = (nome_novo_canal or '').strip()
+            if not nome_novo_canal:
+                return _sem_mudanca_de_conteudo(Feedback.aviso('Dê um nome pra essa análise antes de criar.'))
+            base = arquivo.canal_derivado(resultado.analise)
+            novo = arquivo.adicionar_canal_derivado_calculado(
+                nome_novo_canal, base.serie.x, valores, base.eixo_x, base.canal_raiz, codigo)
+            # Como a coluna nova da tabela: vai pro Y — se o gráfico tem o X dela.
+            no_y = False
+            if tinha_grafico:
+                try:
+                    arquivo.mover_derivado_para_y(novo.nome)
+                    no_y = True
+                except ValueError:
+                    pass
+            area_grafico = redesenhar_se_preciso()
+            feedback = Feedback.sucesso(
+                f"Análise '{novo.rotulo}' criada em Análises do arquivo ({len(novo.serie)} pontos)"
+                + (' e colocada no gráfico.' if no_y else '.'))
+
+        elif tipo_destino == 'existente':
             # --- Sobrescreve uma coluna JÁ EXISTENTE ---
             if not coluna_destino or coluna_destino not in arquivo.df_editado.columns:
                 return _sem_mudanca_de_conteudo(Feedback.aviso('Escolha qual coluna sobrescrever antes de criar.'))
@@ -341,7 +404,6 @@ def registrar_callbacks_nova_analise(app, estado):
             # Sobrescrever os DADOS de uma coluna que já existe pode mudar
             # uma curva já desenhada — por isso redesenha se havia gráfico
             # ANTES (o método invalida o cache da figura).
-            tinha_grafico = arquivo.grafico_gerado
             arquivo.sobrescrever_canal_com_calculo(coluna_destino, valores, codigo)
             if tinha_grafico:
                 fig = construir_figura_serie_temporal(estado, aba_ativa)
@@ -378,7 +440,6 @@ def registrar_callbacks_nova_analise(app, estado):
             # de chamar 'mover_para_eixo_y' — esse método já invalida o
             # cache da figura sozinho, então checar DEPOIS sempre daria
             # False (mesmo bug já corrigido em gerenciar_atribuicao_eixos).
-            tinha_grafico = arquivo.grafico_gerado
             arquivo.mover_para_eixo_y(nome_interno_final)
             if tinha_grafico:
                 fig = construir_figura_serie_temporal(estado, aba_ativa)
@@ -403,7 +464,8 @@ def registrar_callbacks_nova_analise(app, estado):
         return (conteudo, [],
                 renderizar_colunas_da_aba_ativa(estado, aba_ativa),
                 renderizar_selecao_eixos(estado, aba_ativa),
-                area_grafico, botoes_calculadora, feedback)
+                area_grafico, botoes_calculadora, feedback,
+                renderizar_analises_da_aba_ativa(estado, aba_ativa))
 
     @app.callback(
         Output('modo-nova-analise-store', 'data', allow_duplicate=True),
