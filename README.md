@@ -176,4 +176,5 @@ Botões que nascem dentro de listas reconstruídas por callbacks (canais, abas, 
    * ✅ 4.6.1 Ícones das operações na barra da Nova Amostragem.
    * ✅ 4.7 Calculadora com análises (x′, y′): tokens y′/x′, domínio da expressão (tabela OU análises com o mesmo x′), resultado vira análise nova, sobrescrever desvincula (x′ reescrito é sinalizado).
    * ✅ 4.8 Ajustes: análises no painel de edição (cor/espessura/estilo/marcador), barras de erro ±σ das médias móveis no gráfico, sair do modo apaga os olhos, árvore mostra canais com análises mesmo fora do Y.
+   * ✅ 4.9 Análise da calculadora na árvore: conta feita com análises (ex.: média A + média B) vira nó com várias origens, ligado a elas por um braço na árvore; serve de origem para novas análises, o Recalcular refaz a conta depois das origens e excluir uma origem leva a análise junto.
 5. ⏳ Revisar arquitetura: `allow_duplicate`, `EstadoApp`, renderização excessiva, cache do gráfico.

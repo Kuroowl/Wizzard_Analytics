@@ -105,6 +105,11 @@ class NoDerivado:
                     no momento do OK — se mudar, parâmetros na unidade de X
                     (Δx) precisam de revisão antes de recalcular
     canal           nome interno do canal criado pelo 'Add' (None = não virou canal)
+    outros_pais     análises de onde ela TAMBÉM saiu, além de 'pai' — só nas
+                    análises da calculadora que combinam várias (ex.: média A
+                    + média B: pai = A, outros_pais = [B]). Ela depende de
+                    todas: fica ⚠ se qualquer uma mudar e sai junto se
+                    qualquer uma for excluída.
     """
     id: str
     nome: str
@@ -119,6 +124,12 @@ class NoDerivado:
     reescritas_x: int = 0
     canal: str | None = None
     visivel: bool = False     # olho da árvore: desenhado no gráfico?
+    outros_pais: list = field(default_factory=list)
+
+    @property
+    def pais(self) -> list:
+        """Todas as análises de origem (vazio = saiu direto do canal)."""
+        return ([self.pai] if self.pai else []) + list(self.outros_pais)
 
 
 @dataclass
@@ -195,6 +206,11 @@ class PreviewAmostragem:
     pai: str | None = None
 
 
+# Operação das análises criadas na calculadora a partir de outras análises
+# (ex.: média A + média B). Parâmetros: {'expressao', 'exibida', 'refs'}.
+OPERACAO_CALCULADORA = 'calculadora'
+
+
 # Parâmetros medidos na unidade do eixo X: se o X for reescrito (ex: s -> min),
 # o mesmo número passa a significar outra coisa.
 PARAMETROS_NA_UNIDADE_DE_X = {'delta_x': 'Δx'}   # nome interno -> como aparece nas mensagens
@@ -261,6 +277,8 @@ class ArvoreDerivados:
             pai = self.no(no.pai)
             if pai.canal_raiz != no.canal_raiz:
                 raise ValueError('O nó filho precisa ter o mesmo canal raiz do pai.')
+        for outro in no.outros_pais:
+            self.no(outro)          # KeyError se não existe
         self._nos[no.id] = no
         return no
 
@@ -269,10 +287,9 @@ class ArvoreDerivados:
         Filhos diretos de um nó. Com id_pai=None, os nós que saem direto
         de um canal — aí 'canal_raiz' diz de qual.
         """
-        return [
-            no for no in self._nos.values()
-            if no.pai == id_pai and (id_pai is not None or no.canal_raiz == canal_raiz)
-        ]
+        if id_pai is None:
+            return [no for no in self._nos.values() if no.pai is None and no.canal_raiz == canal_raiz]
+        return [no for no in self._nos.values() if no.pai == id_pai or id_pai in no.outros_pais]
 
     def canais_com_derivados(self) -> list[str]:
         vistos = []
@@ -282,20 +299,31 @@ class ArvoreDerivados:
         return vistos
 
     def ancestrais(self, id_no: str) -> list[NoDerivado]:
-        """O caminho do nó até o topo: [nó, pai, avô, ...]."""
-        caminho = []
-        atual = self.no(id_no)
-        while atual is not None:
-            caminho.append(atual)
-            atual = self._nos.get(atual.pai) if atual.pai else None
-        return caminho
+        """
+        O nó e tudo de onde ele saiu: [nó, pais, avós...] — com várias
+        origens (análise da calculadora), todos os caminhos, sem repetir.
+        """
+        resultado, vistos, fila = [], set(), [id_no]
+        while fila:
+            atual = self.no(fila.pop(0))
+            if atual.id in vistos:
+                continue
+            vistos.add(atual.id)
+            resultado.append(atual)
+            fila.extend(p for p in atual.pais if p in self._nos)
+        return resultado
 
     def descendentes(self, id_no: str) -> list[NoDerivado]:
-        """Todos os nós abaixo de 'id_no' (sem incluir ele), em profundidade."""
-        resultado = []
-        for filho in self.filhos(id_no):
-            resultado.append(filho)
-            resultado.extend(self.descendentes(filho.id))
+        """Todos os nós abaixo de 'id_no' (sem incluir ele), em profundidade, sem repetir."""
+        resultado, vistos = [], {id_no}
+
+        def descer(id_atual):
+            for filho in self.filhos(id_atual):
+                if filho.id not in vistos:
+                    vistos.add(filho.id)
+                    resultado.append(filho)
+                    descer(filho.id)
+        descer(id_no)
         return resultado
 
     def excluir(self, id_no: str) -> list[str]:

@@ -270,6 +270,13 @@ def executar_operacao(chave: str, serie: Serie, parametros: dict) -> ResultadoAm
     return op.funcao(serie, **argumentos)
 
 
+def rotulo_operacao(chave: str) -> str:
+    """Nome exibido de qualquer operação da árvore, inclusive 'calculadora'."""
+    if chave == 'calculadora':
+        return 'Calculadora'
+    return operacao(chave).rotulo
+
+
 def nome_padrao(chave: str, rotulo_origem: str) -> str:
     """'Downsampling Pressão', 'Média móvel Pressão'..."""
     return f'{operacao(chave).rotulo} {rotulo_origem}'

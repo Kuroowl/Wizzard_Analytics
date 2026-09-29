@@ -703,7 +703,10 @@ def _desenhar_derivados_visiveis(fig, arquivo, eixo_x, colunas_y):
         else:
             cor = COR_ANALISE_FORA_DO_Y     # canal de origem fora do gráfico (histórico da árvore)
         x, y = no.serie.x, no.serie.y
-        if no.operacao == 'downsampling':
+        if no.operacao == 'calculadora':
+            fig.add_trace(go.Scatter(x=x, y=y, mode='lines+markers', name=no.nome,
+                                     line=dict(color=cor, width=2), marker=dict(color=cor, size=4)))
+        elif no.operacao == 'downsampling':
             fig.add_trace(go.Scatter(x=x, y=y, mode='markers', name=no.nome,
                                      marker=dict(color=cor, size=7, line=dict(color='#FFFFFF', width=1))))
         elif no.operacao == 'media_movel':

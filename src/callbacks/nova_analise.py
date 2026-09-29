@@ -13,6 +13,7 @@ from dash import ALL, Input, Output, State, ctx, no_update
 from dash.exceptions import PreventUpdate
 
 from src.callbacks._comum import processar_cliques_padrao
+from src.core.derivados import DerivadoDuplicado
 from src.core.operations.calculadora import avaliar_calculo, calc_criar_desabilitado
 from src.core.plotting.plotter import construir_figura_serie_temporal
 from src.gui.analises import renderizar_analises_da_aba_ativa
@@ -381,8 +382,24 @@ def registrar_callbacks_nova_analise(app, estado):
             if not nome_novo_canal:
                 return _sem_mudanca_de_conteudo(Feedback.aviso('Dê um nome pra essa análise antes de criar.'))
             base = arquivo.canal_derivado(resultado.analise)
-            novo = arquivo.adicionar_canal_derivado_calculado(
-                nome_novo_canal, base.serie.x, valores, base.eixo_x, base.canal_raiz, codigo)
+            # Se TODAS as análises usadas estão ligadas a análises da árvore,
+            # o resultado entra na árvore com todas elas como origem (média A
+            # + média B sai de A e de B) e refaz a conta no Recalcular. Senão
+            # (alguma foi criada/editada aqui e ficou solta), fica só em
+            # 'Análises do arquivo', como antes.
+            refs = arquivo.origens_da_expressao(codigo)
+            na_arvore = refs is not None
+            if na_arvore:
+                exibida = ' '.join(t['display'] for t in (tokens_atuais or []))
+                try:
+                    no = arquivo.registrar_analise_calculada(
+                        nome_novo_canal, codigo, exibida, refs, base.serie.x, valores)
+                except DerivadoDuplicado as erro:
+                    return _sem_mudanca_de_conteudo(Feedback.aviso(str(erro)))
+                novo = arquivo.adicionar_canal_derivado(no.id)
+            else:
+                novo = arquivo.adicionar_canal_derivado_calculado(
+                    nome_novo_canal, base.serie.x, valores, base.eixo_x, base.canal_raiz, codigo)
             # Como a coluna nova da tabela: vai pro Y — se o gráfico tem o X dela.
             no_y = False
             if tinha_grafico:
@@ -392,8 +409,9 @@ def registrar_callbacks_nova_analise(app, estado):
                 except ValueError:
                     pass
             area_grafico = redesenhar_se_preciso()
+            onde = 'na árvore e em Análises do arquivo' if na_arvore else 'em Análises do arquivo'
             feedback = Feedback.sucesso(
-                f"Análise '{novo.rotulo}' criada em Análises do arquivo ({len(novo.serie)} pontos)"
+                f"Análise '{novo.rotulo}' criada {onde} ({len(novo.serie)} pontos)"
                 + (' e colocada no gráfico.' if no_y else '.'))
 
         elif tipo_destino == 'existente':

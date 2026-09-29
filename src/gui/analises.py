@@ -9,14 +9,14 @@ nome põe no Y (ou tira, na caixa Y:), lápis renomeia, lixeira exclui.
 """
 from dash import dcc, html
 
-from src.core.operations.amostragem import OPERACOES
+from src.core.operations.amostragem import rotulo_operacao
 
 
 def _dica(arquivo, canal):
     partes = [f"Análise (x', y') com {len(canal.serie)} pontos · X = '{arquivo.rotulo(canal.eixo_x)}'."]
     if canal.vinculado and canal.no_origem in arquivo.arvore:
         no = arquivo.arvore.no(canal.no_origem)
-        partes.append(f"Vem de '{no.nome}' ({OPERACOES[no.operacao].rotulo}) e acompanha o Recalcular dela.")
+        partes.append(f"Vem de '{no.nome}' ({rotulo_operacao(no.operacao)}) e acompanha o Recalcular dela.")
     elif canal.formula:
         partes.append('Criada ou editada na calculadora: não acompanha nenhuma análise da árvore.')
     else:

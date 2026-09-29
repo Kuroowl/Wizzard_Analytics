@@ -25,10 +25,11 @@ import numpy as np
 import pandas as pd
 
 from src.core.derivados import (
-    PARAMETROS_NA_UNIDADE_DE_X, ArvoreDerivados, CanalDerivado, DerivadoDuplicado, NoDerivado,
+    OPERACAO_CALCULADORA, PARAMETROS_NA_UNIDADE_DE_X, ArvoreDerivados, CanalDerivado, DerivadoDuplicado, NoDerivado,
     PendenciaRecalculo, PreviewAmostragem, RelatorioRecalculo, Serie, parametros_iguais,
 )
 from src.core.operations.amostragem import ResultadoAmostragem, executar_operacao, nome_padrao
+from src.core.operations.calculadora import analises_da_expressao, avaliar_com_series
 from src.core.operations.sampling import aparar_dados, excluir_dados
 from src.core.rotulos import sanitizar_rotulo_para_nome_coluna
 
@@ -822,47 +823,55 @@ class Arquivo:
         'Recalcular': refaz a cadeia sobre os dados ATUAIS, na mesma
         sequência e com os mesmos parâmetros.
 
-        Começa no nó desatualizado MAIS ALTO acima de 'id_no' (ou no próprio
-        nó) e desce por todos os filhos. Em cada nó:
+        Começa nos nós desatualizados MAIS ALTOS acima de 'id_no' (ou no
+        próprio nó) e desce por todos os que saíram deles. Uma análise só é
+        refeita depois de TODAS as suas origens (as da calculadora podem ter
+        várias). Em cada nó:
           - se a operação usa Δx e o X foi REESCRITO desde o OK, para ali
             com uma pendência 'revisar' (o mesmo número pode ter mudado de
             significado);
           - se a operação falha com os parâmetros antigos, para ali com uma
             pendência 'erro' e o resultado antigo fica.
-        Os nós abaixo de uma pendência ficam 'aguardando', intocados; os
+        Os nós abaixo de uma pendência — ou com outra origem ainda
+        desatualizada fora desta cadeia — ficam 'aguardando', intocados; os
         outros ramos seguem. Pra continuar, o usuário ajusta e chama de novo
         com 'parametros' (novos parâmetros do nó 'id_no').
         """
         alvo = self.arvore.no(id_no)
-        inicio = alvo
-        for no in self.arvore.ancestrais(id_no):   # [nó, pai, avô...]: fica com o mais alto
-            if self._origem_mudou(no):
-                inicio = no
+        ancestrais = self.arvore.ancestrais(id_no)
+        desatualizados = {no.id for no in ancestrais if self._origem_mudou(no)}
+        ordem_criacao = [no.id for no in self.arvore]
+        inicios = sorted((no for no in ancestrais
+                          if no.id in desatualizados and not any(p in desatualizados for p in no.pais)),
+                         key=lambda no: ordem_criacao.index(no.id)) or [alvo]
+        ordem = []
+        for inicio in inicios:
+            for no in [inicio] + self.arvore.descendentes(inicio.id):
+                if no not in ordem:
+                    ordem.append(no)
+        no_conjunto = {no.id for no in ordem}
         novos = {id_no: dict(parametros)} if parametros is not None else {}
         relatorio = RelatorioRecalculo()
+        feitos, parados = set(), set()
 
-        def parar(no, motivo, mensagem):
-            relatorio.pendencias.append(PendenciaRecalculo(no.id, motivo, mensagem))
-            relatorio.aguardando.extend(d.id for d in self.arvore.descendentes(no.id))
-
-        def processar(no, entrada):
+        def processar(no):
             parametros_no = novos.get(no.id, no.parametros)
             if no.id not in novos and self._x_reescrito(no):
                 em_x = [p for p in PARAMETROS_NA_UNIDADE_DE_X if p in parametros_no]
                 if em_x:
                     valores = ', '.join(f'{PARAMETROS_NA_UNIDADE_DE_X[p]} = {parametros_no[p]}' for p in em_x)
-                    parar(no, 'revisar',
-                          f"O eixo X '{self.rotulo(no.eixo_x)}' foi reescrito. Confira {valores} "
-                          f"(está na unidade de X) antes de recalcular '{no.nome}'.")
-                    return
+                    relatorio.pendencias.append(PendenciaRecalculo(
+                        no.id, 'revisar',
+                        f"O eixo X '{self.rotulo(no.eixo_x)}' foi reescrito. Confira {valores} "
+                        f"(está na unidade de X) antes de recalcular '{no.nome}'."))
+                    return False
             try:
-                if entrada is None:
-                    entrada = self.serie_do_canal(no.canal_raiz, no.eixo_x)
-                resultado = executar_operacao(no.operacao, entrada, parametros_no)
+                resultado = self._refazer(no, parametros_no)
             except (ValueError, KeyError) as erro:
                 texto = erro.args[0] if erro.args else str(erro)
-                parar(no, 'erro', f"Não deu pra recalcular '{no.nome}': {texto}")
-                return
+                relatorio.pendencias.append(PendenciaRecalculo(
+                    no.id, 'erro', f"Não deu pra recalcular '{no.nome}': {texto}"))
+                return False
             no.serie = resultado.serie
             no.info = dict(resultado.info)
             no.parametros = dict(parametros_no)
@@ -871,12 +880,90 @@ class Arquivo:
             if canal is not None:          # o canal (Add) acompanha a análise
                 canal.serie = no.serie
             relatorio.recalculados.append(no.id)
-            for filho in self.arvore.filhos(no.id):
-                processar(filho, no.serie)
+            return True
 
-        entrada_inicial = self.arvore.no(inicio.pai).serie if inicio.pai else None
-        processar(inicio, entrada_inicial)
+        pendentes = list(ordem)
+        while pendentes:
+            avancou = False
+            for no in list(pendentes):
+                pais_na_cadeia = [p for p in no.pais if p in no_conjunto]
+                if any(p in parados for p in pais_na_cadeia) or any(
+                        self.derivado_desatualizado(p) for p in no.pais if p not in no_conjunto):
+                    parados.add(no.id)                 # espera a origem que parou (ou que está fora)
+                    relatorio.aguardando.append(no.id)
+                elif all(p in feitos for p in pais_na_cadeia):
+                    (feitos if processar(no) else parados).add(no.id)
+                else:
+                    continue                            # ainda falta uma origem desta cadeia
+                pendentes.remove(no)
+                avancou = True
+            if not avancou:
+                break
         return relatorio
+
+    def _refazer(self, no: NoDerivado, parametros: dict) -> ResultadoAmostragem:
+        """A operação do nó, de novo, sobre os resultados atuais de onde ele saiu."""
+        if no.operacao == OPERACAO_CALCULADORA:
+            refs = parametros['refs']
+            if any(id_origem not in self.arvore for id_origem in refs.values()):
+                raise ValueError('uma das análises de origem não existe mais.')
+            series = {nome: self.arvore.no(id_origem).serie for nome, id_origem in refs.items()}
+            rotulos = {nome: self.arvore.no(id_origem).nome for nome, id_origem in refs.items()}
+            x, y = avaliar_com_series(parametros['expressao'], series, self, None, rotulos)
+            return ResultadoAmostragem(Serie(x, y), {'n_obtido': len(x)})
+        entrada = self.arvore.no(no.pai).serie if no.pai else self.serie_do_canal(no.canal_raiz, no.eixo_x)
+        return executar_operacao(no.operacao, entrada, parametros)
+
+    # --- Análises da calculadora (combinam análises da árvore) --------
+
+    def origens_da_expressao(self, codigo: str) -> dict | None:
+        """
+        {nome usado na expressão: id da análise da árvore} de uma expressão
+        de análises (der/derx), ou None se alguma delas não está ligada a
+        uma análise da árvore (foi criada/editada na calculadora e ficou
+        desvinculada) ou se elas vêm de X diferentes — nesses casos o
+        resultado não entra na árvore, fica só em 'Análises do arquivo'.
+        """
+        refs = {}
+        for nome in analises_da_expressao(codigo):
+            canal = self.canais_derivados.get(nome)
+            if canal is None or not canal.vinculado or canal.no_origem not in self.arvore:
+                return None
+            refs[nome] = canal.no_origem
+        if not refs:
+            return None
+        if len({self.arvore.no(i).eixo_x for i in refs.values()}) != 1:
+            return None
+        return refs
+
+    def registrar_analise_calculada(self, nome: str, codigo: str, exibida: str, refs: dict,
+                                    x, y) -> NoDerivado:
+        """
+        Resultado da calculadora sobre análises da árvore: vira um nó cujas
+        ORIGENS são todas elas (pai = a primeira, outros_pais = as demais) —
+        'média A + média B' sai de A e de B. Refaz a conta no Recalcular.
+        DerivadoDuplicado se a mesma conta sobre as mesmas origens já existe.
+        """
+        ids = list(dict.fromkeys(refs.values()))
+        primeiro = self.arvore.no(ids[0])
+        parametros = {'expressao': codigo, 'exibida': exibida, 'refs': dict(refs)}
+        # A mesma conta sobre as mesmas origens (o texto exibido pode variar).
+        existente = next((n for n in self.arvore.filhos(primeiro.id)
+                          if n.operacao == OPERACAO_CALCULADORA and n.parametros.get('expressao') == codigo
+                          and n.parametros.get('refs') == dict(refs)), None)
+        if existente is not None:
+            raise DerivadoDuplicado(existente)
+        no = NoDerivado(
+            id=self.arvore.novo_id(),
+            nome=self._nome_livre((nome or '').strip() or 'Calculada'),
+            canal_raiz=primeiro.canal_raiz, eixo_x=primeiro.eixo_x,
+            pai=primeiro.id, outros_pais=ids[1:],
+            operacao=OPERACAO_CALCULADORA, parametros=parametros,
+            serie=Serie(np.asarray(x, dtype=float), np.asarray(y, dtype=float)),
+            info={'n_obtido': len(x)},
+        )
+        self._carimbar(no)
+        return self.arvore.adicionar(no)
 
     def excluir_derivado(self, id_no: str) -> list[str]:
         """

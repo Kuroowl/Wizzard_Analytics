@@ -1635,9 +1635,6 @@
   padding: 4px 2px;
 }
 
-.amostragem-raiz-bloco + .amostragem-raiz-bloco {
-  margin-top: 6px;
-}
 
 .amostragem-raiz {
   display: flex;
@@ -1787,8 +1784,15 @@
 
 /* Árvore clicável: canal ou análise = vira a origem dos dados. */
 .amostragem-raiz,
-.amostragem-no {
-  border: 1px solid transparent;
+.amostragem-no,
+.amostragem-sem-analises {
+  position: relative;      /* âncora dos braços (margem direita) */
+}
+
+/* Espaço entre um canal e o de cima, DENTRO da linha (sem margem), pra
+   não abrir vão na trilha dos braços. */
+.amostragem-arvore > .amostragem-raiz:not(:first-child) {
+  padding-top: 9px;
 }
 
 .amostragem-raiz,
@@ -1867,7 +1871,9 @@
 
 .amostragem-raiz.origem,
 .amostragem-no.origem {
-  border-color: var(--cor-accent);
+  /* sombra interna em vez de borda: as linhas ficam encostadas (sem
+     vão), pro braço das análises com várias origens sair contínuo */
+  box-shadow: inset 0 0 0 1px var(--cor-accent);
   border-radius: 4px;
   background-color: var(--cor-accent-suave);
 }
@@ -2058,4 +2064,80 @@
 
 .amostragem-raiz.fora-do-grafico .amostragem-raiz-cor {
   color: var(--cor-texto-mudo);
+}
+
+
+/* ==========================================================================
+   Braço das análises com várias origens (calculadora: média A + média B):
+   uma trilha na margem direita da árvore sai de cada origem e chega na
+   análise que elas geraram. Uma faixa por braço (ver _faixas_dos_bracos).
+   ========================================================================== */
+.amostragem-bracos {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 2px;
+  display: flex;
+  pointer-events: none;
+}
+
+.braco {
+  position: relative;
+  width: 12px;
+  height: 100%;
+}
+
+/* trilha vertical */
+.braco::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 0;
+  bottom: 0;
+  border-left: 2px solid var(--cor-accent);
+  display: none;
+}
+
+.braco.passa::before,
+.braco.pai::before { display: block; }
+.braco.inicio::before { display: block; top: 50%; }
+.braco.fim::before { display: block; bottom: 50%; }
+
+/* encaixe na linha (origem que entra, análise que recebe): vai da trilha
+   até o fim do nome (largura calculada no Python, ver _bracos) */
+.braco-encaixe {
+  position: absolute;
+  top: calc(50% - 1px);
+  right: 5px;
+  border-top: 2px solid var(--cor-accent);
+  opacity: 0.55;
+}
+
+/* na análise gerada: ponta de seta apontando pro nome dela */
+.braco-encaixe.seta::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: -5px;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-right: 6px solid var(--cor-accent);
+}
+
+/* guia pontilhada do fim do nome até o encaixe */
+.amostragem-no-guia {
+  flex: 1 1 auto;
+  min-width: 10px;
+  align-self: center;
+  margin: 0 0 0 6px;
+  border-bottom: 1px dotted var(--cor-accent);
+  opacity: 0.8;
+}
+
+/* os botões do hover ficam por cima do encaixe */
+.amostragem-no .amostragem-olho-btn,
+.amostragem-no .canal-editar-btn,
+.amostragem-no .canal-lixeira-btn {
+  position: relative;
+  z-index: 1;
 }

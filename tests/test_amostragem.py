@@ -644,5 +644,91 @@ class TestCalculadoraComAnalises(unittest.TestCase):
         arq.adicionar_canal_derivado(no_id)
 
 
+
+class TestAnaliseCalculada(unittest.TestCase):
+    """Calculadora sobre análises da árvore: nó com várias origens (A + B)."""
+
+    def base(self):
+        from src.gui.estado import EstadoApp
+        estado = EstadoApp()
+        arq = arquivo_teste()
+        estado.arquivos['a.csv'] = arq
+        arq.mover_para_eixo_x('t')
+        p = {'n_pontos': 11, 'delta_x': 0.5}
+        a = arq.registrar_derivado('media_movel', p, am.media_movel(arq.serie_do_canal('p', 't'), 11, 0.5), 'p', 't')
+        b = arq.registrar_derivado('media_movel', p, am.media_movel(arq.serie_do_canal('q', 't'), 11, 0.5), 'q', 't')
+        ca, cb = arq.adicionar_canal_derivado(a.id), arq.adicionar_canal_derivado(b.id)
+        codigo = f"der[{ca.nome!r}]+der[{cb.nome!r}]"
+        refs = arq.origens_da_expressao(codigo)
+        c = arq.registrar_analise_calculada('Soma', codigo, 'y′ A + y′ B', refs,
+                                            a.serie.x, a.serie.y + b.serie.y)
+        return estado, arq, a, b, c, codigo, refs
+
+    def test_no_com_duas_origens(self):
+        estado, arq, a, b, c, codigo, refs = self.base()
+        self.assertEqual(c.pais, [a.id, b.id])
+        self.assertEqual(c.operacao, 'calculadora')
+        self.assertIn(c, arq.arvore.filhos(a.id))
+        self.assertIn(c, arq.arvore.filhos(b.id))
+        self.assertIn(c, arq.arvore.descendentes(b.id))
+        self.assertEqual({n.id for n in arq.arvore.ancestrais(c.id)}, {c.id, a.id, b.id})
+        with self.assertRaises(DerivadoDuplicado):
+            arq.registrar_analise_calculada('Soma', codigo, '', refs, a.serie.x, a.serie.y)
+
+    def test_origem_nao_ligada_nao_entra_na_arvore(self):
+        estado, arq, a, b, c, codigo, refs = self.base()
+        solta = arq.adicionar_canal_derivado_calculado('Solta', a.serie.x, a.serie.y, 't', 'p', 'x')
+        self.assertIsNone(arq.origens_da_expressao(f"der[{solta.nome!r}]*2"))
+
+    def test_serve_de_origem_pra_nova_analise(self):
+        estado, arq, a, b, c, codigo, refs = self.base()
+        pv = arq.gerar_preview_amostragem('downsampling', {'n_pontos': 5}, 'x', 'x', pai=c.id)
+        self.assertEqual(len(pv.serie), 5)
+        filho = arq.registrar_preview_amostragem()
+        self.assertEqual(filho.pai, c.id)
+
+    def test_excluir_uma_origem_leva_a_calculada(self):
+        estado, arq, a, b, c, codigo, refs = self.base()
+        removidos = arq.excluir_derivado(b.id)
+        self.assertEqual(set(removidos), {b.id, c.id})
+        self.assertIn(a.id, arq.arvore)
+
+    def test_recalcular_refaz_a_conta_depois_das_duas_origens(self):
+        estado, arq, a, b, c, codigo, refs = self.base()
+        arq.cortar_dados('t', 2, 8)
+        self.assertTrue(arq.derivado_desatualizado(c.id))
+        rel = arq.recalcular_derivado(c.id)
+        self.assertTrue(rel.concluido, rel.pendencias)
+        self.assertEqual(rel.recalculados, [a.id, b.id, c.id])
+        np.testing.assert_allclose(c.serie.y, a.serie.y + b.serie.y)
+        self.assertAlmostEqual(c.serie.x[0], 2)
+        self.assertFalse(arq.derivado_desatualizado(c.id))
+
+    def test_recalcular_uma_origem_so_deixa_a_calculada_aguardando(self):
+        estado, arq, a, b, c, codigo, refs = self.base()
+        arq.cortar_dados('t', 2, 8)
+        rel = arq.recalcular_derivado(a.id)
+        self.assertEqual(rel.recalculados, [a.id])
+        self.assertEqual(rel.aguardando, [c.id])          # B ainda está desatualizada
+        rel = arq.recalcular_derivado(b.id)
+        self.assertEqual(rel.recalculados, [b.id, c.id])
+        np.testing.assert_allclose(c.serie.y, a.serie.y + b.serie.y)
+
+    def test_origens_com_x_diferente_param_o_recalcular(self):
+        estado, arq, a, b, c, codigo, refs = self.base()
+        arq.cortar_dados('t', 2, 8)
+        arq.recalcular_derivado(a.id, parametros={'n_pontos': 7, 'delta_x': 0.5})   # A muda de pontos
+        rel = arq.recalcular_derivado(b.id)
+        self.assertEqual([(p.id, p.motivo) for p in rel.pendencias], [(c.id, 'erro')])
+        self.assertIn("mesmo x'", rel.pendencias[0].mensagem)
+
+    def test_canal_da_calculada_acompanha(self):
+        estado, arq, a, b, c, codigo, refs = self.base()
+        canal = arq.adicionar_canal_derivado(c.id)
+        arq.cortar_dados('t', 2, 8)
+        arq.recalcular_derivado(c.id)
+        self.assertIs(canal.serie, c.serie)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -364,7 +364,7 @@ def registrar_callbacks_nova_amostragem(app, estado):
                     Feedback.aviso(f"Preencha: {', '.join(faltando)}."), no_update)
 
         if contexto['recalculando'] and contexto['recalculando'] in arquivo.arvore:
-            return resultado_recalculo(arquivo, aba_ativa, contexto['recalculando'], parametros)
+            return resultado_recalculo(arquivo, aba_ativa, contexto['recalculando'], parametros, operacao)
 
         canal_y, eixo_origem, pai = origem_efetiva(arquivo, _eixo_x(estado, arquivo), contexto)
         if canal_y is None:
@@ -452,11 +452,13 @@ def registrar_callbacks_nova_amostragem(app, estado):
                 renderizar_analises_da_aba_ativa(estado, aba_ativa),
                 renderizar_selecao_eixos(estado, aba_ativa))
 
-    def resultado_recalculo(arquivo, aba_ativa, id_no, parametros=None):
+    def resultado_recalculo(arquivo, aba_ativa, id_no, parametros=None, operacao_atual=None):
         """
         Roda o Recalcular e devolve (painel, contexto, operação, classes da
         barra, feedback, figura). Parou num nó -> ele fica selecionado, com a
-        operação dele na barra e os parâmetros no painel pra ajustar.
+        operação dele na barra e os parâmetros no painel pra ajustar. Uma
+        análise da calculadora não tem parâmetros pra ajustar aqui: ela fica
+        aberta com o motivo (refazer na calculadora, Manter ou excluir).
         """
         relatorio = arquivo.recalcular_derivado(id_no, parametros)
         feito = len(relatorio.recalculados)
@@ -467,8 +469,10 @@ def registrar_callbacks_nova_amostragem(app, estado):
         if any(aparece_no_grafico(i) for i in relatorio.recalculados):
             figura = redesenhar(aba_ativa)
         if relatorio.concluido:
+            # Como no clique na árvore: a análise vira a origem; a operação
+            # escolhida na barra continua a mesma.
             no = arquivo.arvore.no(id_no)
-            operacao = no.operacao
+            operacao = operacao_atual
             contexto = {**CONTEXTO_VAZIO, 'canal_y': no.canal_raiz, 'pai': id_no, 'selecionado': id_no}
             feedback = Feedback.sucesso(f'Recalculado: {feito} análise(s) com os dados atuais.')
         else:
@@ -478,11 +482,16 @@ def registrar_callbacks_nova_amostragem(app, estado):
                 # está (com o que o usuário digitou), só o mago avisa.
                 return (no_update, no_update, no_update, BARRA_SEM_MUDANCA,
                         Feedback.aviso(pendencia.mensagem), figura)
-            # Pra refazer a análise, a origem é a de ONDE ela saiu (o pai dela).
             no = arquivo.arvore.no(pendencia.id)
-            operacao = no.operacao
-            contexto = {**CONTEXTO_VAZIO, 'canal_y': no.canal_raiz, 'pai': no.pai, 'selecionado': no.id,
-                        'recalculando': no.id, 'motivo': pendencia.mensagem}
+            if no.operacao in OPERACOES:
+                # Pra refazer a análise, a origem é a de ONDE ela saiu (o pai dela).
+                operacao = no.operacao
+                contexto = {**CONTEXTO_VAZIO, 'canal_y': no.canal_raiz, 'pai': no.pai, 'selecionado': no.id,
+                            'recalculando': no.id, 'motivo': pendencia.mensagem}
+            else:
+                operacao = operacao_atual
+                contexto = {**CONTEXTO_VAZIO, 'canal_y': no.canal_raiz, 'pai': no.id, 'selecionado': no.id,
+                            'parou': no.id, 'motivo': pendencia.mensagem}
             prefixo = f'{feito} análise(s) recalculada(s); ' if feito else ''
             feedback = Feedback.aviso(f"{prefixo}parou em '{no.nome}'. Veja o motivo no painel.")
         return (painel(aba_ativa, operacao, contexto), contexto, operacao, _classes_barra(operacao),
@@ -563,7 +572,7 @@ def registrar_callbacks_nova_amostragem(app, estado):
                 raise PreventUpdate
             no = arquivo.arvore.no(id_no)
             if acao == 'recalcular':
-                return resultado_recalculo(arquivo, aba_ativa, id_no)
+                return resultado_recalculo(arquivo, aba_ativa, id_no, operacao_atual=operacao)
             elif acao == 'manter':
                 arquivo.manter_derivado(id_no)
                 contexto = {**contexto, 'recalculando': None}

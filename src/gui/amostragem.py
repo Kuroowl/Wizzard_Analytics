@@ -17,6 +17,8 @@ O "contexto" (dict guardado em 'amostragem-contexto-store'):
                   Recalcular está refazendo (None = nenhuma)
     recalculando  id da análise em que o Recalcular parou esperando parâmetros
     motivo        por que ele parou (texto mostrado no cartão)
+    parou         id de uma análise da CALCULADORA em que o Recalcular parou
+                  (não tem parâmetros pra ajustar aqui: só o motivo no cartão)
     renomeando    id da análise com o nome em edição (lápis)
     detalhes      detalhes da análise (origem, parâmetros, resultado) abertos
                   no cartão? Começa fechado: a árvore fica com mais altura.
@@ -25,7 +27,7 @@ O "contexto" (dict guardado em 'amostragem-contexto-store'):
 """
 from dash import dcc, get_asset_url, html
 
-from src.core.operations.amostragem import OPERACOES, parametros_iniciais
+from src.core.operations.amostragem import OPERACOES, parametros_iniciais, rotulo_operacao
 from src.core.plotting.plotter import cor_da_coluna
 
 
@@ -64,7 +66,7 @@ CAMPOS_PARAMETROS = {
 
 CONTEXTO_VAZIO = {'canal_y': None, 'pai': None, 'selecionado': None,
                   'recalculando': None, 'motivo': None, 'renomeando': None,
-                  'detalhes': False, 'ultimos': {}}
+                  'detalhes': False, 'ultimos': {}, 'parou': None}
 
 
 def contexto_normalizado(contexto):
@@ -130,6 +132,8 @@ def linhas_resultado(operacao, info):
                       f"(média {info['pontos_por_janela_media']:.1f}).")
         if info['janelas_vazias']:
             linhas.append(f"{info['janelas_vazias']} janela(s) sem pontos foram descartadas.")
+    elif operacao == 'calculadora':
+        linhas.append(f"{info.get('n_obtido', '?')} pontos.")
     elif operacao == 'ajuste_polinomial':
         linhas.append(info['equacao'])
         linhas.append(f"R² = {info['r2']:.6f}")
@@ -151,7 +155,40 @@ def renderizar_resultado_amostragem(preview):
 # Árvore
 # ============================================================================
 
-def _linha_no(arquivo, no, eixo_x, nivel, contexto):
+LARGURA_BRACO = 12   # px por faixa de braço (análises com várias origens)
+ALCANCE_ENCAIXE = 84  # px da trilha da 1ª faixa até o fim do nome (atravessa os botões do hover)
+
+
+def _bracos(segmentos):
+    """
+    Trilhas da margem direita de UMA linha: um pedaço por faixa. 'inicio' =
+    primeira origem (desce do meio da linha), 'pai' = outra origem (passa e
+    encosta), 'passa' = só atravessa, 'fim' = a análise que as origens
+    geraram (chega no meio da linha), None = faixa vazia nesta linha.
+    """
+    if not segmentos:
+        return None
+    pedacos = []
+    for k, s in enumerate(segmentos):
+        # Encaixe horizontal: da trilha desta faixa até o fim do nome
+        # (passa por trás dos botões do hover — 👁 ✏️ 🗑 — e das faixas à
+        # esquerda). O nome termina numa guia pontilhada (_linha_no).
+        encaixe = [html.Span(className='braco-encaixe' + (' seta' if s == 'fim' else ''),
+                             style={'width': f'{ALCANCE_ENCAIXE + LARGURA_BRACO * k}px'})] \
+            if s in ('inicio', 'pai', 'fim') else []
+        pedacos.append(html.Span(className='braco' + (f' {s}' if s else ''), children=encaixe))
+    return html.Div(className='amostragem-bracos', style={'width': f'{LARGURA_BRACO * len(segmentos)}px'},
+                    children=pedacos)
+
+
+def _estilo_linha(padding_esquerda, n_faixas):
+    estilo = {'paddingLeft': f'{padding_esquerda}px'}
+    if n_faixas:
+        estilo['paddingRight'] = f'{LARGURA_BRACO * n_faixas + 6}px'
+    return estilo
+
+
+def _linha_no(arquivo, no, eixo_x, nivel, contexto, segmentos=None):
     """
     Uma análise: rótulo clicável (vira a origem e abre o cartão) + botões
     que aparecem no hover, no mesmo padrão do menu da esquerda: olho
@@ -163,7 +200,10 @@ def _linha_no(arquivo, no, eixo_x, nivel, contexto):
     renomeando = contexto['renomeando'] == no.id
     canal = arquivo.canal_da_analise(no.id)       # virou canal (Add)?
     classes = ['amostragem-no']
-    dicas = [f"{OPERACOES[no.operacao].rotulo} — {len(no.serie)} pontos"]
+    dicas = [f"{rotulo_operacao(no.operacao)} — {len(no.serie)} pontos"]
+    if len(no.pais) > 1:
+        nomes = [arquivo.arvore.no(p).nome for p in no.pais if p in arquivo.arvore]
+        dicas.append('Depende de: ' + ', '.join(f"'{n}'" for n in nomes) + '.')
     if not compativel:
         classes.append('incompativel')
         dicas.append(f"Calculado com X = '{arquivo.rotulo(no.eixo_x)}': só aparece no gráfico com esse X.")
@@ -192,6 +232,9 @@ def _linha_no(arquivo, no, eixo_x, nivel, contexto):
                 html.Span('◆', className='amostragem-no-canal', title=f"Virou canal: '{canal.rotulo}'")
                 if canal else None,
                 html.Span('⚠', className='amostragem-no-alerta') if desatualizado else None,
+                # Guia pontilhada até o braço (só nas linhas ligadas a um).
+                html.Span(className='amostragem-no-guia')
+                if any(s in ('inicio', 'pai', 'fim') for s in (segmentos or [])) else None,
             ],
         )
     olho = html.Button(
@@ -202,7 +245,7 @@ def _linha_no(arquivo, no, eixo_x, nivel, contexto):
     )
     return html.Div(
         className=' '.join(classes),
-        style={'paddingLeft': f'{12 + 16 * nivel}px'},
+        style=_estilo_linha(12 + 16 * nivel, len(segmentos or [])),
         children=[
             rotulo,
             olho,
@@ -212,16 +255,73 @@ def _linha_no(arquivo, no, eixo_x, nivel, contexto):
             html.Button('🗑', id=id_acao('excluir', no.id), n_clicks=0,
                         title=f"Excluir '{no.nome}' e as análises que saíram dela",
                         className='canal-lixeira-btn'),
+            _bracos(segmentos),
         ],
     )
 
 
-def _ramos(arquivo, id_pai, canal, eixo_x, nivel, contexto):
-    linhas = []
-    for no in arquivo.arvore.filhos(id_pai, canal):
-        linhas.append(_linha_no(arquivo, no, eixo_x, nivel, contexto))
-        linhas.extend(_ramos(arquivo, no.id, canal, eixo_x, nivel + 1, contexto))
+def _linhas_da_arvore(arquivo, raizes):
+    """
+    A árvore "achatada" em linhas, na ordem de exibição:
+    ('raiz', canal) | ('no', nó, nível) | ('vazio', canal).
+
+    Uma análise com várias origens (calculadora: média A + média B) aparece
+    UMA vez, logo abaixo da ÚLTIMA das suas origens na ordem da árvore —
+    o braço da margem direita (_faixas_dos_bracos) liga as outras até ela.
+    """
+    linhas, emitidos = [], set()
+
+    def descer(id_pai, canal, nivel):
+        for no in arquivo.arvore.filhos(id_pai, canal):
+            if no.id in emitidos or any(p not in emitidos for p in no.pais):
+                continue            # ainda falta uma origem: entra debaixo dela, mais adiante
+            emitidos.add(no.id)
+            linhas.append(('no', no, nivel))
+            descer(no.id, None, nivel + 1)
+
+    for canal in raizes:
+        linhas.append(('raiz', canal))
+        antes = len(linhas)
+        descer(None, canal, 1)
+        if len(linhas) == antes:
+            linhas.append(('vazio', canal))
     return linhas
+
+
+def _faixas_dos_bracos(linhas):
+    """
+    Pra cada linha, o pedaço de braço em cada faixa (ver _bracos). Um braço
+    vai da primeira origem até a análise que elas geraram; braços que se
+    sobrepõem na vertical ganham faixas diferentes.
+    """
+    posicao = {linha[1].id: i for i, linha in enumerate(linhas) if linha[0] == 'no'}
+    bracos = []
+    for i, linha in enumerate(linhas):
+        if linha[0] == 'no' and len(linha[1].pais) > 1:
+            pais = [posicao[p] for p in linha[1].pais if p in posicao]
+            if pais:
+                bracos.append((min(pais), i, set(pais)))
+    faixas_fim = []                 # última linha ocupada de cada faixa
+    alocados = []
+    for inicio, fim, pais in sorted(bracos):
+        faixa = next((k for k, ultimo in enumerate(faixas_fim) if ultimo < inicio), None)
+        if faixa is None:
+            faixa = len(faixas_fim)
+            faixas_fim.append(fim)
+        else:
+            faixas_fim[faixa] = fim
+        alocados.append((faixa, inicio, fim, pais))
+    n = len(faixas_fim)
+    segmentos = [[None] * n for _ in linhas]
+    for faixa, inicio, fim, pais in alocados:
+        for i in range(inicio, fim + 1):
+            if i == inicio:
+                segmentos[i][faixa] = 'inicio'
+            elif i == fim:
+                segmentos[i][faixa] = 'fim'
+            else:
+                segmentos[i][faixa] = 'pai' if i in pais else 'passa'
+    return segmentos
 
 
 def renderizar_arvore_amostragem(arquivo, eixo_x, contexto=None):
@@ -230,7 +330,8 @@ def renderizar_arvore_amostragem(arquivo, eixo_x, contexto=None):
     cor das curvas) e, depois deles, os que JÁ TÊM análises mesmo fora do
     Y (○) — a árvore é o histórico do que foi feito. Um canal fora do Y e
     sem análises não aparece. Clicar num canal ou numa análise: vira a
-    origem dos dados.
+    origem dos dados. Análises com várias origens (calculadora) ficam
+    ligadas a todas por um braço na margem direita.
     """
     contexto = contexto_normalizado(contexto)
     canais_y = canais_do_grafico(arquivo)
@@ -240,26 +341,35 @@ def renderizar_arvore_amostragem(arquivo, eixo_x, contexto=None):
             'Nenhum canal no eixo Y. Clique nos canais da barra lateral pra colocá-los no gráfico.',
             className='amostragem-vazio',
         )
-    blocos = []
-    for canal in raizes:
-        ramos = _ramos(arquivo, None, canal, eixo_x, 1, contexto)
+    linhas = _linhas_da_arvore(arquivo, raizes)
+    segmentos = _faixas_dos_bracos(linhas)
+    componentes = []
+    for linha, seg in zip(linhas, segmentos):
+        tipo = linha[0]
+        if tipo == 'no':
+            componentes.append(_linha_no(arquivo, linha[1], eixo_x, linha[2], contexto, seg))
+            continue
+        canal = linha[1]
+        if tipo == 'vazio':
+            componentes.append(html.Div(className='amostragem-sem-analises', style=_estilo_linha(22, len(seg)),
+                                        children=['sem análises', _bracos(seg)]))
+            continue
         eh_origem = contexto['pai'] is None and contexto['canal_y'] == canal
         no_grafico = canal in canais_y
-        blocos.append(html.Div(className='amostragem-raiz-bloco', children=[
-            html.Div(
-                id={'type': 'amostragem-raiz', 'canal': canal}, n_clicks=0,
-                className='amostragem-raiz' + (' origem' if eh_origem else '') + ('' if no_grafico else ' fora-do-grafico'),
-                title=('Clique para usar este canal como origem' if no_grafico else
-                       'Fora do gráfico: aparece aqui porque já tem análises. Clique para usar como origem.'),
-                children=[
-                    html.Span('●' if no_grafico else '○', className='amostragem-raiz-cor',
-                              style={'color': cor_da_coluna(canais_y.index(canal))} if no_grafico else None),
-                    html.Span(arquivo.rotulo(canal), className='amostragem-raiz-nome'),
-                ],
-            ),
-            *(ramos or [html.Div('sem análises', className='amostragem-sem-analises')]),
-        ]))
-    return html.Div(blocos, className='amostragem-arvore')
+        componentes.append(html.Div(
+            id={'type': 'amostragem-raiz', 'canal': canal}, n_clicks=0,
+            className='amostragem-raiz' + (' origem' if eh_origem else '') + ('' if no_grafico else ' fora-do-grafico'),
+            title=('Clique para usar este canal como origem' if no_grafico else
+                   'Fora do gráfico: aparece aqui porque já tem análises. Clique para usar como origem.'),
+            style=_estilo_linha(4, len(seg)),
+            children=[
+                html.Span('●' if no_grafico else '○', className='amostragem-raiz-cor',
+                          style={'color': cor_da_coluna(canais_y.index(canal))} if no_grafico else None),
+                html.Span(arquivo.rotulo(canal), className='amostragem-raiz-nome'),
+                _bracos(seg),
+            ],
+        ))
+    return html.Div(componentes, className='amostragem-arvore')
 
 
 # ============================================================================
@@ -267,6 +377,8 @@ def renderizar_arvore_amostragem(arquivo, eixo_x, contexto=None):
 # ============================================================================
 
 def _texto_parametros(no):
+    if no.operacao == 'calculadora':
+        return f"Expressão: {no.parametros.get('exibida') or no.parametros.get('expressao')}"
     campos = CAMPOS_PARAMETROS.get(no.operacao, {})
     partes = []
     for nome, valor in no.parametros.items():
@@ -279,7 +391,8 @@ def renderizar_cartao_no(arquivo, no, eixo_x, contexto):
     """Resultado da análise clicada e, se desatualizada, Recalcular/Manter."""
     desatualizado = arquivo.derivado_desatualizado(no.id)
     compativel = arquivo.derivado_compativel_com_x(no.id, eixo_x)
-    origem = arquivo.arvore.no(no.pai).nome if no.pai else arquivo.rotulo(no.canal_raiz)
+    origem = ' + '.join(arquivo.arvore.no(p).nome for p in no.pais if p in arquivo.arvore) \
+        if no.pais else arquivo.rotulo(no.canal_raiz)
     avisos = []
     acoes = []
     if desatualizado:
@@ -289,8 +402,10 @@ def renderizar_cartao_no(arquivo, no, eixo_x, contexto):
                 'Ajuste os parâmetros abaixo e clique em Recalcular.',
                 className='amostragem-cartao-aviso'))
         else:
-            avisos.append(html.Div('⚠ Os dados de origem mudaram depois desta análise.',
-                                   className='amostragem-cartao-aviso'))
+            texto = ('⚠ Os dados de origem mudaram depois desta análise.' if contexto['parou'] != no.id else
+                     f"⚠ O Recalcular parou aqui. {contexto['motivo'] or ''} "
+                     'Refaça a conta na calculadora, ou Manter / excluir.')
+            avisos.append(html.Div(texto, className='amostragem-cartao-aviso'))
             acoes += [
                 html.Button('Recalcular', id=id_acao('recalcular', no.id), n_clicks=0,
                             title='Refaz esta cadeia com os dados atuais e os mesmos parâmetros',
@@ -307,7 +422,7 @@ def renderizar_cartao_no(arquivo, no, eixo_x, contexto):
     # detalhes (origem, parâmetros, resultado) recolhem — começam fechados.
     aberto = bool(contexto['detalhes'])
     detalhes = [
-        html.Div(f"{OPERACOES[no.operacao].rotulo} de {origem} · X = {arquivo.rotulo(no.eixo_x)}",
+        html.Div(f"{rotulo_operacao(no.operacao)} de {origem} · X = {arquivo.rotulo(no.eixo_x)}",
                  className='amostragem-cartao-linha'),
         html.Div(_texto_parametros(no), className='amostragem-cartao-linha'),
         *[html.Div(linha, className='amostragem-cartao-linha dado') for linha in linhas_resultado(no.operacao, no.info)],
@@ -405,7 +520,7 @@ def _caixa_origem(arquivo, canal_y, eixo_origem, pai):
     elif pai is not None:
         no = arquivo.arvore.no(pai)
         conteudo = [html.Span(no.nome, className='amostragem-origem-nome'),
-                    html.Span(f"{OPERACOES[no.operacao].rotulo} · {len(no.serie)} pontos",
+                    html.Span(f"{rotulo_operacao(no.operacao)} · {len(no.serie)} pontos",
                               className='amostragem-origem-detalhe')]
     else:
         conteudo = [html.Span(arquivo.rotulo(canal_y), className='amostragem-origem-nome'),
@@ -430,6 +545,8 @@ def renderizar_config_amostragem(arquivo, eixo_x, operacao, contexto=None):
       4. valores iniciais calculados dos dados da origem.
     """
     contexto = contexto_normalizado(contexto)
+    if operacao not in OPERACOES:       # ex: 'calculadora' não é operação da barra
+        operacao = None
     no_sel = arquivo.arvore.no(contexto['selecionado']) if contexto['selecionado'] in arquivo.arvore else None
     cartao = [renderizar_cartao_no(arquivo, no_sel, eixo_x, contexto)] if no_sel else []
 

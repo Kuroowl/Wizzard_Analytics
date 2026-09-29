@@ -178,17 +178,31 @@ class ResultadoCalculo:
         return self.analise is not None
 
 
+def analises_da_expressao(codigo):
+    """Nomes das análises (der/derx) usadas na expressão, na ordem em que aparecem."""
+    nomes = []
+    for tipo, _, nome in _REF_DADO.findall(codigo or ''):
+        if tipo in ('der', 'derx') and nome not in nomes:
+            nomes.append(nome)
+    return nomes
+
+
+def _conferir_mesmo_x(nomes, series, rotulos):
+    base = series[nomes[0]]
+    for nome in nomes[1:]:
+        outra = series[nome]
+        if len(outra) != len(base) or not np.array_equal(outra.x, base.x):
+            raise ValueError(f"'{rotulos.get(nomes[0], nomes[0])}' e '{rotulos.get(nome, nome)}' não têm o mesmo x': "
+                             'só análises com os mesmos pontos em X se combinam.')
+
+
 def dominio_da_expressao(codigo, arquivo):
     """
     None (tabela) ou o nome da 1ª análise referenciada. ValueError se a
     expressão mistura tabela e análise, ou análises com x' diferentes.
     """
-    refs = _REF_DADO.findall(codigo or '')
-    usa_tabela = any(tipo == 'col' for tipo, _, _ in refs)
-    analises = []
-    for tipo, _, nome in refs:
-        if tipo in ('der', 'derx') and nome not in analises:
-            analises.append(nome)
+    usa_tabela = any(tipo == 'col' for tipo, _, _ in _REF_DADO.findall(codigo or ''))
+    analises = analises_da_expressao(codigo)
     if not analises:
         return None
     for nome in analises:
@@ -197,13 +211,29 @@ def dominio_da_expressao(codigo, arquivo):
     if usa_tabela:
         raise ValueError("não dá pra misturar colunas do arquivo com análises (x', y'): "
                          'elas têm tamanhos e X diferentes.')
-    base = arquivo.canais_derivados[analises[0]]
-    for nome in analises[1:]:
-        outra = arquivo.canais_derivados[nome]
-        if len(outra.serie) != len(base.serie) or not np.array_equal(outra.serie.x, base.serie.x):
-            raise ValueError(f"'{base.rotulo}' e '{outra.rotulo}' não têm o mesmo x': "
-                             'só análises com os mesmos pontos em X se combinam.')
+    _conferir_mesmo_x(analises, {n: arquivo.canais_derivados[n].serie for n in analises},
+                      {n: arquivo.canais_derivados[n].rotulo for n in analises})
     return analises[0]
+
+
+def avaliar_com_series(codigo, series, arquivo, estado, rotulos=None):
+    """
+    Refaz uma expressão de análises com séries DADAS no lugar de der/derx
+    ({nome usado na expressão: Serie}) — é o Recalcular de uma análise da
+    calculadora: as séries são os resultados ATUAIS das análises de origem.
+    Devolve (x, valores). ValueError se faltar uma série ou os x' não
+    baterem mais (ex: uma origem foi recalculada com outros pontos).
+    """
+    nomes = analises_da_expressao(codigo)
+    if not nomes:
+        raise ValueError('a expressão não usa nenhuma análise.')
+    faltando = [n for n in nomes if n not in series]
+    if faltando:
+        raise ValueError('uma das análises de origem não existe mais.')
+    _conferir_mesmo_x(nomes, series, rotulos or {})
+    base = series[nomes[0]]
+    valores = _avaliar(codigo, arquivo, estado, base, series)
+    return base.x, valores.to_numpy(dtype=float)
 
 
 def avaliar_calculo(codigo, arquivo, estado):
@@ -217,7 +247,8 @@ def avaliar_calculo(codigo, arquivo, estado):
     analise = dominio_da_expressao(codigo, arquivo)
     if analise is None:
         return ResultadoCalculo(_avaliar(codigo, arquivo, estado, None))
-    return ResultadoCalculo(_avaliar(codigo, arquivo, estado, arquivo.canais_derivados[analise]), analise)
+    series = {n: c.serie for n, c in arquivo.canais_derivados.items()}
+    return ResultadoCalculo(_avaliar(codigo, arquivo, estado, series[analise], series), analise)
 
 
 def avaliar_expressao_calculadora(codigo, arquivo, estado):
@@ -228,7 +259,7 @@ def avaliar_expressao_calculadora(codigo, arquivo, estado):
     return resultado.valores
 
 
-def _avaliar(codigo, arquivo, estado, analise):
+def _avaliar(codigo, arquivo, estado, base, series=None):
     """
     Avalia 'codigo' (a concatenação dos 'codigo' de cada token
     clicado, ver 'calc-expressao-store' em layout.py) contra as
@@ -294,24 +325,24 @@ def _avaliar(codigo, arquivo, estado, analise):
         raise ValueError("tem um ')' sobrando sem um '(' pra combinar.")
 
     df = arquivo.df_editado
-    if analise is None:
+    # 'base' None = domínio da tabela; senão a Serie (x', y') que dá o
+    # tamanho e o x' do resultado, e 'series' as análises disponíveis como
+    # der/derx ({nome: Serie}) — só as do mesmo tamanho.
+    if base is None:
         indice = df.index
         col = {nome: df[nome] for nome in df.columns}
         der, derx = {}, {}
     else:
-        # Domínio de uma análise: só os pares com o mesmo x' (checado em
-        # dominio_da_expressao), todos com o índice 0..n-1 do x' dela.
-        indice = pd.RangeIndex(len(analise.serie))
+        indice = pd.RangeIndex(len(base))
         col = {}
-        der = {n: pd.Series(c.serie.y, index=indice) for n, c in arquivo.canais_derivados.items()
-               if len(c.serie) == len(analise.serie)}
-        derx = {n: pd.Series(c.serie.x, index=indice) for n, c in arquivo.canais_derivados.items()
-                if len(c.serie) == len(analise.serie)}
+        mesmas = {n: s for n, s in (series or {}).items() if len(s) == len(base)}
+        der = {n: pd.Series(s.y, index=indice) for n, s in mesmas.items()}
+        derx = {n: pd.Series(s.x, index=indice) for n, s in mesmas.items()}
     n_linhas = len(indice)
 
     def _eixo_x():
-        if analise is not None:
-            return analise.serie.x.astype(float)
+        if base is not None:
+            return base.x.astype(float)
         return df[resolver_eixo_x(estado, arquivo)].to_numpy(dtype=float)
 
     def _como_serie(valor):
