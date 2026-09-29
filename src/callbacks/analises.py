@@ -18,7 +18,8 @@ from src.core.plotting.plotter import construir_figura_serie_temporal
 from src.gui.analises import renderizar_analises_da_aba_ativa
 from src.gui.feedback import Feedback, saida_feedback
 from src.gui.renderizadores import (
-    renderizar_calculadora_botoes, renderizar_grafico_com_fechar, renderizar_selecao_eixos,
+    renderizar_calculadora_botoes, renderizar_grafico_com_fechar, renderizar_painel_edicao,
+    renderizar_selecao_eixos,
 )
 
 
@@ -31,6 +32,7 @@ def registrar_callbacks_analises(app, estado):
         Output('analise-em-edicao-store', 'data'),
         saida_feedback('analises'),
         Output('area-modo-nova-analise-edicao', 'children', allow_duplicate=True),
+        Output('painel-direito-conteudo', 'children', allow_duplicate=True),
         Input({'type': 'linha-analise', 'arquivo': ALL, 'canal': ALL}, 'n_clicks'),
         Input({'type': 'remover-analise-eixo', 'arquivo': ALL, 'canal': ALL}, 'n_clicks'),
         Input({'type': 'botao-editar-analise', 'arquivo': ALL, 'canal': ALL}, 'n_clicks'),
@@ -39,10 +41,12 @@ def registrar_callbacks_analises(app, estado):
         State({'type': 'input-editar-analise', 'arquivo': ALL, 'canal': ALL}, 'value'),
         State('analise-em-edicao-store', 'data'),
         State('modo-nova-analise-store', 'data'),
+        State('painel-direito', 'className'),
+        State('edicao-curva-dado-atual', 'data'),
         prevent_initial_call=True,
     )
     def gerenciar_analises_lateral(_cliques, _remover, _lapis, _lixeira, _enter, _nomes, em_edicao,
-                                   calculadora_ligada):
+                                   calculadora_ligada, classe_painel_direito, curva_em_edicao):
         gatilho = processar_cliques_padrao(ctx.inputs_list)
         if gatilho is None:
             raise PreventUpdate
@@ -69,7 +73,7 @@ def registrar_callbacks_analises(app, estado):
             try:
                 arquivo.mover_derivado_para_y(nome)
             except ValueError as erro:
-                return no_update, no_update, no_update, no_update, Feedback.aviso(str(erro)), no_update
+                return no_update, no_update, no_update, no_update, Feedback.aviso(str(erro)), no_update, no_update
             feedback = Feedback.sucesso(f"'{canal.rotulo}' adicionada ao eixo Y.")
         elif tipo == 'remover-analise-eixo':
             arquivo.remover_derivado_do_y(nome)
@@ -103,9 +107,14 @@ def registrar_callbacks_analises(app, estado):
         teclado = renderizar_calculadora_botoes(estado, aba) \
             if calculadora_ligada and tipo in ('botao-excluir-analise', 'botao-editar-analise',
                                                'input-editar-analise') else no_update
+        # Painel de edição aberto: a caixa 'Dado' lista também as análises do
+        # Y (◆) — pôr/tirar do Y, renomear ou excluir precisa aparecer lá.
+        painel_edicao = no_update
+        if classe_painel_direito and 'ativa' in classe_painel_direito.split() and tipo != 'botao-editar-analise':
+            painel_edicao = renderizar_painel_edicao(estado, aba, curva_em_edicao)
         return (renderizar_analises_da_aba_ativa(estado, aba, em_edicao),
                 renderizar_selecao_eixos(estado, aba, analise_em_edicao=em_edicao), area_grafico, em_edicao,
-                feedback, teclado)
+                feedback, teclado, painel_edicao)
 
     # ------------------------------------------------------------------
     # O ⚠ de uma análise muda quando os dados de origem mudam (corte,

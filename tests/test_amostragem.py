@@ -476,6 +476,17 @@ class TestDuplicataNomeVisibilidade(unittest.TestCase):
             arq.renomear_derivado(n1.id, '   ')
         self.assertEqual(n1.nome, 'Amostra rápida')
 
+    def test_sair_da_amostragem_apaga_preview_e_olhos(self):
+        arq = arquivo_teste()
+        n1 = arq.registrar_derivado('downsampling', {'n_pontos': 5},
+                                    am.downsampling(arq.serie_do_canal('p', 't'), 5), 'p', 't')
+        self.assertFalse(arq.sair_da_amostragem())            # nada desenhado
+        arq.alternar_visibilidade_derivado(n1.id)
+        arq.gerar_preview_amostragem('downsampling', {'n_pontos': 9}, 'p', 't')
+        self.assertTrue(arq.sair_da_amostragem())
+        self.assertIsNone(arq.preview_amostragem)
+        self.assertFalse(n1.visivel)
+
     def test_visibilidade(self):
         arq = arquivo_teste()
         n1 = arq.registrar_derivado('downsampling', {'n_pontos': 5},

@@ -2049,3 +2049,13 @@
   font-size: 11px;
   color: var(--cor-texto-mudo);
 }
+
+/* Canal fora do Y que aparece na árvore porque já tem análises (histórico). */
+.amostragem-raiz.fora-do-grafico .amostragem-raiz-nome {
+  color: var(--cor-texto-mudo);
+  font-weight: 500;
+}
+
+.amostragem-raiz.fora-do-grafico .amostragem-raiz-cor {
+  color: var(--cor-texto-mudo);
+}

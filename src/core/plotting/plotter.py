@@ -601,6 +601,7 @@ def construir_figura_serie_temporal(estado, aba_ativa):
 # curvas, pra ficar claro que é um resultado provisório por cima dos dados.
 COR_PREVIEW = '#1B2430'
 COR_PREVIEW_FAIXA = 'rgba(27, 36, 48, 0.15)'
+COR_ANALISE_FORA_DO_Y = '#5A6472'
 
 
 def cor_do_canal_derivado(arquivo, nome):
@@ -613,24 +614,67 @@ def colunas_plotadas_do_arquivo(arquivo):
     return [col for col in arquivo.eixos_y_manual if col in arquivo.df_editado.columns]
 
 
+def curvas_editaveis(arquivo):
+    """
+    Tudo que está desenhado no Y e pode ser editado no painel 'Iniciar
+    edição': as colunas do Y e, depois delas, as análises (Add) do Y que
+    estão sendo desenhadas (as de outro X não estão). Mesma ordem das cores.
+    """
+    colunas = colunas_plotadas_do_arquivo(arquivo)
+    analises = [n for n in arquivo.eixos_y_derivados
+                if n in arquivo.canais_derivados and arquivo.canais_derivados[n].eixo_x == arquivo.eixo_x_manual]
+    return colunas + analises
+
+
+def cor_padrao_da_curva(arquivo, nome):
+    """Cor de fábrica de uma curva do Y (coluna ou análise), antes de o usuário escolher outra."""
+    if nome in arquivo.eixos_y_derivados:
+        return cor_do_canal_derivado(arquivo, nome)
+    colunas = colunas_plotadas_do_arquivo(arquivo)
+    return cor_da_coluna(colunas.index(nome) if nome in colunas else 0)
+
+
+def rotulo_da_curva(arquivo, nome):
+    """Nome exibido de uma curva do Y: o rótulo da coluna, ou '◆ ' + o da análise."""
+    if nome in arquivo.canais_derivados:
+        return '◆ ' + arquivo.canais_derivados[nome].rotulo
+    return arquivo.rotulo(nome)
+
+
 def _desenhar_canais_derivados(fig, arquivo, eixo_x, n_colunas):
     """
     Análises (Add) colocadas no eixo Y: cada uma com o PRÓPRIO x', e só se
     ela veio deste X (com outro X os pontos não casariam — a caixa Y: da
     sidebar mostra ela apagada). Cores continuam a paleta das colunas.
+
+    Estilo: o que o usuário escolheu no painel de edição (mesmas
+    preferências das colunas); sem escolha, linha fina com pontos. Com σ
+    (média móvel), barras de erro ±σ em cada ponto.
     """
     for i, nome in enumerate(arquivo.eixos_y_derivados):
         canal = arquivo.canais_derivados.get(nome)
         if canal is None or canal.eixo_x != eixo_x:
             continue
-        cor = cor_da_coluna(n_colunas + i)
-        x, y = canal.serie.x, canal.serie.y
+        prefs = arquivo.preferencias.por_canal.get(nome)
+        cor = prefs.cor if prefs and prefs.cor else cor_da_coluna(n_colunas + i)
+        x, y, sigma = canal.serie.x, canal.serie.y, canal.serie.sigma
         indices = _indices_amostra_uniforme(len(x))
         if indices is not None:
             x, y = x[indices], y[indices]
+            sigma = sigma[indices] if sigma is not None else None
+        if prefs:
+            estilo, marcador = prefs.estilo_linha, prefs.marcador
+            espessura, tamanho = prefs.espessura, prefs.tamanho_marcador
+        else:
+            estilo, marcador, espessura, tamanho = 'solid', 'circle', 1.5, 5
+        tem_marcador = marcador and marcador != 'none'
         fig.add_trace(go.Scatter(
-            x=x, y=y, mode='lines+markers', name=canal.rotulo,
-            line=dict(color=cor, width=1.5), marker=dict(color=cor, size=4),
+            x=x, y=y, mode=resolver_modo(estilo, marcador), name=canal.rotulo,
+            line=dict(color=cor, width=espessura, dash=(estilo if estilo != 'none' else 'solid')),
+            marker=dict(color=cor, symbol=(marcador if tem_marcador else 'circle'),
+                        size=(tamanho if tem_marcador else 0)),
+            error_y=(dict(type='data', array=sigma, visible=True, color=cor, thickness=1, width=3)
+                     if sigma is not None else None),
         ))
 
 
@@ -646,22 +690,28 @@ def _escurecer(cor_hex, fator=0.45):
 def _desenhar_derivados_visiveis(fig, arquivo, eixo_x, colunas_y):
     """
     Análises da árvore com o olho aceso, num tom ESCURECIDO da cor da curva
-    do canal de origem (a mesma família de cor, mas legível por cima dela). Só aparecem se foram calculadas com este X
-    e se o canal de origem está no gráfico (a árvore só mostra esses).
+    do canal de origem (a mesma família de cor, mas legível por cima dela);
+    se o canal de origem não está no Y (histórico da árvore), num
+    cinza-azulado neutro. Só aparecem se foram calculadas com este X.
     """
     for no in arquivo.arvore:
-        if not no.visivel or no.eixo_x != eixo_x or no.canal_raiz not in colunas_y:
+        if not no.visivel or no.eixo_x != eixo_x:
             continue
-        indice = colunas_y.index(no.canal_raiz)
-        prefs = arquivo.preferencias.por_canal.get(no.canal_raiz)
-        cor = _escurecer(prefs.cor if prefs and prefs.cor else cor_da_coluna(indice))
+        if no.canal_raiz in colunas_y:
+            prefs = arquivo.preferencias.por_canal.get(no.canal_raiz)
+            cor = _escurecer(prefs.cor if prefs and prefs.cor else cor_da_coluna(colunas_y.index(no.canal_raiz)))
+        else:
+            cor = COR_ANALISE_FORA_DO_Y     # canal de origem fora do gráfico (histórico da árvore)
         x, y = no.serie.x, no.serie.y
         if no.operacao == 'downsampling':
             fig.add_trace(go.Scatter(x=x, y=y, mode='markers', name=no.nome,
                                      marker=dict(color=cor, size=7, line=dict(color='#FFFFFF', width=1))))
         elif no.operacao == 'media_movel':
+            sigma = no.serie.sigma
             fig.add_trace(go.Scatter(x=x, y=y, mode='lines+markers', name=no.nome,
-                                     line=dict(color=cor, width=2.5), marker=dict(color=cor, size=4)))
+                                     line=dict(color=cor, width=2.5), marker=dict(color=cor, size=4),
+                                     error_y=(dict(type='data', array=sigma, visible=True, color=cor,
+                                                   thickness=1, width=3) if sigma is not None else None)))
         else:
             fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=no.nome,
                                      line=dict(color=cor, width=2.5, dash='dash')))

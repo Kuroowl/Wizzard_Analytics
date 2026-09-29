@@ -113,15 +113,27 @@ def registrar_callbacks_nova_amostragem(app, estado):
             return no_update
         return redesenhar(aba_ativa)
 
-    def tirar_previews_em_segundo_plano():
+    def sair_do_modo(aba_ativa):
         """
-        Tira o preview de TODOS os arquivos sem tocar no gráfico da tela —
-        pra quando a aba mudou (o preview era de outra aba, que só precisa
-        do cache sem ele pra quando o usuário voltar).
+        Saindo da Nova Amostragem com o gráfico na tela: preview e análises
+        com o olho aceso saem dele. Devolve a figura nova (ou no_update).
+        """
+        arquivo = arquivo_da(aba_ativa)
+        if arquivo is None or not arquivo.grafico_gerado:
+            return no_update
+        if not arquivo.sair_da_amostragem():
+            return no_update
+        return redesenhar(aba_ativa)
+
+    def sair_do_modo_em_segundo_plano():
+        """
+        Mesma limpeza em TODOS os arquivos sem tocar no gráfico da tela —
+        pra quando a aba mudou (as camadas eram de outra aba, que só precisa
+        do cache sem elas pra quando o usuário voltar).
         """
         for nome, arquivo in list(estado.arquivos.items()):
             tinha_grafico = arquivo.grafico_gerado
-            if arquivo.limpar_preview_amostragem() and tinha_grafico:
+            if arquivo.sair_da_amostragem() and tinha_grafico:
                 redesenhar(nome)
 
     # ------------------------------------------------------------------
@@ -162,7 +174,7 @@ def registrar_callbacks_nova_amostragem(app, estado):
             return (False, CLASSE_BOTAO_TOOLBAR, ESCONDIDO, ESCONDIDO, no_update,
                     None, _classes_barra(None), no_update, Feedback.info('Nova Amostragem desligada.'),
                     no_update, no_update, no_update, no_update,
-                    tirar_preview(aba_ativa))
+                    sair_do_modo(aba_ativa))
 
         contexto = dict(CONTEXTO_VAZIO)     # a origem começa vazia: o usuário clica na árvore
         desligar_analise = (False, CLASSE_BOTAO_TOOLBAR, ESCONDIDO, ESCONDIDO) if analise_ativa \
@@ -211,7 +223,7 @@ def registrar_callbacks_nova_amostragem(app, estado):
         # instrução da Amostragem).
         feedback = Feedback.info('Nova Análise ligada. A Nova Amostragem foi desligada.') \
             if ctx.triggered_id == 'nova-analise' else no_update
-        return (*DESLIGADO, feedback, tirar_preview(aba_ativa))
+        return (*DESLIGADO, feedback, sair_do_modo(aba_ativa))
 
     # Troca/abertura/fechamento de aba: o gráfico da tela já é de outra aba
     # (quem desenha é o callback das abas) — o preview sai só do cache.
@@ -224,7 +236,7 @@ def registrar_callbacks_nova_amostragem(app, estado):
     def desligar_nova_amostragem_ao_trocar_aba(_aba, ativo):
         if not ativo:
             raise PreventUpdate
-        tirar_previews_em_segundo_plano()
+        sair_do_modo_em_segundo_plano()
         return DESLIGADO
 
     # 'fechar-grafico' só existe enquanto há gráfico (nasce dentro dele, a
@@ -243,7 +255,7 @@ def registrar_callbacks_nova_amostragem(app, estado):
             raise PreventUpdate
         arquivo = arquivo_da(aba_ativa)
         if arquivo is not None:
-            arquivo.limpar_preview_amostragem()
+            arquivo.sair_da_amostragem()
         return DESLIGADO
 
     # ------------------------------------------------------------------

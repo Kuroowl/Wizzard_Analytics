@@ -2,7 +2,9 @@ from dash import dcc, html
 
 from src.gui.analises import linhas_analises_no_y
 from src.gui.components import icone_colorido
-from src.core.plotting.plotter import cor_da_coluna, colunas_plotadas, PALETA_CORES
+from src.core.plotting.plotter import (
+    PALETA_CORES, cor_padrao_da_curva, curvas_editaveis, rotulo_da_curva,
+)
 from src.core.operations.calculadora import (
     NUMEROS, OPERADORES, FUNCOES, OPERACOES_RAPIDAS,
     calc_criar_desabilitado,
@@ -817,14 +819,15 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
     estiver mais no gráfico (ex: usuário desmarcou o canal), cai na
     primeira coluna plotada (ou fica None, se não houver nenhuma).
     """
-    colunas = colunas_plotadas(estado, aba_ativa)
     arquivo = estado.arquivos[aba_ativa]
+    # Colunas do Y e, depois delas, as análises (◆) desenhadas no Y.
+    colunas = curvas_editaveis(arquivo)
 
     sem_canal = not colunas
     if coluna_selecionada not in colunas:
         coluna_selecionada = colunas[0] if colunas else None
 
-    opcoes_dado = [{'label': arquivo.rotulo(coluna), 'value': coluna} for coluna in colunas]
+    opcoes_dado = [{'label': rotulo_da_curva(arquivo, coluna), 'value': coluna} for coluna in colunas]
 
     if sem_canal:
         cor_atual, espessura_atual, estilo_atual = PALETA_EDICAO_CORES[0], 1.0, 'solid'
@@ -837,8 +840,7 @@ def renderizar_painel_edicao(estado, aba_ativa, coluna_selecionada=None):
         # construir_figura_serie_temporal (plotter.py), pra painel e
         # gráfico nunca mostrarem valores diferentes pra mesma curva.
         prefs = arquivo.preferencias.por_canal.get(coluna_selecionada)
-        indice_cor = colunas.index(coluna_selecionada)
-        cor_atual = prefs.cor if (prefs and prefs.cor) else cor_da_coluna(indice_cor)
+        cor_atual = prefs.cor if (prefs and prefs.cor) else cor_padrao_da_curva(arquivo, coluna_selecionada)
         espessura_atual = prefs.espessura if prefs else 1.0
         estilo_atual = prefs.estilo_linha if prefs else 'solid'
         marcador_atual = prefs.marcador if prefs else 'none'

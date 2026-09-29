@@ -227,28 +227,33 @@ def _ramos(arquivo, id_pai, canal, eixo_x, nivel, contexto):
 def renderizar_arvore_amostragem(arquivo, eixo_x, contexto=None):
     """
     Raízes = os canais que estão no Y do gráfico agora (na ordem e com a
-    cor das curvas); embaixo de cada um, as análises registradas. Um canal
-    que sai do Y só some daqui — as análises dele continuam no Arquivo.
-    Clicar num canal ou numa análise: vira a origem dos dados.
+    cor das curvas) e, depois deles, os que JÁ TÊM análises mesmo fora do
+    Y (○) — a árvore é o histórico do que foi feito. Um canal fora do Y e
+    sem análises não aparece. Clicar num canal ou numa análise: vira a
+    origem dos dados.
     """
     contexto = contexto_normalizado(contexto)
     canais_y = canais_do_grafico(arquivo)
-    if not canais_y:
+    raizes = raizes_da_arvore(arquivo)
+    if not raizes:
         return html.Div(
             'Nenhum canal no eixo Y. Clique nos canais da barra lateral pra colocá-los no gráfico.',
             className='amostragem-vazio',
         )
     blocos = []
-    for indice, canal in enumerate(canais_y):
+    for canal in raizes:
         ramos = _ramos(arquivo, None, canal, eixo_x, 1, contexto)
         eh_origem = contexto['pai'] is None and contexto['canal_y'] == canal
+        no_grafico = canal in canais_y
         blocos.append(html.Div(className='amostragem-raiz-bloco', children=[
             html.Div(
                 id={'type': 'amostragem-raiz', 'canal': canal}, n_clicks=0,
-                className='amostragem-raiz' + (' origem' if eh_origem else ''),
-                title='Clique para usar este canal como origem',
+                className='amostragem-raiz' + (' origem' if eh_origem else '') + ('' if no_grafico else ' fora-do-grafico'),
+                title=('Clique para usar este canal como origem' if no_grafico else
+                       'Fora do gráfico: aparece aqui porque já tem análises. Clique para usar como origem.'),
                 children=[
-                    html.Span('●', className='amostragem-raiz-cor', style={'color': cor_da_coluna(indice)}),
+                    html.Span('●' if no_grafico else '○', className='amostragem-raiz-cor',
+                              style={'color': cor_da_coluna(canais_y.index(canal))} if no_grafico else None),
                     html.Span(arquivo.rotulo(canal), className='amostragem-raiz-nome'),
                 ],
             ),
@@ -367,6 +372,14 @@ def canais_do_grafico(arquivo):
     return [c for c in arquivo.eixos_y_manual if c in arquivo.df_editado.columns]
 
 
+def raizes_da_arvore(arquivo):
+    """Os canais do Y e, depois, os que têm análises (histórico) mesmo fora do Y."""
+    canais_y = canais_do_grafico(arquivo)
+    com_analises = [c for c in arquivo.arvore.canais_com_derivados()
+                    if c not in canais_y and c in arquivo.df_editado.columns]
+    return canais_y + com_analises
+
+
 def origem_efetiva(arquivo, eixo_x, contexto):
     """
     (canal_y, eixo_x_da_origem, pai) de onde a próxima operação parte, ou
@@ -380,7 +393,7 @@ def origem_efetiva(arquivo, eixo_x, contexto):
             no = arquivo.arvore.no(pai)
             return no.canal_raiz, no.eixo_x, pai
         return None, eixo_x, None
-    canal_y = contexto['canal_y'] if contexto['canal_y'] in canais_do_grafico(arquivo) else None
+    canal_y = contexto['canal_y'] if contexto['canal_y'] in raizes_da_arvore(arquivo) else None
     return canal_y, eixo_x, None
 
 

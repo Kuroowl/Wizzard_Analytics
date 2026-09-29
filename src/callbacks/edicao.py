@@ -8,7 +8,7 @@ from dash import Input, Output, State, ctx, MATCH
 from dash.exceptions import PreventUpdate
 
 from src.callbacks._comum import classe_painel_direito, estados_toolbar
-from src.core.plotting.plotter import colunas_plotadas, construir_figura_serie_temporal, cor_da_coluna
+from src.core.plotting.plotter import construir_figura_serie_temporal, cor_padrao_da_curva, curvas_editaveis
 from src.gui.renderizadores import (
     DICA_STEPPER_SEM_TITULO, _hex_para_rgb, renderizar_grafico_com_fechar,
     renderizar_painel_direito_padrao, renderizar_painel_edicao,
@@ -100,12 +100,11 @@ def registrar_callbacks_edicao(app, estado):
             raise PreventUpdate
 
         arquivo = estado.arquivos[aba_ativa]
-        colunas = colunas_plotadas(estado, aba_ativa)
-        if coluna not in colunas:
+        if coluna not in curvas_editaveis(arquivo):      # colunas e análises (◆) do Y
             raise PreventUpdate
 
         prefs = arquivo.preferencias.por_canal.get(coluna)
-        cor_atual = prefs.cor if (prefs and prefs.cor) else cor_da_coluna(colunas.index(coluna))
+        cor_atual = prefs.cor if (prefs and prefs.cor) else cor_padrao_da_curva(arquivo, coluna)
         espessura_atual = prefs.espessura if prefs else 1.0
         estilo_atual = prefs.estilo_linha if prefs else 'solid'
         marcador_atual = prefs.marcador if prefs else 'none'
@@ -267,7 +266,7 @@ def registrar_callbacks_edicao(app, estado):
             raise PreventUpdate
 
         arquivo = estado.arquivos[aba_ativa]
-        if not arquivo.grafico_gerado or coluna not in colunas_plotadas(estado, aba_ativa):
+        if not arquivo.grafico_gerado or coluna not in curvas_editaveis(arquivo):
             raise PreventUpdate
 
         marcador = marcador or 'none'

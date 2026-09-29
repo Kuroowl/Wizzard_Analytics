@@ -758,6 +758,20 @@ class Arquivo:
         self.arvore.no(id_no).nome = nome
         self.invalidar_grafico()      # o nome aparece na legenda se estiver visível
 
+    def sair_da_amostragem(self, invalidar_grafico: bool = True) -> bool:
+        """
+        Ao sair do modo Nova Amostragem, tudo que é ferramenta dele sai do
+        gráfico: o preview e as análises com o olho aceso (o olho apaga).
+        True se havia algo desenhado (o gráfico precisa ser redesenhado).
+        """
+        havia = self.preview_amostragem is not None or any(no.visivel for no in self.arvore)
+        self.preview_amostragem = None
+        for no in self.arvore:
+            no.visivel = False
+        if havia and invalidar_grafico:
+            self.invalidar_grafico()
+        return havia
+
     def alternar_visibilidade_derivado(self, id_no: str) -> bool:
         """Olho da árvore: liga/desliga o desenho do nó no gráfico. Devolve o novo estado."""
         no = self.arvore.no(id_no)
