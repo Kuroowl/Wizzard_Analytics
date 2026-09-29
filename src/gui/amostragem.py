@@ -23,7 +23,7 @@ O "contexto" (dict guardado em 'amostragem-contexto-store'):
     ultimos       {operação: parâmetros} usados por último (Preview/OK/Add):
                   o painel volta com eles em vez dos valores iniciais.
 """
-from dash import dcc, html
+from dash import dcc, get_asset_url, html
 
 from src.core.operations.amostragem import OPERACOES, parametros_iniciais
 from src.core.plotting.plotter import cor_da_coluna
@@ -37,6 +37,14 @@ OPERACOES_BARRA = [
     ('ajuste_polinomial', 'Polynomial Fit', 'Ajusta um polinômio de grau 1, 2 ou 3'),
     ('model_fit', 'Model Fit', 'Em breve'),
 ]
+
+# Ícone de cada operação (assets/icones/), com metade do tamanho dos da toolbar.
+ICONES_OPERACOES = {
+    'downsampling': 'down_icon.png',
+    'media_movel': 'moving_icon.png',
+    'ajuste_polinomial': 'poly_icon.png',
+    'model_fit': 'model_icon.png',
+}
 
 # Como cada parâmetro aparece no painel, por operação: (rótulo, tipo, mínimo).
 # tipo 'inteiro' | 'real' | 'grau' (seletor 1/2/3).
@@ -86,7 +94,10 @@ def renderizar_amostragem_barra():
     """
     botoes = [
         html.Button(
-            rotulo, id=id_botao_operacao(chave), n_clicks=0, title=dica,
+            [html.Img(src=get_asset_url(f'icones/{ICONES_OPERACOES[chave]}'), className='amostragem-op-icone',
+                      alt=''),
+             html.Span(rotulo)],
+            id=id_botao_operacao(chave), n_clicks=0, title=dica,
             className=classe_botao_operacao(chave, None),
             disabled=chave not in OPERACOES,
         )

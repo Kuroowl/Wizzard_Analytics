@@ -520,15 +520,32 @@
 }
 
 .amostragem-op-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-family: var(--fonte-ui);
   font-size: 13px;
   color: var(--cor-texto-escuro);
   background-color: #FFFFFF;
   border: 1px solid var(--cor-borda);
-  border-radius: 16px;
-  padding: 6px 14px;
+  border-radius: 18px;
+  padding: 4px 14px 4px 6px;
   cursor: pointer;
   transition: background 0.1s, border-color 0.1s;
+}
+
+/* Metade do tamanho dos ícones da toolbar (48px). */
+.amostragem-op-icone {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+/* Model Fit (em breve): ícone apagado como o texto. */
+.amostragem-op-btn:disabled .amostragem-op-icone {
+  filter: grayscale(1);
+  opacity: 0.5;
 }
 
 .amostragem-op-btn:hover:not(:disabled) {
