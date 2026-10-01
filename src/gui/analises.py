@@ -1,5 +1,5 @@
 """
-Como as análises que viraram canal (botão Add da Nova Amostragem) aparecem
+Como as análises que viraram canal (Add to file da Nova Amostragem) aparecem
 no menu da esquerda: a seção 'Análises do arquivo:' (abaixo de 'Dados do
 arquivo:') e as linhas delas dentro da caixa Y: quando estão no gráfico.
 

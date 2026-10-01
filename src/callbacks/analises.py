@@ -1,6 +1,6 @@
 """
 Callbacks de 'Análises do arquivo:' (menu da esquerda): as análises da
-Nova Amostragem que viraram canal pelo botão Add.
+Nova Amostragem que viraram canal pelo Add to file.
 
 Clicar numa análise põe ela no eixo Y (só com o mesmo X de onde veio — o
 mago explica quando não dá); clicar nela dentro da caixa Y: tira. Lápis

@@ -2141,3 +2141,32 @@
   position: relative;
   z-index: 1;
 }
+
+/* Seção 'Análise selecionada' (entre a árvore e a configuração): cartão
+   + 👁 Mostrar no gráfico / Add to file. */
+.amostragem-secao-selecionada {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.amostragem-secao-selecionada .amostragem-vazio {
+  margin: 0;
+}
+
+.amostragem-acao-btn.ligado {
+  background: rgba(47, 165, 160, 0.18);
+  border-color: var(--cor-accent);
+}
+
+/* 🗑 esperando o 2º clique (a exclusão tira canais do arquivo). */
+.amostragem-no .canal-lixeira-btn.confirmar {
+  opacity: 1;
+  background-color: rgba(214, 39, 40, 0.18);
+  outline: 1px solid #D62728;
+}
+
+.amostragem-no.confirmando {
+  background-color: rgba(214, 39, 40, 0.06);
+}

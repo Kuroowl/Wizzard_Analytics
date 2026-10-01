@@ -541,14 +541,18 @@ class TestCanalDerivado(unittest.TestCase):
         self.assertFalse(arq.canal_derivado_desatualizado(c.nome))
         self.assertGreaterEqual(c.serie.x[0], 2)
 
-    def test_excluir_analise_desvincula_e_excluir_canal_nao_mexe_na_arvore(self):
+    def test_excluir_analise_tira_do_arquivo_e_excluir_canal_nao_mexe_na_arvore(self):
         arq, n = self.base()
         c = arq.adicionar_canal_derivado(n.id)
         arq.mover_derivado_para_y(c.nome)
+        filho = arq.registrar_derivado('downsampling', {'n_pontos': 3},
+                                       am.downsampling(n.serie, 3), 'p', 't', pai=n.id)
+        cf = arq.adicionar_canal_derivado(filho.id)
+        self.assertEqual({x.nome for x in arq.canais_da_cadeia(n.id)}, {c.nome, cf.nome})
         arq.excluir_derivado(n.id)
-        self.assertFalse(c.vinculado)
-        self.assertIn(c.nome, arq.canais_derivados)           # continua, independente
-        self.assertFalse(arq.canal_derivado_desatualizado(c.nome))
+        self.assertNotIn(c.nome, arq.canais_derivados)        # sai do arquivo junto
+        self.assertNotIn(cf.nome, arq.canais_derivados)       # e o da análise que saiu dela
+        self.assertEqual(arq.eixos_y_derivados, [])
         n2 = arq.registrar_derivado('downsampling', {'n_pontos': 7},
                                     am.downsampling(arq.serie_do_canal('p', 't'), 7), 'p', 't')
         c2 = arq.adicionar_canal_derivado(n2.id)
@@ -556,8 +560,6 @@ class TestCanalDerivado(unittest.TestCase):
         self.assertIn(n2.id, arq.arvore)
         self.assertIsNone(arq.canal_da_analise(n2.id))
         arq.adicionar_canal_derivado(n2.id)                   # pode virar canal de novo
-        arq.excluir_canal_derivado(c.nome)
-        self.assertEqual(arq.eixos_y_derivados, [])
 
     def test_renomear_canal(self):
         arq, n = self.base()

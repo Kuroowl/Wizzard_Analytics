@@ -12,7 +12,7 @@ O **Wizard Analytics** é uma ferramenta em Python (Dash + Plotly) para extraç�
 * **Nova Análise:** calculadora de canais. Monte uma expressão com colunas, números, operadores e funções (`sin`, `√`, derivada, integral, média...) e crie uma coluna nova ou sobrescreva uma existente. A barra de cálculo aparece em cima do gráfico, que continua funcionando normalmente. As análises de "Análises do arquivo" (x′, y′) também entram na calculadora: combinam entre si quando têm o **mesmo x′** (nunca com as colunas da tabela) e geram uma análise nova; sobrescrever o y′ ou o x′ de uma análise a **desvincula** da análise de origem.
 * **Painel de edição:** cor, espessura, estilo e marcador de cada curva; títulos, fontes e limites dos eixos; ticks; grade e cor de fundo.
 * **Mensagens do mago 🧙‍♂️:** o rodapé mostra o resultado de cada ação e a próxima instrução.
-* **Nova Amostragem (em construção):** com um gráfico aberto, liga uma barra de operações em cima do gráfico (Downsampling, Média móvel, Polynomial Fit) e, no painel direito, a árvore de dados/análises dos canais do Y e a configuração da operação. **Preview** desenha o resultado por cima do gráfico sem registrar nada (marcadores no downsampling, linha + faixa ±σ na média móvel, linha tracejada no fit) e mostra o resumo (pontos, janelas, equação e R²). A **origem dos dados** é escolhida clicando na árvore: um canal ou uma análise já registrada (ex.: média móvel → polynomial fit). **OK** registra o resultado na árvore — a mesma análise (mesma origem, operação e parâmetros) não entra duas vezes. Em cada análise, ao passar o mouse: 👁 mostra/esconde no gráfico, ✏️ renomeia, 🗑 exclui (com as que saíram dela). **Add** transforma a análise num canal (x', y') em **Análises do arquivo:**, no menu da esquerda: clicar nela põe no eixo Y (só com o mesmo X de onde veio, com barras de erro ±σ na média móvel), ela acompanha o Recalcular da análise de origem e pode ser estilizada no painel "Iniciar edição" (◆ na caixa 'Dado'). A árvore mostra os canais do Y e também os que já têm análises (histórico), mesmo fora do Y. Sair do modo tira o preview e as análises com o olho aceso do gráfico. Se os dados de origem mudarem (corte ou calculadora), os nós ganham ⚠ com **Recalcular** (refaz a cadeia com os mesmos parâmetros; para no passo que não dá, ou pede para conferir o Δx se o X foi reescrito) ou **Manter**. Não fica ligada junto com a Nova Análise.
+* **Nova Amostragem (em construção):** com um gráfico aberto, liga uma barra de operações em cima do gráfico (Downsampling, Média móvel, Polynomial Fit) e, no painel direito, a árvore de dados/análises dos canais do Y e a configuração da operação. **Preview** desenha o resultado por cima do gráfico sem registrar nada (marcadores no downsampling, linha + faixa ±σ na média móvel, linha tracejada no fit) e mostra o resumo (pontos, janelas, equação e R²). A **origem dos dados** é escolhida clicando na árvore: um canal ou uma análise já registrada (ex.: média móvel → polynomial fit). **Apply** grava o resultado na árvore, desmarca a operação e deixa a análise nova **selecionada** (a próxima operação parte dela) — a mesma análise (mesma origem, operação e parâmetros) não entra duas vezes. Em cada análise, ao passar o mouse: 👁 mostra/esconde no gráfico, ✏️ renomeia, 🗑 exclui (com as que saíram dela e os canais delas no arquivo — pede um 2º clique quando algum está no arquivo). A seção **Análise selecionada** (clicar numa análise na árvore seleciona) tem os detalhes recolhíveis, 👁 Mostrar no gráfico e **Add to file**, que transforma a análise num canal (x', y') em **Análises do arquivo:**, no menu da esquerda: clicar nela põe no eixo Y (só com o mesmo X de onde veio, com barras de erro ±σ na média móvel), ela acompanha o Recalcular da análise de origem e pode ser estilizada no painel "Iniciar edição" (◆ na caixa 'Dado'). A árvore mostra os canais do Y e também os que já têm análises (histórico), mesmo fora do Y. Sair do modo tira o preview e as análises com o olho aceso do gráfico. Se os dados de origem mudarem (corte ou calculadora), os nós ganham ⚠ com **Recalcular** (refaz a cadeia com os mesmos parâmetros; para no passo que não dá, ou pede para conferir o Δx se o X foi reescrito) ou **Manter**. Não fica ligada junto com a Nova Análise.
 * **Em desenvolvimento:** fundir arquivos, salvar gráfico e exportar dados.
 
 ## ▶️ Como executar
@@ -58,7 +58,7 @@ Wizzard_Analytics/
     │   ├── layout.py              # Árvore de componentes da página
     │   ├── renderizadores.py      # Funções puras que constroem o HTML (abas, canais, painel, calculadora...)
     │   ├── amostragem.py          # Barra e painel (árvore + configuração) da Nova Amostragem
-    │   ├── analises.py            # 'Análises do arquivo:' (análises que viraram canal pelo Add)
+    │   ├── analises.py            # 'Análises do arquivo:' (análises que viraram canal pelo Add to file)
     │   ├── rodape.py              # Dono do rodapé: info do arquivo, avisos e a mensagem do mago
     │   ├── feedback.py            # Contrato Feedback: o que o mago deve dizer (sucesso/aviso/erro/instrução)
     │   ├── estado.py              # EstadoApp: arquivos abertos na sessão
@@ -85,7 +85,7 @@ Wizzard_Analytics/
     │   ├── canais.py              # Eixos X/Y, excluir e renomear canais
     │   ├── corte.py               # Aparar/Excluir dados (seleção, confirmar, cancelar, Esc)
     │   ├── nova_analise.py        # Modo Nova Análise e calculadora de canais
-    │   ├── nova_amostragem.py     # Nova Amostragem: modo, origem, Preview, OK, Add, árvore
+    │   ├── nova_amostragem.py     # Nova Amostragem: modo, origem, Preview, Apply, Add to file, árvore
     │   ├── analises.py            # 'Análises do arquivo:' (pôr/tirar do Y, renomear, excluir)
     │   └── edicao.py              # Painel de edição (curva, eixos, ticks, outros)
     │
@@ -164,7 +164,7 @@ Botões que nascem dentro de listas reconstruídas por callbacks (canais, abas, 
 1. ✅ Rodapé e `Feedback`: um único responsável pela mensagem do mago.
 2. ✅ Separar o antigo `callbacks.py` (2492 linhas) em `src/callbacks/`, um módulo por área.
 3. ✅ Limpeza: código morto, filtro de cliques sem Store, renderização duplicada, regra de dados movida pro `core` (canal calculado, leitura de arquivo com índice implícito).
-4. ⏳ Nova Amostragem (branch `NovaAmostragem`): downsampling, média móvel e polynomial fit com Preview, árvore de derivados (OK) e canal com X próprio (Add).
+4. ⏳ Nova Amostragem (branch `NovaAmostragem`): downsampling, média móvel e polynomial fit com Preview, árvore de derivados (Apply) e canal com X próprio (Add to file).
    * ✅ 4.1 Core: `Serie`, árvore de proveniência no `Arquivo`, operações e testes.
    * ✅ 4.2 Core: origem alterada -> ⚠ com **Recalcular** (mesma sequência e parâmetros; para no nó que falha ou cujo Δx precisa de revisão) ou **Manter**; derivado só é exibido com o mesmo X de onde veio.
    * ✅ 4.3 Modo liga/desliga (exclusivo com a Nova Análise; corte, fechar gráfico e trocar aba desligam), barra de operações e painel (árvore + configuração).
@@ -177,4 +177,5 @@ Botões que nascem dentro de listas reconstruídas por callbacks (canais, abas, 
    * ✅ 4.7 Calculadora com análises (x′, y′): tokens y′/x′, domínio da expressão (tabela OU análises com o mesmo x′), resultado vira análise nova, sobrescrever desvincula (x′ reescrito é sinalizado).
    * ✅ 4.8 Ajustes: análises no painel de edição (cor/espessura/estilo/marcador), barras de erro ±σ das médias móveis no gráfico, sair do modo apaga os olhos, árvore mostra canais com análises mesmo fora do Y.
    * ✅ 4.9 Análise da calculadora na árvore: conta feita com análises (ex.: média A + média B) vira nó com várias origens, ligado a elas por um braço na árvore; serve de origem para novas análises, o Recalcular refaz a conta depois das origens e excluir uma origem leva a análise junto.
+   * ✅ 4.10 Apply / Add to file: OK vira Apply (desmarca a operação e seleciona a análise nova); Add to file sai da configuração para a seção "Análise selecionada" (com 👁 Mostrar no gráfico) e funciona a qualquer momento sobre a análise clicada; excluir na árvore tira do arquivo os canais da cadeia, com confirmação.
 5. ⏳ Revisar arquitetura: `allow_duplicate`, `EstadoApp`, renderização excessiva, cache do gráfico.

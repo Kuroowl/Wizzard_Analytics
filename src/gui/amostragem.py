@@ -22,8 +22,16 @@ O "contexto" (dict guardado em 'amostragem-contexto-store'):
     renomeando    id da análise com o nome em edição (lápis)
     detalhes      detalhes da análise (origem, parâmetros, resultado) abertos
                   no cartão? Começa fechado: a árvore fica com mais altura.
-    ultimos       {operação: parâmetros} usados por último (Preview/OK/Add):
+    ultimos       {operação: parâmetros} usados por último (Preview/Apply):
                   o painel volta com eles em vez dos valores iniciais.
+    confirmar     id da análise cuja 🗑 foi clicada uma vez e espera o 2º
+                  clique (a exclusão tira canais de 'Análises do arquivo').
+
+Fluxo: escolher a operação na barra -> Preview (opcional) -> Apply grava na
+árvore, a operação desmarca e a análise nova fica SELECIONADA (seção
+'Análise selecionada': detalhes recolhidos, 👁 Mostrar no gráfico, Add to
+file). Escolher outra operação parte dela. Clicar numa análise da árvore
+também a seleciona — é assim que se faz o Add to file depois.
 """
 from dash import dcc, get_asset_url, html
 
@@ -66,7 +74,7 @@ CAMPOS_PARAMETROS = {
 
 CONTEXTO_VAZIO = {'canal_y': None, 'pai': None, 'selecionado': None,
                   'recalculando': None, 'motivo': None, 'renomeando': None,
-                  'detalhes': False, 'ultimos': {}, 'parou': None}
+                  'detalhes': False, 'ultimos': {}, 'parou': None, 'confirmar': None}
 
 
 def contexto_normalizado(contexto):
@@ -216,6 +224,8 @@ def _linha_no(arquivo, no, eixo_x, nivel, contexto, segmentos=None):
         classes.append('visivel')
     if renomeando:
         classes.append('editando')
+    if contexto['confirmar'] == no.id:
+        classes.append('confirmando')
 
     if renomeando:
         rotulo = dcc.Input(
@@ -253,8 +263,10 @@ def _linha_no(arquivo, no, eixo_x, nivel, contexto, segmentos=None):
                         title='Salvar o nome' if renomeando else f"Renomear '{no.nome}'",
                         className='canal-editar-btn'),
             html.Button('🗑', id=id_acao('excluir', no.id), n_clicks=0,
-                        title=f"Excluir '{no.nome}' e as análises que saíram dela",
-                        className='canal-lixeira-btn'),
+                        title=(f"Clique de novo para excluir '{no.nome}' (sai também de Análises do arquivo)"
+                               if contexto['confirmar'] == no.id else
+                               f"Excluir '{no.nome}' e as análises que saíram dela"),
+                        className='canal-lixeira-btn' + (' confirmar' if contexto['confirmar'] == no.id else '')),
             _bracos(segmentos),
         ],
     )
@@ -444,6 +456,39 @@ def renderizar_cartao_no(arquivo, no, eixo_x, contexto):
     ])
 
 
+def renderizar_selecionada(arquivo, eixo_x, contexto):
+    """
+    Seção 'Análise selecionada': o cartão (detalhes recolhíveis, ⚠ com
+    Recalcular/Manter) e as ações sobre ela — 👁 Mostrar/Esconder no
+    gráfico (o mesmo do olho da árvore) e Add to file. Sem análise
+    selecionada, Add to file fica inativo.
+    """
+    contexto = contexto_normalizado(contexto)
+    no = arquivo.arvore.no(contexto['selecionado']) if contexto['selecionado'] in arquivo.arvore else None
+    if no is None:
+        corpo = [html.Div('Clique numa análise na árvore, ou aplique uma operação.',
+                          className='amostragem-vazio')]
+        mostrar = html.Button('👁 Mostrar no gráfico', disabled=True, className='amostragem-acao-btn')
+        add = html.Button('Add to file', disabled=True, className='amostragem-acao-btn principal',
+                          title='Selecione uma análise na árvore')
+    else:
+        compativel = arquivo.derivado_compativel_com_x(no.id, eixo_x)
+        canal = arquivo.canal_da_analise(no.id)
+        corpo = [renderizar_cartao_no(arquivo, no, eixo_x, contexto)]
+        mostrar = html.Button(
+            '👁 Esconder do gráfico' if no.visivel and compativel else '👁 Mostrar no gráfico',
+            id=id_acao('mostrar', no.id), n_clicks=0, disabled=not compativel,
+            title='' if compativel else f"Só pode ser mostrada com X = '{arquivo.rotulo(no.eixo_x)}'",
+            className='amostragem-acao-btn' + (' ligado' if no.visivel and compativel else ''))
+        add = html.Button(
+            '✓ No arquivo' if canal else 'Add to file',
+            id=id_acao('add', no.id), n_clicks=0, disabled=canal is not None,
+            title=(f"Já está em Análises do arquivo como '{canal.rotulo}'" if canal else
+                   "Põe esta análise em 'Análises do arquivo' (menu da esquerda) como um canal (x', y')"),
+            className='amostragem-acao-btn principal')
+    return [*corpo, html.Div([mostrar, add], className='amostragem-acoes')]
+
+
 # ============================================================================
 # Configuração da operação
 # ============================================================================
@@ -533,14 +578,14 @@ def _caixa_origem(arquivo, canal_y, eixo_origem, pai):
 
 def renderizar_config_amostragem(arquivo, eixo_x, operacao, contexto=None):
     """
-    Cartão da análise clicada (se houver) + configuração: a origem dos
-    dados (caixa preenchida pelo clique na árvore), o X, os parâmetros e os
-    botões Preview / OK / Add.
+    Configuração: a origem dos dados (caixa preenchida pelo clique na
+    árvore), o X, os parâmetros e os botões Preview / Apply (o cartão da
+    análise selecionada fica na seção de cima, renderizar_selecionada).
 
     Valores dos parâmetros, nesta ordem de preferência:
       1. Recalcular parado numa análise -> os parâmetros dela (pra ajustar);
       2. preview desta configuração no gráfico -> os do preview;
-      3. os últimos usados nesta operação (OK/Add não "esquecem" o que foi
+      3. os últimos usados nesta operação (o Apply não "esquece" o que foi
          digitado);
       4. valores iniciais calculados dos dados da origem.
     """
@@ -548,7 +593,6 @@ def renderizar_config_amostragem(arquivo, eixo_x, operacao, contexto=None):
     if operacao not in OPERACOES:       # ex: 'calculadora' não é operação da barra
         operacao = None
     no_sel = arquivo.arvore.no(contexto['selecionado']) if contexto['selecionado'] in arquivo.arvore else None
-    cartao = [renderizar_cartao_no(arquivo, no_sel, eixo_x, contexto)] if no_sel else []
 
     canal_y, eixo_origem, pai = origem_efetiva(arquivo, eixo_x, contexto)
     recalculando = no_sel is not None and contexto['recalculando'] == no_sel.id
@@ -556,7 +600,7 @@ def renderizar_config_amostragem(arquivo, eixo_x, operacao, contexto=None):
 
     if operacao is None:
         return html.Div(className='amostragem-config', children=[
-            *cartao, caixa_origem,
+            caixa_origem,
             html.Div('Escolha uma operação na barra acima do gráfico.', className='amostragem-vazio'),
         ])
 
@@ -583,7 +627,6 @@ def renderizar_config_amostragem(arquivo, eixo_x, operacao, contexto=None):
 
     pode_operar = canal_y is not None and compativel
     return html.Div(className='amostragem-config', children=[
-        *cartao,
         caixa_origem,
         html.Div(className='amostragem-param', children=[
             html.Label('Eixo X', className='amostragem-param-rotulo'),
@@ -597,20 +640,20 @@ def renderizar_config_amostragem(arquivo, eixo_x, operacao, contexto=None):
             html.Button('Preview', id='amostragem-preview', n_clicks=0, disabled=not pode_operar,
                         title='Mostra o resultado no gráfico, sem registrar',
                         className='amostragem-acao-btn'),
-            html.Button('Recalcular' if recalculando else 'OK', id='amostragem-ok', n_clicks=0,
+            html.Button('Recalcular' if recalculando else 'Apply', id='amostragem-ok', n_clicks=0,
                         disabled=not pode_operar,
                         title=('Recalcula esta análise com estes parâmetros e segue a cadeia'
-                               if recalculando else 'Registra esta análise na árvore'),
+                               if recalculando else 'Grava esta análise na árvore e a seleciona'),
                         className='amostragem-acao-btn principal'),
-            html.Button('Add', id='amostragem-add', n_clicks=0, disabled=not pode_operar or recalculando,
-                        title="Transforma esta análise num canal (x', y') em 'Análises do arquivo'",
-                        className='amostragem-acao-btn'),
         ]),
     ])
 
 
 def renderizar_painel_amostragem(estado, aba_ativa, eixo_x, operacao, contexto=None):
-    """Conteúdo de '#area-modo-nova-amostragem-edicao': árvore em cima, configuração embaixo."""
+    """
+    Conteúdo de '#area-modo-nova-amostragem-edicao': árvore, análise
+    selecionada (Add to file à parte da configuração) e configuração.
+    """
     arquivo = estado.arquivos.get(aba_ativa) if aba_ativa else None
     if arquivo is None:
         return []
@@ -622,6 +665,10 @@ def renderizar_painel_amostragem(estado, aba_ativa, eixo_x, operacao, contexto=N
                 html.Span(f"X: {arquivo.rotulo(eixo_x)}" if eixo_x else '', className='amostragem-titulo-x'),
             ]),
             renderizar_arvore_amostragem(arquivo, eixo_x, contexto),
+        ]),
+        html.Div(className='amostragem-secao amostragem-secao-selecionada', children=[
+            html.Div('Análise selecionada', className='calculadora-grupo-titulo'),
+            *renderizar_selecionada(arquivo, eixo_x, contexto),
         ]),
         html.Div(className='amostragem-secao amostragem-secao-config', children=[
             html.Div(titulo_config, className='calculadora-grupo-titulo'),

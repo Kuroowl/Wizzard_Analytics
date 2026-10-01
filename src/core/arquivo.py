@@ -674,7 +674,7 @@ class Arquivo:
 
     def registrar_preview_amostragem(self, nome: str | None = None) -> NoDerivado:
         """
-        Botão OK: o preview em exibição vira um nó da árvore (mesma origem,
+        Botão Apply: o preview em exibição vira um nó da árvore (mesma origem,
         operação, parâmetros e resultado) e sai do gráfico.
         """
         preview = self.preview_amostragem
@@ -707,7 +707,7 @@ class Arquivo:
                            canal_y: str, eixo_x: str, pai: str | None = None,
                            nome: str | None = None) -> NoDerivado:
         """
-        Botão OK: guarda o resultado na árvore. Com 'pai', o nó é filho de
+        Botão Apply: guarda o resultado na árvore. Com 'pai', o nó é filho de
         outro nó (e herda dele o canal raiz e o eixo X); sem, sai direto do
         canal 'canal_y' contra 'eixo_x'.
 
@@ -793,7 +793,7 @@ class Arquivo:
 
     def derivado_desatualizado(self, id_no: str) -> bool:
         """
-        True se os dados de origem mudaram depois do OK deste nó ou de
+        True se os dados de origem mudaram depois do Apply deste nó ou de
         qualquer nó acima dele (um filho de um nó velho também é velho).
         """
         return any(self._origem_mudou(no) for no in self.arvore.ancestrais(id_no))
@@ -827,7 +827,7 @@ class Arquivo:
         próprio nó) e desce por todos os que saíram deles. Uma análise só é
         refeita depois de TODAS as suas origens (as da calculadora podem ter
         várias). Em cada nó:
-          - se a operação usa Δx e o X foi REESCRITO desde o OK, para ali
+          - se a operação usa Δx e o X foi REESCRITO desde o Apply, para ali
             com uma pendência 'revisar' (o mesmo número pode ter mudado de
             significado);
           - se a operação falha com os parâmetros antigos, para ali com uma
@@ -965,16 +965,24 @@ class Arquivo:
         self._carimbar(no)
         return self.arvore.adicionar(no)
 
+    def canais_da_cadeia(self, id_no: str) -> list[CanalDerivado]:
+        """
+        Canais de 'Análises do arquivo' que ainda acompanham esta análise ou
+        alguma que saiu dela — os que excluir_derivado leva junto.
+        """
+        ids = {id_no} | {n.id for n in self.arvore.descendentes(id_no)}
+        return [c for c in self.canais_derivados.values() if c.no_origem in ids]
+
     def excluir_derivado(self, id_no: str) -> list[str]:
         """
         Remove o nó e todos os que saíram dele. Devolve os ids removidos.
-        Canais que vieram deles (Add) continuam, desvinculados.
+        Os canais que acompanham essas análises (Add) saem do arquivo junto
+        (e do Y). Um canal já desvinculado (sobrescrito na calculadora) é
+        independente e fica.
         """
-        removidos = self.arvore.excluir(id_no)
-        for canal in self.canais_derivados.values():
-            if canal.no_origem in removidos:
-                canal.no_origem = None
-        return removidos
+        for canal in self.canais_da_cadeia(id_no):
+            self.excluir_canal_derivado(canal.nome)
+        return self.arvore.excluir(id_no)
 
     # --- Análises que viraram canal (Add) ------------------------------
 

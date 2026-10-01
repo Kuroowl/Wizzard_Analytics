@@ -58,7 +58,6 @@ ORIGENS_FEEDBACK = (
     'amostragem-preview',
     'amostragem-ok',
     'amostragem-arvore',
-    'amostragem-add',
     'analises',
 )
 
